@@ -1,0 +1,18 @@
+---
+kind: pipeline
+name: default
+
+steps:
+  - name: test
+    image: rust:1.57.0
+    environment:
+      RUST_BACKTRACE: full
+    commands:
+      - rustup component add rustfmt clippy
+      - rustc --version
+      - cargo clippy --version
+      - cargo fmt --version
+      - cargo fmt -- --check
+      - cargo clippy --all-targets --all-features
+      - cargo check --workspace
+      - cargo test --workspace -- --test-threads=1
