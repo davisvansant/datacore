@@ -4,6 +4,8 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::Router;
 
+mod authorization;
+
 pub struct AuthorizationServer {}
 
 impl AuthorizationServer {
@@ -32,10 +34,6 @@ impl AuthorizationServer {
             )
             .merge(token_routes)
             .fallback(AuthorizationServer::fallback.into_service())
-    }
-
-    async fn authorization() -> &'static str {
-        "grant"
     }
 
     async fn client_registration() -> &'static str {
