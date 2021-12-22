@@ -1,7 +1,7 @@
 use axum::handler::Handler;
 use axum::http::{StatusCode, Uri};
 use axum::response::IntoResponse;
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::Router;
 
 pub struct AuthorizationServer {}
@@ -12,20 +12,26 @@ impl AuthorizationServer {
     }
 
     pub async fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let client_registration = Router::new()
+        axum::Server::bind(&"127.0.0.1:3000".parse().unwrap())
+            .serve(self.router().await.into_make_service())
+            .await?;
+
+        Ok(())
+    }
+
+    async fn router(&self) -> Router {
+        let token_routes = Router::new()
+            .route("/token", get(AuthorizationServer::token))
+            .route("/token", post(AuthorizationServer::token));
+
+        Router::new()
             .route("/authorization", get(AuthorizationServer::authorization))
             .route(
                 "/client_registration",
                 get(AuthorizationServer::client_registration),
             )
-            .route("/token", get(AuthorizationServer::token))
-            .fallback(AuthorizationServer::fallback.into_service());
-
-        axum::Server::bind(&"127.0.0.1:3000".parse().unwrap())
-            .serve(client_registration.into_make_service())
-            .await?;
-
-        Ok(())
+            .merge(token_routes)
+            .fallback(AuthorizationServer::fallback.into_service())
     }
 
     async fn authorization() -> &'static str {
