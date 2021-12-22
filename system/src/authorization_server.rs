@@ -5,6 +5,7 @@ use axum::routing::{get, post};
 use axum::Router;
 
 mod authorization;
+mod token;
 
 pub struct AuthorizationServer {}
 
@@ -42,9 +43,5 @@ impl AuthorizationServer {
 
     async fn fallback(uri: Uri) -> impl IntoResponse {
         (StatusCode::NOT_FOUND, format!("No route for {}", uri))
-    }
-
-    async fn token() -> &'static str {
-        "token"
     }
 }
