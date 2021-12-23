@@ -1,5 +1,6 @@
 use axum::body::Body;
 use axum::extract::Query;
+use axum::http::header::HeaderMap;
 use axum::http::StatusCode;
 use axum::response::Response as HttpResponse;
 use serde::{Deserialize, Serialize};
@@ -24,8 +25,14 @@ pub(crate) struct Response {
 
 impl AuthorizationServer {
     pub(crate) async fn authorization(
+        headers: HeaderMap,
         request: Query<Request>,
     ) -> Result<HttpResponse<Body>, StatusCode> {
+        for (key, value) in headers.iter() {
+            println!("header key - {:?}", key);
+            println!("header value - {:?}", value);
+        }
+
         println!("response type = {:?}", request.response_type);
         println!("client_id = {:?}", request.client_id);
         println!("redirect_uri = {:?}", request.redirect_uri);
