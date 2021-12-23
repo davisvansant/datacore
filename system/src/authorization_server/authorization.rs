@@ -26,18 +26,18 @@ pub(crate) struct Response {
 impl AuthorizationServer {
     pub(crate) async fn authorization(
         headers: HeaderMap,
-        request: Query<Request>,
+        query: Query<Request>,
     ) -> Result<HttpResponse<Body>, StatusCode> {
         for (key, value) in headers.iter() {
             println!("header key - {:?}", key);
             println!("header value - {:?}", value);
         }
 
-        println!("response type = {:?}", request.response_type);
-        println!("client_id = {:?}", request.client_id);
-        println!("redirect_uri = {:?}", request.redirect_uri);
-        println!("scope = {:?}", request.scope);
-        println!("state = {:?}", request.state);
+        println!("response type = {:?}", query.response_type);
+        println!("client_id = {:?}", query.client_id);
+        println!("redirect_uri = {:?}", query.redirect_uri);
+        println!("scope = {:?}", query.scope);
+        println!("state = {:?}", query.state);
 
         let json_response = Response {
             code: String::from("some_code"),
