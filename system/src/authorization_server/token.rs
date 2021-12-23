@@ -1,5 +1,6 @@
 use axum::body::Body;
 use axum::extract::Query;
+use axum::http::header::HeaderMap;
 use axum::http::StatusCode;
 use axum::response::Response as HttpResponse;
 use serde::{Deserialize, Serialize};
@@ -23,8 +24,14 @@ pub(crate) struct AccessTokenResponse {
 
 impl AuthorizationServer {
     pub(crate) async fn token(
+        headers: HeaderMap,
         request: Query<AccessTokenRequest>,
     ) -> Result<HttpResponse<Body>, StatusCode> {
+        for (key, value) in headers.iter() {
+            println!("header key {:?}", key);
+            println!("header value {:?}", value);
+        }
+
         println!("grant type = {:?}", request.grant_type);
         println!("code = {:?}", request.code);
         println!("redirect uri = {:?}", request.redirect_uri);
