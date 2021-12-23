@@ -25,17 +25,17 @@ pub(crate) struct AccessTokenResponse {
 impl AuthorizationServer {
     pub(crate) async fn token(
         headers: HeaderMap,
-        request: Query<AccessTokenRequest>,
+        query: Query<AccessTokenRequest>,
     ) -> Result<HttpResponse<Body>, StatusCode> {
         for (key, value) in headers.iter() {
             println!("header key {:?}", key);
             println!("header value {:?}", value);
         }
 
-        println!("grant type = {:?}", request.grant_type);
-        println!("code = {:?}", request.code);
-        println!("redirect uri = {:?}", request.redirect_uri);
-        println!("client id = {:?}", request.client_id);
+        println!("grant type = {:?}", query.grant_type);
+        println!("code = {:?}", query.code);
+        println!("redirect uri = {:?}", query.redirect_uri);
+        println!("client id = {:?}", query.client_id);
 
         let access_token_response = AccessTokenResponse {
             access_token: String::from("some_access_token"),
