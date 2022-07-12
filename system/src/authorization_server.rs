@@ -6,6 +6,7 @@ use axum::Router;
 
 mod authorization;
 mod token;
+mod userinfo;
 
 pub struct AuthorizationServer {}
 
@@ -27,6 +28,10 @@ impl AuthorizationServer {
             .route("/token", get(AuthorizationServer::token))
             .route("/token", post(AuthorizationServer::token));
 
+        let userinfo_routes = Router::new()
+            .route("/userinfo", get(AuthorizationServer::userinfo))
+            .route("userinfo", post(AuthorizationServer::userinfo));
+
         Router::new()
             .route("/authorization", get(AuthorizationServer::authorization))
             .route(
@@ -34,6 +39,7 @@ impl AuthorizationServer {
                 get(AuthorizationServer::client_registration),
             )
             .merge(token_routes)
+            .merge(userinfo_routes)
             .fallback(AuthorizationServer::fallback.into_service())
     }
 
