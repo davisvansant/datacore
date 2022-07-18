@@ -1,33 +1,23 @@
 use axum::body::Body;
 use axum::extract::Query;
-use axum::http::header::HeaderMap;
+use axum::http::header::{HeaderMap, CONTENT_TYPE, LOCATION};
 use axum::http::StatusCode;
-use axum::response::Response as HttpResponse;
-use serde::{Deserialize, Serialize};
+use axum::response::Response;
 
 use super::AuthorizationServer;
 
-#[derive(Deserialize)]
-pub(crate) struct Request {
-    response_type: String,
-    client_id: String,
-    redirect_uri: Option<String>,
-    scope: Option<String>,
-    state: Option<String>,
-}
+use request::AuthorizationRequest;
+use response::AuthorizationResponse;
 
-#[derive(Serialize)]
-pub(crate) struct Response {
-    code: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    state: Option<String>,
-}
+mod error;
+mod request;
+mod response;
 
 impl AuthorizationServer {
-    pub(crate) async fn authentication(
+    pub(crate) async fn authorization(
         headers: HeaderMap,
-        query: Query<Request>,
-    ) -> Result<HttpResponse<Body>, StatusCode> {
+        query: Query<AuthorizationRequest>,
+    ) -> Result<Response<Body>, StatusCode> {
         for (key, value) in headers.iter() {
             println!("header key - {:?}", key);
             println!("header value - {:?}", value);
@@ -39,13 +29,15 @@ impl AuthorizationServer {
         println!("scope = {:?}", query.scope);
         println!("state = {:?}", query.state);
 
-        let json_response = Response {
+        let json_response = AuthorizationResponse {
             code: String::from("some_code"),
             state: None,
         };
 
-        let response = HttpResponse::builder()
-            .status(200)
+        let response = Response::builder()
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .header(LOCATION, "some_redirect_url")
+            .status(302)
             .body(Body::from(serde_json::to_string(&json_response).unwrap()))
             .unwrap();
 
