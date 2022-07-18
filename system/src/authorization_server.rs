@@ -1,22 +1,27 @@
+use std::net::SocketAddr;
+
 use axum::handler::Handler;
 use axum::http::{StatusCode, Uri};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::Router;
+use axum::Server;
 
 mod authorization;
 mod token;
 mod userinfo;
 
-pub struct AuthorizationServer {}
+pub struct AuthorizationServer {
+    socket_address: SocketAddr,
+}
 
 impl AuthorizationServer {
-    pub async fn init() -> AuthorizationServer {
-        AuthorizationServer {}
+    pub async fn init(socket_address: SocketAddr) -> AuthorizationServer {
+        AuthorizationServer { socket_address }
     }
 
     pub async fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
-        axum::Server::bind(&"127.0.0.1:3000".parse().unwrap())
+        Server::bind(&self.socket_address)
             .serve(self.router().await.into_make_service())
             .await?;
 
