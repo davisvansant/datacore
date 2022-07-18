@@ -24,7 +24,7 @@ pub(crate) struct Response {
 }
 
 impl AuthorizationServer {
-    pub(crate) async fn authorization(
+    pub(crate) async fn authentication(
         headers: HeaderMap,
         query: Query<Request>,
     ) -> Result<HttpResponse<Body>, StatusCode> {

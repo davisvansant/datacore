@@ -7,7 +7,7 @@ use axum::routing::{get, post};
 use axum::Router;
 use axum::Server;
 
-mod authorization;
+mod authentication;
 mod token;
 mod userinfo;
 
@@ -29,6 +29,10 @@ impl AuthorizationServer {
     }
 
     async fn router(&self) -> Router {
+        let authentication_routes = Router::new()
+            .route("/authorize", get(AuthorizationServer::authentication))
+            .route("/authorize", post(AuthorizationServer::authentication));
+
         let token_routes = Router::new()
             .route("/token", get(AuthorizationServer::token))
             .route("/token", post(AuthorizationServer::token));
@@ -38,11 +42,11 @@ impl AuthorizationServer {
             .route("userinfo", post(AuthorizationServer::userinfo));
 
         Router::new()
-            .route("/authorization", get(AuthorizationServer::authorization))
             .route(
                 "/client_registration",
                 get(AuthorizationServer::client_registration),
             )
+            .merge(authentication_routes)
             .merge(token_routes)
             .merge(userinfo_routes)
             .fallback(AuthorizationServer::fallback.into_service())
