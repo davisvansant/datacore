@@ -33,13 +33,13 @@ impl AuthorizationServer {
             .route("/authorize", get(AuthorizationServer::authorization))
             .route("/authorize", post(AuthorizationServer::authorization));
 
-        let token_routes = Router::new()
+        let token_endpoint = Router::new()
             .route("/token", get(AuthorizationServer::token))
             .route("/token", post(AuthorizationServer::token));
 
-        let userinfo_routes = Router::new()
+        let userinfo_endpoint = Router::new()
             .route("/userinfo", get(AuthorizationServer::userinfo))
-            .route("userinfo", post(AuthorizationServer::userinfo));
+            .route("/userinfo", post(AuthorizationServer::userinfo));
 
         Router::new()
             .route(
@@ -47,8 +47,8 @@ impl AuthorizationServer {
                 get(AuthorizationServer::client_registration),
             )
             .merge(authorization_endpoint)
-            .merge(token_routes)
-            .merge(userinfo_routes)
+            .merge(token_endpoint)
+            .merge(userinfo_endpoint)
             .fallback(AuthorizationServer::fallback.into_service())
     }
 
