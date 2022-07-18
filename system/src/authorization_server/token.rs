@@ -1,32 +1,22 @@
 use axum::body::Body;
 use axum::extract::Query;
-use axum::http::header::HeaderMap;
+use axum::http::header::{HeaderMap, CONTENT_TYPE};
 use axum::http::StatusCode;
-use axum::response::Response as HttpResponse;
-use serde::{Deserialize, Serialize};
+use axum::response::Response;
 
 use super::AuthorizationServer;
 
-#[derive(Deserialize)]
-pub(crate) struct AccessTokenRequest {
-    grant_type: String,
-    code: String,
-    redirect_uri: String,
-    client_id: String,
-}
+use request::AccessTokenRequest;
+use response::{AccessTokenResponse, AccessTokenType};
 
-#[derive(Serialize)]
-pub(crate) struct AccessTokenResponse {
-    access_token: String,
-    token_type: String,
-    expires_in: u16,
-}
+mod request;
+mod response;
 
 impl AuthorizationServer {
     pub(crate) async fn token(
         headers: HeaderMap,
         query: Query<AccessTokenRequest>,
-    ) -> Result<HttpResponse<Body>, StatusCode> {
+    ) -> Result<Response<Body>, StatusCode> {
         for (key, value) in headers.iter() {
             println!("header key {:?}", key);
             println!("header value {:?}", value);
@@ -39,11 +29,12 @@ impl AuthorizationServer {
 
         let access_token_response = AccessTokenResponse {
             access_token: String::from("some_access_token"),
-            token_type: String::from("some_token_type"),
+            token_type: AccessTokenType::Bearer,
             expires_in: 3600,
         };
 
-        let response = HttpResponse::builder()
+        let response = Response::builder()
+            .header(CONTENT_TYPE, "application/json")
             .status(200)
             .body(Body::from(
                 serde_json::to_string(&access_token_response).unwrap(),
