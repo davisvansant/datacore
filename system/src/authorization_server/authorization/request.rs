@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub(crate) struct AuthorizationRequest {
-    pub response_type: ResponseType,
+    pub response_type: AuthorizationResponseType,
     pub client_id: String,
     pub redirect_uri: Option<String>,
     pub scope: Option<String>,
@@ -10,7 +10,7 @@ pub(crate) struct AuthorizationRequest {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-pub enum ResponseType {
+pub enum AuthorizationResponseType {
     #[serde(rename(deserialize = "code"))]
     Code,
 }
@@ -29,7 +29,10 @@ mod tests {
 
         let test_authorization_request: AuthorizationRequest = from_value(test_json)?;
 
-        assert_eq!(test_authorization_request.response_type, ResponseType::Code);
+        assert_eq!(
+            test_authorization_request.response_type,
+            AuthorizationResponseType::Code,
+        );
         assert_eq!(test_authorization_request.client_id, "some_client_id");
 
         Ok(())
