@@ -1,13 +1,13 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct AccessTokenResponse {
     pub access_token: String,
     pub token_type: AccessTokenType,
     pub expires_in: u16,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub enum AccessTokenType {
     Bearer,
 }
