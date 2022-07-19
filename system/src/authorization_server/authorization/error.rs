@@ -1,24 +1,16 @@
 use serde::Serialize;
 
 #[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AuthorizationErrorCode {
-    #[serde(rename = "interaction_required")]
     InteractionRequired,
-    #[serde(rename = "login_required")]
     LoginRequired,
-    #[serde(rename = "account_selection_required")]
     AccountSelectionRequired,
-    #[serde(rename = "consent_required")]
     ConsentRequired,
-    #[serde(rename = "invalid_request_uri")]
     InvalidRequestUri,
-    #[serde(rename = "invalid_request_object")]
     InvalidRequestObject,
-    #[serde(rename = "request_not_supported")]
     RequestNotSupported,
-    #[serde(rename = "request_uri_not_supported")]
     RequestUriNotSupported,
-    #[serde(rename = "registration_not_supported")]
     RegistrationNotSupported,
 }
 
