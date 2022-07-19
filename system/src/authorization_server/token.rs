@@ -9,6 +9,7 @@ use super::AuthorizationServer;
 use request::AccessTokenRequest;
 use response::{AccessTokenResponse, AccessTokenType};
 
+mod error;
 mod request;
 mod response;
 
