@@ -9,8 +9,8 @@ pub struct AccessTokenRequest {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
 pub enum GrantType {
-    #[serde(rename(deserialize = "authorization_code"))]
     AuthorizationCode,
 }
 

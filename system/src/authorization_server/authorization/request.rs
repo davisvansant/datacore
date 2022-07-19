@@ -10,8 +10,8 @@ pub(crate) struct AuthorizationRequest {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
 pub enum AuthorizationResponseType {
-    #[serde(rename(deserialize = "code"))]
     Code,
 }
 
