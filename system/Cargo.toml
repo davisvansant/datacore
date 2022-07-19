@@ -10,3 +10,7 @@ axum = { version = "0.5.12", default-features = false, features = [ "http1", "qu
 tokio = { version = "1.19.2", default-features = false, features = [ "macros", "rt-multi-thread"] }
 serde = { version = "1.0.139", default-features = false, features = [ "derive" ] }
 serde_json = { version = "1.0.82", default-features = false, features = [ "std" ] }
+
+[dev-dependencies]
+http = "0.2.8"
+hyper = { version = "0.14.20", default-features = false, features = [ "client", "http1" ] }
