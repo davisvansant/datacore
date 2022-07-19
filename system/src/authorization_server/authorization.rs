@@ -29,16 +29,18 @@ impl AuthorizationServer {
         println!("scope = {:?}", query.scope);
         println!("state = {:?}", query.state);
 
-        let json_response = AuthorizationResponse {
+        let authorization_response = AuthorizationResponse {
             code: String::from("some_code"),
             state: None,
         };
 
+        let redirect_url = authorization_response.url().await;
+
         let response = Response::builder()
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .header(LOCATION, "some_redirect_url")
+            .header(LOCATION, redirect_url)
             .status(302)
-            .body(Body::from(serde_json::to_string(&json_response).unwrap()))
+            .body(Body::empty())
             .unwrap();
 
         Ok(response)
@@ -112,8 +114,11 @@ mod tests {
                 .headers()
                 .get(LOCATION)
                 .unwrap(),
-            "some_redirect_url",
+            "code=some_code",
         );
+        assert!(hyper::body::to_bytes(test_response.unwrap().body_mut())
+            .await?
+            .is_empty());
 
         Ok(())
     }
