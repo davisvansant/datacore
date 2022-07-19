@@ -100,23 +100,7 @@ mod tests {
                 .unwrap(),
             "application/json",
         );
-        // assert!(test_response
-        //     .as_ref()
-        //     .unwrap()
-        //     .headers()
-        //     .contains_key(LOCATION));
-        // assert_eq!(
-        //     test_response
-        //         .as_ref()
-        //         .unwrap()
-        //         .headers()
-        //         .get(LOCATION)
-        //         .unwrap(),
-        //     "code=some_code",
-        // );
-        // assert!(hyper::body::to_bytes(test_response.unwrap().body_mut())
-        //     .await?
-        //     .is_empty());
+
         let test_response_body = hyper::body::to_bytes(test_response.unwrap().body_mut()).await?;
         let test_response_json: AccessTokenResponse = serde_json::from_slice(&test_response_body)?;
 
