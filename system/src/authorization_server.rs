@@ -1,8 +1,5 @@
 use std::net::SocketAddr;
 
-use axum::handler::Handler;
-use axum::http::{StatusCode, Uri};
-use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::Router;
 use axum::Server;
@@ -42,21 +39,27 @@ impl AuthorizationServer {
             .route("/userinfo", post(AuthorizationServer::userinfo));
 
         Router::new()
-            .route(
-                "/client_registration",
-                get(AuthorizationServer::client_registration),
-            )
             .merge(authorization_endpoint)
             .merge(token_endpoint)
             .merge(userinfo_endpoint)
-            .fallback(AuthorizationServer::fallback.into_service())
     }
+}
 
-    async fn client_registration() -> &'static str {
-        "hello from client registration!"
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
 
-    async fn fallback(uri: Uri) -> impl IntoResponse {
-        (StatusCode::NOT_FOUND, format!("No route for {}", uri))
+    #[tokio::test]
+    async fn init() -> Result<(), Box<dyn std::error::Error>> {
+        let test_socket_address = SocketAddr::from_str("127.0.0.1:6749")?;
+        let test_authorization_server = AuthorizationServer::init(test_socket_address).await;
+
+        assert_eq!(
+            test_authorization_server.socket_address.to_string(),
+            "127.0.0.1:6749",
+        );
+
+        Ok(())
     }
 }
