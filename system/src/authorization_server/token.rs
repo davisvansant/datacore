@@ -1,6 +1,6 @@
 use axum::body::Body;
 use axum::extract::Query;
-use axum::http::header::{HeaderMap, CACHE_CONTROL, CONTENT_TYPE};
+use axum::http::header::{HeaderMap, CACHE_CONTROL, CONTENT_TYPE, PRAGMA};
 use axum::http::StatusCode;
 use axum::response::Response;
 
@@ -37,6 +37,7 @@ impl AuthorizationServer {
         let response = Response::builder()
             .header(CONTENT_TYPE, "application/json")
             .header(CACHE_CONTROL, "no-store")
+            .header(PRAGMA, "no-cache")
             .status(200)
             .body(Body::from(
                 serde_json::to_string(&access_token_response).unwrap(),
@@ -116,6 +117,21 @@ mod tests {
                 .get(CACHE_CONTROL)
                 .unwrap(),
             "no-store",
+        );
+
+        assert!(test_response
+            .as_ref()
+            .unwrap()
+            .headers()
+            .contains_key(PRAGMA));
+        assert_eq!(
+            test_response
+                .as_ref()
+                .unwrap()
+                .headers()
+                .get(PRAGMA)
+                .unwrap(),
+            "no-cache",
         );
 
         let test_response_body = hyper::body::to_bytes(test_response.unwrap().body_mut()).await?;
