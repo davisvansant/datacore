@@ -7,8 +7,10 @@ use axum::response::Response;
 use super::ClientRegistration;
 
 use request::ClientMetadata;
+use response::ClientInformation;
 
 mod request;
+mod response;
 
 impl ClientRegistration {
     pub(crate) async fn register(_request: Request<Body>) -> Result<Response<Body>, StatusCode> {
