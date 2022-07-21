@@ -6,6 +6,10 @@ use axum::response::Response;
 
 use super::ClientRegistration;
 
+use request::ClientMetadata;
+
+mod request;
+
 impl ClientRegistration {
     pub(crate) async fn register(_request: Request<Body>) -> Result<Response<Body>, StatusCode> {
         let response = Response::builder()
