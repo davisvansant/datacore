@@ -6,9 +6,11 @@ use axum::response::Response;
 
 use super::ClientRegistration;
 
+use error::ClientRegistrationErrorCode;
 use request::ClientMetadata;
 use response::ClientInformation;
 
+mod error;
 mod request;
 mod response;
 
