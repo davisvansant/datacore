@@ -1,6 +1,6 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ClientMetadata {
     pub redirect_uris: Vec<String>,
     pub token_endpoint_auth_method: String,
