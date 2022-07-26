@@ -6,6 +6,7 @@ use axum::response::Response;
 
 use super::AuthorizationServer;
 
+use error::{AccessTokenError, AccessTokenErrorCode};
 use request::AccessTokenRequest;
 use response::{AccessTokenResponse, AccessTokenType};
 
@@ -17,7 +18,7 @@ impl AuthorizationServer {
     pub(crate) async fn token(
         headers: HeaderMap,
         query: Query<AccessTokenRequest>,
-    ) -> Result<Response<Body>, StatusCode> {
+    ) -> Result<Response<Body>, AccessTokenError> {
         for (key, value) in headers.iter() {
             println!("header key {:?}", key);
             println!("header value {:?}", value);
