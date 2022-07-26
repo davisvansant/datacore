@@ -176,7 +176,7 @@ mod tests {
     use axum::Router;
     use axum::Server;
     use hyper::{Body, Method};
-    use serde_json::to_vec;
+    use serde_json::{json, to_vec};
     use std::net::SocketAddr;
     use std::str::FromStr;
 
@@ -285,6 +285,381 @@ mod tests {
                 .get(PRAGMA)
                 .unwrap(),
             "no-cache",
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_content_type() -> Result<(), Box<dyn std::error::Error>> {
+        let test_client_metadata = ClientMetadata {
+            redirect_uris: vec![
+                String::from("some_test_uri_one"),
+                String::from("some_test_uri_two"),
+            ],
+            token_endpoint_auth_method: String::from("some_test_token_endpoint_auth_method"),
+            grant_types: String::from("some_test_grant_type"),
+            response_types: vec![
+                String::from("some_test_response_type_one"),
+                String::from("some_test_response_type_two"),
+            ],
+            client_name: String::from("some_test_client_name"),
+            client_uri: String::from("some_test_client_uri"),
+            logo_uri: String::from("some_test_logo_uri"),
+            scope: String::from("some_test_scope"),
+            contacts: String::from("some_test_contacts"),
+            tos_uri: String::from("some_test_tos_uri"),
+            policy_uri: String::from("some_test_policy_uri"),
+            jwks_uri: String::from("some_test_jwks_uri"),
+            jwks: String::from("some_test_jwks"),
+            software_id: String::from("some_test_software_id"),
+            software_version: String::from("some_test_software_version"),
+            software_statement: None,
+        };
+
+        let test_json = to_vec(&test_client_metadata)?;
+        let test_request_ok = http::request::Builder::new()
+            .header(CONTENT_TYPE, "application/json")
+            .method(Method::POST)
+            .body(Body::from(test_json))
+            .unwrap();
+
+        let test_check_content_type_ok =
+            ClientRegistration::check_content_type(test_request_ok.headers()).await;
+
+        assert!(test_check_content_type_ok.is_ok());
+
+        let test_request_error = http::request::Builder::new()
+            .method(Method::POST)
+            .body(Body::empty())
+            .unwrap();
+
+        let test_check_content_type_error =
+            ClientRegistration::check_content_type(test_request_error.headers()).await;
+
+        assert!(test_check_content_type_error.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_redirect_uri() -> Result<(), Box<dyn std::error::Error>> {
+        let test_client_metadata_ok = ClientMetadata {
+            redirect_uris: vec![
+                String::from("some_test_uri_one"),
+                String::from("some_test_uri_two"),
+            ],
+            token_endpoint_auth_method: String::from("some_test_token_endpoint_auth_method"),
+            grant_types: String::from("some_test_grant_type"),
+            response_types: vec![
+                String::from("some_test_response_type_one"),
+                String::from("some_test_response_type_two"),
+            ],
+            client_name: String::from("some_test_client_name"),
+            client_uri: String::from("some_test_client_uri"),
+            logo_uri: String::from("some_test_logo_uri"),
+            scope: String::from("some_test_scope"),
+            contacts: String::from("some_test_contacts"),
+            tos_uri: String::from("some_test_tos_uri"),
+            policy_uri: String::from("some_test_policy_uri"),
+            jwks_uri: String::from("some_test_jwks_uri"),
+            jwks: String::from("some_test_jwks"),
+            software_id: String::from("some_test_software_id"),
+            software_version: String::from("some_test_software_version"),
+            software_statement: None,
+        };
+
+        let test_check_redirect_uri_ok =
+            ClientRegistration::check_redirect_uri(&test_client_metadata_ok).await;
+
+        assert!(test_check_redirect_uri_ok.is_ok());
+
+        let test_client_metadata_error = ClientMetadata {
+            redirect_uris: vec![String::from("some_test_uri_one"), String::from("")],
+            token_endpoint_auth_method: String::from("some_test_token_endpoint_auth_method"),
+            grant_types: String::from("some_test_grant_type"),
+            response_types: vec![
+                String::from("some_test_response_type_one"),
+                String::from("some_test_response_type_two"),
+            ],
+            client_name: String::from("some_test_client_name"),
+            client_uri: String::from("some_test_client_uri"),
+            logo_uri: String::from("some_test_logo_uri"),
+            scope: String::from("some_test_scope"),
+            contacts: String::from("some_test_contacts"),
+            tos_uri: String::from("some_test_tos_uri"),
+            policy_uri: String::from("some_test_policy_uri"),
+            jwks_uri: String::from("some_test_jwks_uri"),
+            jwks: String::from("some_test_jwks"),
+            software_id: String::from("some_test_software_id"),
+            software_version: String::from("some_test_software_version"),
+            software_statement: None,
+        };
+
+        let test_check_redirect_uri_error =
+            ClientRegistration::check_redirect_uri(&test_client_metadata_error).await;
+
+        assert!(test_check_redirect_uri_error.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_valid_software_statement() -> Result<(), Box<dyn std::error::Error>> {
+        let test_client_metadata_ok = ClientMetadata {
+            redirect_uris: vec![
+                String::from("some_test_uri_one"),
+                String::from("some_test_uri_two"),
+            ],
+            token_endpoint_auth_method: String::from("some_test_token_endpoint_auth_method"),
+            grant_types: String::from("some_test_grant_type"),
+            response_types: vec![
+                String::from("some_test_response_type_one"),
+                String::from("some_test_response_type_two"),
+            ],
+            client_name: String::from("some_test_client_name"),
+            client_uri: String::from("some_test_client_uri"),
+            logo_uri: String::from("some_test_logo_uri"),
+            scope: String::from("some_test_scope"),
+            contacts: String::from("some_test_contacts"),
+            tos_uri: String::from("some_test_tos_uri"),
+            policy_uri: String::from("some_test_policy_uri"),
+            jwks_uri: String::from("some_test_jwks_uri"),
+            jwks: String::from("some_test_jwks"),
+            software_id: String::from("some_test_software_id"),
+            software_version: String::from("some_test_software_version"),
+            software_statement: Some(String::from("some_test_software_statement")),
+        };
+
+        let test_check_valid_software_statement_ok =
+            ClientRegistration::check_valid_software_statement(&test_client_metadata_ok).await;
+
+        assert!(test_check_valid_software_statement_ok.is_ok());
+
+        let test_client_metadata_error = ClientMetadata {
+            redirect_uris: vec![
+                String::from("some_test_uri_one"),
+                String::from("some_test_uri_two"),
+            ],
+            token_endpoint_auth_method: String::from("some_test_token_endpoint_auth_method"),
+            grant_types: String::from("some_test_grant_type"),
+            response_types: vec![
+                String::from("some_test_response_type_one"),
+                String::from("some_test_response_type_two"),
+            ],
+            client_name: String::from("some_test_client_name"),
+            client_uri: String::from("some_test_client_uri"),
+            logo_uri: String::from("some_test_logo_uri"),
+            scope: String::from("some_test_scope"),
+            contacts: String::from("some_test_contacts"),
+            tos_uri: String::from("some_test_tos_uri"),
+            policy_uri: String::from("some_test_policy_uri"),
+            jwks_uri: String::from("some_test_jwks_uri"),
+            jwks: String::from("some_test_jwks"),
+            software_id: String::from("some_test_software_id"),
+            software_version: String::from("some_test_software_version"),
+            software_statement: Some(String::from("")),
+        };
+
+        let test_check_valid_software_statement_error =
+            ClientRegistration::check_valid_software_statement(&test_client_metadata_error).await;
+
+        assert!(test_check_valid_software_statement_error.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_approved_software_statement() -> Result<(), Box<dyn std::error::Error>> {
+        let test_client_metadata_ok = ClientMetadata {
+            redirect_uris: vec![
+                String::from("some_test_uri_one"),
+                String::from("some_test_uri_two"),
+            ],
+            token_endpoint_auth_method: String::from("some_test_token_endpoint_auth_method"),
+            grant_types: String::from("some_test_grant_type"),
+            response_types: vec![
+                String::from("some_test_response_type_one"),
+                String::from("some_test_response_type_two"),
+            ],
+            client_name: String::from("some_test_client_name"),
+            client_uri: String::from("some_test_client_uri"),
+            logo_uri: String::from("some_test_logo_uri"),
+            scope: String::from("some_test_scope"),
+            contacts: String::from("some_test_contacts"),
+            tos_uri: String::from("some_test_tos_uri"),
+            policy_uri: String::from("some_test_policy_uri"),
+            jwks_uri: String::from("some_test_jwks_uri"),
+            jwks: String::from("some_test_jwks"),
+            software_id: String::from("some_test_software_id"),
+            software_version: String::from("some_test_software_version"),
+            software_statement: Some(String::from("some_test_software_statement")),
+        };
+
+        let test_check_approved_software_statement_ok =
+            ClientRegistration::check_approved_software_statement(&test_client_metadata_ok).await;
+
+        assert!(test_check_approved_software_statement_ok.is_ok());
+
+        let test_client_metadata_error = ClientMetadata {
+            redirect_uris: vec![
+                String::from("some_test_uri_one"),
+                String::from("some_test_uri_two"),
+            ],
+            token_endpoint_auth_method: String::from("some_test_token_endpoint_auth_method"),
+            grant_types: String::from("some_test_grant_type"),
+            response_types: vec![
+                String::from("some_test_response_type_one"),
+                String::from("some_test_response_type_two"),
+            ],
+            client_name: String::from("some_test_client_name"),
+            client_uri: String::from("some_test_client_uri"),
+            logo_uri: String::from("some_test_logo_uri"),
+            scope: String::from("some_test_scope"),
+            contacts: String::from("some_test_contacts"),
+            tos_uri: String::from("some_test_tos_uri"),
+            policy_uri: String::from("some_test_policy_uri"),
+            jwks_uri: String::from("some_test_jwks_uri"),
+            jwks: String::from("some_test_jwks"),
+            software_id: String::from("some_test_software_id"),
+            software_version: String::from("some_test_software_version"),
+            software_statement: Some(String::from("")),
+        };
+
+        let test_check_approved_software_statement_error =
+            ClientRegistration::check_approved_software_statement(&test_client_metadata_error)
+                .await;
+
+        assert!(test_check_approved_software_statement_error.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn bytes() -> Result<(), Box<dyn std::error::Error>> {
+        let test_client_metadata = ClientMetadata {
+            redirect_uris: vec![
+                String::from("some_test_uri_one"),
+                String::from("some_test_uri_two"),
+            ],
+            token_endpoint_auth_method: String::from("some_test_token_endpoint_auth_method"),
+            grant_types: String::from("some_test_grant_type"),
+            response_types: vec![
+                String::from("some_test_response_type_one"),
+                String::from("some_test_response_type_two"),
+            ],
+            client_name: String::from("some_test_client_name"),
+            client_uri: String::from("some_test_client_uri"),
+            logo_uri: String::from("some_test_logo_uri"),
+            scope: String::from("some_test_scope"),
+            contacts: String::from("some_test_contacts"),
+            tos_uri: String::from("some_test_tos_uri"),
+            policy_uri: String::from("some_test_policy_uri"),
+            jwks_uri: String::from("some_test_jwks_uri"),
+            jwks: String::from("some_test_jwks"),
+            software_id: String::from("some_test_software_id"),
+            software_version: String::from("some_test_software_version"),
+            software_statement: None,
+        };
+
+        let test_json = to_vec(&test_client_metadata)?;
+        let test_body = Body::from(test_json);
+        let test_bytes = ClientRegistration::bytes(test_body).await;
+
+        assert!(test_bytes.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn client_metadata() -> Result<(), Box<dyn std::error::Error>> {
+        let test_valid_json = json!({
+            "redirect_uris": [
+                "some_test_uri_one",
+                "some_test_uri_two",
+            ],
+            "token_endpoint_auth_method": "some_test_token_endpoint_auth_method",
+            "grant_types": "some_test_grant_type",
+            "response_types": [
+                "some_test_response_type_one",
+                "some_test_response_type_two",
+            ],
+            "client_name": "some_test_client_name",
+            "client_uri": "some_test_client_uri",
+            "logo_uri": "some_test_logo_uri",
+            "scope": "some_test_scope",
+            "contacts": "some_test_contacts",
+            "tos_uri": "some_test_tos_uri",
+            "policy_uri": "some_test_policy_uri",
+            "jwks_uri": "some_test_jwks_uri",
+            "jwks": "some_test_jwks",
+            "software_id": "some_test_software_id",
+            "software_version": "some_test_software_version",
+        });
+
+        let test_valid_bytes = to_vec(&test_valid_json)?;
+        let test_client_metadata_ok = ClientRegistration::client_metadata(&test_valid_bytes).await;
+
+        assert!(test_client_metadata_ok.is_ok());
+
+        let test_invalid_json = json!({
+            "some_json": "that_will_fail",
+        });
+
+        let test_invalid_bytes = to_vec(&test_invalid_json)?;
+        let test_client_metadata_error =
+            ClientRegistration::client_metadata(&test_invalid_bytes).await;
+
+        assert!(test_client_metadata_error.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn success() -> Result<(), Box<dyn std::error::Error>> {
+        let test_client_information = ClientInformation {
+            client_id: String::from("some_test_client_id"),
+            client_secret: String::from("some_test_client_secret"),
+            client_id_issued_at: String::from("some_test_client_id_issued_at"),
+            client_secret_expires_at: String::from("some_test_client_secret_expires_at"),
+        };
+
+        let test_json = to_vec(&test_client_information)?;
+        let test_response = ClientRegistration::success(test_json).await.unwrap();
+
+        assert!(test_response.headers().contains_key(CONTENT_TYPE));
+        assert!(test_response.headers().contains_key(CACHE_CONTROL));
+        assert!(test_response.headers().contains_key(PRAGMA));
+        assert_eq!(
+            test_response.headers().get(CONTENT_TYPE).unwrap(),
+            "application/json",
+        );
+        assert_eq!(
+            test_response.headers().get(CACHE_CONTROL).unwrap(),
+            "no-store",
+        );
+        assert_eq!(test_response.headers().get(PRAGMA).unwrap(), "no-cache");
+        assert_eq!(test_response.status(), StatusCode::CREATED);
+
+        let test_body_bytes = to_bytes(&mut test_response.into_body()).await?;
+        let test_client_information_response: ClientInformation =
+            serde_json::from_slice(&test_body_bytes)?;
+
+        assert_eq!(
+            test_client_information_response.client_id,
+            "some_test_client_id",
+        );
+        assert_eq!(
+            test_client_information_response.client_secret,
+            "some_test_client_secret",
+        );
+        assert_eq!(
+            test_client_information_response.client_id_issued_at,
+            "some_test_client_id_issued_at",
+        );
+        assert_eq!(
+            test_client_information_response.client_secret_expires_at,
+            "some_test_client_secret_expires_at",
         );
 
         Ok(())
