@@ -17,6 +17,7 @@ pub struct ClientMetadata {
     pub jwks: String,
     pub software_id: String,
     pub software_version: String,
+    pub software_statement: Option<String>,
 }
 
 #[cfg(test)]
