@@ -3,11 +3,11 @@ use axum::http::header::{HeaderMap, CACHE_CONTROL, CONTENT_TYPE, PRAGMA};
 use axum::http::request::Request;
 use axum::http::StatusCode;
 use axum::response::Response;
-use hyper::body::to_bytes;
+use hyper::body::{to_bytes, Bytes};
 
 use super::ClientRegistration;
 
-use error::ClientRegistrationErrorCode;
+use error::{ClientRegistrationError, ClientRegistrationErrorCode};
 use request::ClientMetadata;
 use response::ClientInformation;
 
@@ -16,32 +16,156 @@ mod request;
 mod response;
 
 impl ClientRegistration {
-    pub(crate) async fn register(request: Request<Body>) -> Result<Response<Body>, StatusCode> {
-        let request_headers = request.headers();
+    pub(crate) async fn register(
+        request: Request<Body>,
+    ) -> Result<Response<Body>, ClientRegistrationError> {
+        ClientRegistration::check_content_type(request.headers()).await?;
+        let bytes = ClientRegistration::bytes(request.into_body()).await?;
+        let client_metadata = ClientRegistration::client_metadata(&bytes).await?;
 
-        match request_headers.get(CONTENT_TYPE) {
-            None => println!("send error response"),
-            Some(application_json) => println!("valid request! -> {:?}", application_json),
+        println!("client metadata -> {:?}", &client_metadata);
+
+        ClientRegistration::check_redirect_uri(&client_metadata).await?;
+        ClientRegistration::check_valid_software_statement(&client_metadata).await?;
+        ClientRegistration::check_approved_software_statement(&client_metadata).await?;
+
+        let client_information = ClientInformation {
+            client_id: String::from("some_client_id"),
+            client_secret: String::from("some_client_secret"),
+            client_id_issued_at: String::from("some_client_id_issued_at"),
+            client_secret_expires_at: String::from("some_client_secret_expires_at"),
         };
 
-        let request_body = request.into_body();
+        let json = serde_json::to_vec(&client_information).expect("json");
 
-        let request_body_bytes = to_bytes(request_body).await.unwrap();
+        let response = ClientRegistration::success(json).await?;
 
-        let client_information: ClientMetadata =
-            serde_json::from_slice(&request_body_bytes).unwrap();
+        Ok(response)
+    }
 
-        println!("client information request -> {:?}", client_information);
+    async fn check_content_type(headers: &HeaderMap) -> Result<(), ClientRegistrationError> {
+        match headers.get(CONTENT_TYPE) {
+            None => {
+                let client_registration_error = ClientRegistrationError {
+                    error: ClientRegistrationErrorCode::InvalidClientMetadata,
+                    error_description: String::from("Request is not valid JSON!"),
+                };
 
+                return Err(client_registration_error);
+            }
+            Some(application_json) => println!("valid request! -> {:?}", application_json),
+        }
+
+        Ok(())
+    }
+
+    async fn check_redirect_uri(
+        client_metadata: &ClientMetadata,
+    ) -> Result<(), ClientRegistrationError> {
+        for uri in &client_metadata.redirect_uris {
+            match uri.is_empty() {
+                true => {
+                    let client_registration_error = ClientRegistrationError {
+                        error: ClientRegistrationErrorCode::InvalidRedirectUri,
+                        error_description: String::from("URI is empty!"),
+                    };
+
+                    return Err(client_registration_error);
+                }
+                false => println!("valid uri!"),
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn check_valid_software_statement(
+        client_metadata: &ClientMetadata,
+    ) -> Result<(), ClientRegistrationError> {
+        if let Some(software_statement) = &client_metadata.software_statement {
+            match software_statement.is_empty() {
+                true => {
+                    let client_registration_error = ClientRegistrationError {
+                        error: ClientRegistrationErrorCode::InvalidSoftwareStatement,
+                        error_description: String::from("software statement is invalid!"),
+                    };
+
+                    return Err(client_registration_error);
+                }
+                false => println!("valid software statement!"),
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn check_approved_software_statement(
+        client_metadata: &ClientMetadata,
+    ) -> Result<(), ClientRegistrationError> {
+        if let Some(software_statement) = &client_metadata.software_statement {
+            match software_statement.is_empty() {
+                true => {
+                    let client_registration_error = ClientRegistrationError {
+                        error: ClientRegistrationErrorCode::UnapprovedSoftwareStatement,
+                        error_description: String::from("software statement is unapproved!"),
+                    };
+
+                    return Err(client_registration_error);
+                }
+                false => println!("approved software statement!"),
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn bytes(body: Body) -> Result<Bytes, ClientRegistrationError> {
+        match to_bytes(body).await {
+            Ok(bytes) => Ok(bytes),
+            Err(error) => {
+                let client_registration_error = ClientRegistrationError {
+                    error: ClientRegistrationErrorCode::InvalidClientMetadata,
+                    error_description: error.to_string(),
+                };
+
+                Err(client_registration_error)
+            }
+        }
+    }
+
+    async fn client_metadata(bytes: &[u8]) -> Result<ClientMetadata, ClientRegistrationError> {
+        match serde_json::from_slice(bytes) {
+            Ok(client_metadata) => Ok(client_metadata),
+            Err(error) => {
+                let client_registration_error = ClientRegistrationError {
+                    error: ClientRegistrationErrorCode::InvalidClientMetadata,
+                    error_description: error.to_string(),
+                };
+
+                Err(client_registration_error)
+            }
+        }
+    }
+
+    async fn success(json: Vec<u8>) -> Result<Response<Body>, ClientRegistrationError> {
         let response = Response::builder()
             .header(CONTENT_TYPE, "application/json")
             .header(CACHE_CONTROL, "no-store")
             .header(PRAGMA, "no-cache")
-            .status(200)
-            .body(Body::empty())
-            .unwrap();
+            .status(StatusCode::CREATED)
+            .body(Body::from(json));
 
-        Ok(response)
+        match response {
+            Ok(client_registration_response) => Ok(client_registration_response),
+            Err(error) => {
+                let client_registration_error = ClientRegistrationError {
+                    error: ClientRegistrationErrorCode::InvalidClientMetadata,
+                    error_description: error.to_string(),
+                };
+
+                Err(client_registration_error)
+            }
+        }
     }
 }
 
@@ -97,6 +221,7 @@ mod tests {
             jwks: String::from("some_test_jwks"),
             software_id: String::from("some_test_software_id"),
             software_version: String::from("some_test_software_version"),
+            software_statement: None,
         };
 
         let test_json = to_vec(&test_client_metadata)?;
@@ -105,7 +230,6 @@ mod tests {
             .uri(test_uri)
             .header(CONTENT_TYPE, "application/json")
             .method(Method::POST)
-            // .body(Body::empty())
             .body(Body::from(test_json))
             .unwrap();
 
@@ -113,7 +237,10 @@ mod tests {
         let test_response = test_client.request(test_request).await;
 
         assert!(test_response.is_ok());
-        assert_eq!(test_response.as_ref().unwrap().status(), StatusCode::OK);
+        assert_eq!(
+            test_response.as_ref().unwrap().status(),
+            StatusCode::CREATED,
+        );
 
         assert!(test_response
             .as_ref()
