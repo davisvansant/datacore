@@ -4,7 +4,7 @@ use axum::http::status::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ClientRegistrationError {
     pub error: ClientRegistrationErrorCode,
     pub error_description: String,
