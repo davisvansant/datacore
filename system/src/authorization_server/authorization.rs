@@ -2,6 +2,7 @@ use axum::body::Body;
 // use axum::extract::Query;
 use axum::http::header::{HeaderMap, CONTENT_TYPE, LOCATION};
 use axum::http::request::Request;
+use axum::http::uri::Uri;
 use axum::http::StatusCode;
 use axum::response::Response;
 
@@ -20,6 +21,7 @@ impl AuthorizationServer {
         request: Request<Body>,
     ) -> Result<Response<Body>, AuthorizationError> {
         AuthorizationServer::check_content_type(request.headers()).await?;
+        AuthorizationServer::check_response_type(request.uri()).await?;
 
         let authorization_response = AuthorizationResponse {
             code: String::from("some_code"),
@@ -65,6 +67,34 @@ impl AuthorizationServer {
                     }
                 }
             }
+        }
+
+        Ok(())
+    }
+
+    async fn check_response_type(uri: &Uri) -> Result<(), AuthorizationError> {
+        match uri.query() {
+            None => {
+                let authorization_error = AuthorizationError {
+                    error: AuthorizationErrorCode::InvalidRequest,
+                    error_description: Some(String::from("Missing URI query")),
+                    error_uri: None,
+                };
+
+                return Err(authorization_error);
+            }
+            Some(query) => match query.contains("response_type=code") {
+                true => println!("valid response type!"),
+                false => {
+                    let authorization_error = AuthorizationError {
+                        error: AuthorizationErrorCode::UnsupportedResponseType,
+                        error_description: None,
+                        error_uri: None,
+                    };
+
+                    return Err(authorization_error);
+                }
+            },
         }
 
         Ok(())
@@ -182,6 +212,41 @@ mod tests {
                 .await;
 
         assert!(test_check_content_type_missing.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_response_type() -> Result<(), Box<dyn std::error::Error>> {
+        let test_uri_ok = http::uri::Builder::new()
+            .path_and_query("/authorize?response_type=code")
+            .build()
+            .unwrap();
+
+        let test_check_response_type_ok =
+            AuthorizationServer::check_response_type(&test_uri_ok).await;
+
+        assert!(test_check_response_type_ok.is_ok());
+
+        let test_uri_invalid = http::uri::Builder::new()
+            .path_and_query("/authorize?response_type=something_else")
+            .build()
+            .unwrap();
+
+        let test_check_response_type_invalid =
+            AuthorizationServer::check_response_type(&test_uri_invalid).await;
+
+        assert!(test_check_response_type_invalid.is_err());
+
+        let test_uri_missing = http::uri::Builder::new()
+            .path_and_query("/authorize?missing")
+            .build()
+            .unwrap();
+
+        let test_check_response_type_missing =
+            AuthorizationServer::check_response_type(&test_uri_missing).await;
+
+        assert!(test_check_response_type_missing.is_err());
 
         Ok(())
     }
