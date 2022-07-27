@@ -22,6 +22,7 @@ impl AuthorizationServer {
     ) -> Result<Response<Body>, AuthorizationError> {
         AuthorizationServer::check_content_type(request.headers()).await?;
         AuthorizationServer::check_response_type(request.uri()).await?;
+        AuthorizationServer::check_client_id(request.uri()).await?;
 
         let authorization_response = AuthorizationResponse {
             code: String::from("some_code"),
@@ -89,6 +90,34 @@ impl AuthorizationServer {
                     let authorization_error = AuthorizationError {
                         error: AuthorizationErrorCode::UnsupportedResponseType,
                         error_description: None,
+                        error_uri: None,
+                    };
+
+                    return Err(authorization_error);
+                }
+            },
+        }
+
+        Ok(())
+    }
+
+    async fn check_client_id(uri: &Uri) -> Result<(), AuthorizationError> {
+        match uri.query() {
+            None => {
+                let authorization_error = AuthorizationError {
+                    error: AuthorizationErrorCode::InvalidRequest,
+                    error_description: Some(String::from("Missing URI query")),
+                    error_uri: None,
+                };
+
+                return Err(authorization_error);
+            }
+            Some(query) => match query.contains("client_id=") {
+                true => println!("request contains client_id"),
+                false => {
+                    let authorization_error = AuthorizationError {
+                        error: AuthorizationErrorCode::InvalidRequest,
+                        error_description: Some(String::from("client ID is missing!")),
                         error_uri: None,
                     };
 
@@ -247,6 +276,30 @@ mod tests {
             AuthorizationServer::check_response_type(&test_uri_missing).await;
 
         assert!(test_check_response_type_missing.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_client_id() -> Result<(), Box<dyn std::error::Error>> {
+        let test_uri_ok = http::uri::Builder::new()
+            .path_and_query("/authorize?client_id=some_client_id")
+            .build()
+            .unwrap();
+
+        let test_check_client_id_ok = AuthorizationServer::check_client_id(&test_uri_ok).await;
+
+        assert!(test_check_client_id_ok.is_ok());
+
+        let test_uri_missing = http::uri::Builder::new()
+            .path_and_query("/authorize?missing")
+            .build()
+            .unwrap();
+
+        let test_check_client_id_missing =
+            AuthorizationServer::check_client_id(&test_uri_missing).await;
+
+        assert!(test_check_client_id_missing.is_err());
 
         Ok(())
     }
