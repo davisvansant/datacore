@@ -1,6 +1,7 @@
 use axum::body::Body;
-use axum::extract::Query;
+// use axum::extract::Query;
 use axum::http::header::{HeaderMap, CONTENT_TYPE, LOCATION};
+use axum::http::request::Request;
 use axum::http::StatusCode;
 use axum::response::Response;
 
@@ -16,19 +17,9 @@ mod response;
 
 impl AuthorizationServer {
     pub(crate) async fn authorization(
-        headers: HeaderMap,
-        query: Query<AuthorizationRequest>,
+        request: Request<Body>,
     ) -> Result<Response<Body>, AuthorizationError> {
-        for (key, value) in headers.iter() {
-            println!("header key - {:?}", key);
-            println!("header value - {:?}", value);
-        }
-
-        println!("response type = {:?}", query.response_type);
-        println!("client_id = {:?}", query.client_id);
-        println!("redirect_uri = {:?}", query.redirect_uri);
-        println!("scope = {:?}", query.scope);
-        println!("state = {:?}", query.state);
+        AuthorizationServer::check_content_type(request.headers()).await?;
 
         let authorization_response = AuthorizationResponse {
             code: String::from("some_code"),
@@ -45,6 +36,38 @@ impl AuthorizationServer {
             .unwrap();
 
         Ok(response)
+    }
+
+    async fn check_content_type(headers: &HeaderMap) -> Result<(), AuthorizationError> {
+        match headers.get(CONTENT_TYPE) {
+            None => {
+                let authorization_error = AuthorizationError {
+                    error: AuthorizationErrorCode::InvalidRequest,
+                    error_description: Some(String::from("Missing Header: Content-Type")),
+                    error_uri: None,
+                };
+
+                return Err(authorization_error);
+            }
+            Some(application_x_www_form_urlencoded) => {
+                match application_x_www_form_urlencoded == "application/x-www-form-urlencoded" {
+                    true => println!("valid header!"),
+                    false => {
+                        let authorization_error = AuthorizationError {
+                            error: AuthorizationErrorCode::InvalidRequest,
+                            error_description: Some(String::from(
+                                "Header: Content-Type is invalid!",
+                            )),
+                            error_uri: None,
+                        };
+
+                        return Err(authorization_error);
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -120,6 +143,45 @@ mod tests {
         assert!(hyper::body::to_bytes(test_response.unwrap().body_mut())
             .await?
             .is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_content_type() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authorization_request_ok = http::request::Builder::new()
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .method(Method::GET)
+            .body(Body::empty())
+            .unwrap();
+
+        let test_check_content_type_ok =
+            AuthorizationServer::check_content_type(test_authorization_request_ok.headers()).await;
+
+        assert!(test_check_content_type_ok.is_ok());
+
+        let test_authorization_request_invalid = http::request::Builder::new()
+            .header(CONTENT_TYPE, "applicationx-www-form-urlencoded")
+            .method(Method::GET)
+            .body(Body::empty())
+            .unwrap();
+
+        let test_check_content_type_invalid =
+            AuthorizationServer::check_content_type(test_authorization_request_invalid.headers())
+                .await;
+
+        assert!(test_check_content_type_invalid.is_err());
+
+        let test_authorization_request_missing = http::request::Builder::new()
+            .method(Method::GET)
+            .body(Body::empty())
+            .unwrap();
+
+        let test_check_content_type_missing =
+            AuthorizationServer::check_content_type(test_authorization_request_missing.headers())
+                .await;
+
+        assert!(test_check_content_type_missing.is_err());
 
         Ok(())
     }
