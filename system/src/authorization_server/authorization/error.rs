@@ -48,18 +48,29 @@ impl IntoResponse for AuthorizationError {
     }
 }
 
+// #[derive(Serialize)]
+// #[serde(rename_all = "snake_case")]
+// pub enum AuthorizationErrorCode {
+//     InteractionRequired,
+//     LoginRequired,
+//     AccountSelectionRequired,
+//     ConsentRequired,
+//     InvalidRequestUri,
+//     InvalidRequestObject,
+//     RequestNotSupported,
+//     RequestUriNotSupported,
+//     RegistrationNotSupported,
+// }
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthorizationErrorCode {
-    InteractionRequired,
-    LoginRequired,
-    AccountSelectionRequired,
-    ConsentRequired,
-    InvalidRequestUri,
-    InvalidRequestObject,
-    RequestNotSupported,
-    RequestUriNotSupported,
-    RegistrationNotSupported,
+    InvalidRequest,
+    UnauthorizedClient,
+    AccessDenied,
+    UnsupportedResponseType,
+    InvalidScope,
+    ServerError,
+    TemporarilyUnavailable,
 }
 
 #[cfg(test)]
@@ -71,7 +82,7 @@ mod tests {
     #[tokio::test]
     async fn authorization_error_into_response() -> Result<(), Box<dyn std::error::Error>> {
         let test_authorization_error = AuthorizationError {
-            error: AuthorizationErrorCode::InvalidRequestUri,
+            error: AuthorizationErrorCode::InvalidRequest,
             error_description: None,
             error_uri: None,
         };
@@ -86,7 +97,7 @@ mod tests {
         );
         assert_eq!(
             test_response.headers().get(LOCATION).unwrap(),
-            "error=invalid_request_uri",
+            "error=invalid_request",
         );
         assert_eq!(test_response.status(), StatusCode::FOUND);
 
@@ -100,42 +111,76 @@ mod tests {
     #[tokio::test]
     async fn authorization_error_code() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(
-            to_value(&AuthorizationErrorCode::InteractionRequired)?,
-            "interaction_required",
+            to_value(&AuthorizationErrorCode::InvalidRequest)?,
+            "invalid_request",
         );
         assert_eq!(
-            to_value(&AuthorizationErrorCode::LoginRequired)?,
-            "login_required",
+            to_value(&AuthorizationErrorCode::UnauthorizedClient)?,
+            "unauthorized_client",
         );
         assert_eq!(
-            to_value(&AuthorizationErrorCode::AccountSelectionRequired)?,
-            "account_selection_required",
+            to_value(&AuthorizationErrorCode::AccessDenied)?,
+            "access_denied",
         );
         assert_eq!(
-            to_value(&AuthorizationErrorCode::ConsentRequired)?,
-            "consent_required",
+            to_value(&AuthorizationErrorCode::UnsupportedResponseType)?,
+            "unsupported_response_type",
         );
         assert_eq!(
-            to_value(&AuthorizationErrorCode::InvalidRequestUri)?,
-            "invalid_request_uri",
+            to_value(&AuthorizationErrorCode::InvalidScope)?,
+            "invalid_scope",
         );
         assert_eq!(
-            to_value(&AuthorizationErrorCode::InvalidRequestObject)?,
-            "invalid_request_object",
+            to_value(&AuthorizationErrorCode::ServerError)?,
+            "server_error",
         );
         assert_eq!(
-            to_value(&AuthorizationErrorCode::RequestNotSupported)?,
-            "request_not_supported",
-        );
-        assert_eq!(
-            to_value(&AuthorizationErrorCode::RequestUriNotSupported)?,
-            "request_uri_not_supported",
-        );
-        assert_eq!(
-            to_value(&AuthorizationErrorCode::RegistrationNotSupported)?,
-            "registration_not_supported",
+            to_value(&AuthorizationErrorCode::TemporarilyUnavailable)?,
+            "temporarily_unavailable",
         );
 
         Ok(())
     }
+
+    // #[tokio::test]
+    // async fn authorization_error_code() -> Result<(), Box<dyn std::error::Error>> {
+    //     assert_eq!(
+    //         to_value(&AuthorizationErrorCode::InteractionRequired)?,
+    //         "interaction_required",
+    //     );
+    //     assert_eq!(
+    //         to_value(&AuthorizationErrorCode::LoginRequired)?,
+    //         "login_required",
+    //     );
+    //     assert_eq!(
+    //         to_value(&AuthorizationErrorCode::AccountSelectionRequired)?,
+    //         "account_selection_required",
+    //     );
+    //     assert_eq!(
+    //         to_value(&AuthorizationErrorCode::ConsentRequired)?,
+    //         "consent_required",
+    //     );
+    //     assert_eq!(
+    //         to_value(&AuthorizationErrorCode::InvalidRequestUri)?,
+    //         "invalid_request_uri",
+    //     );
+    //     assert_eq!(
+    //         to_value(&AuthorizationErrorCode::InvalidRequestObject)?,
+    //         "invalid_request_object",
+    //     );
+    //     assert_eq!(
+    //         to_value(&AuthorizationErrorCode::RequestNotSupported)?,
+    //         "request_not_supported",
+    //     );
+    //     assert_eq!(
+    //         to_value(&AuthorizationErrorCode::RequestUriNotSupported)?,
+    //         "request_uri_not_supported",
+    //     );
+    //     assert_eq!(
+    //         to_value(&AuthorizationErrorCode::RegistrationNotSupported)?,
+    //         "registration_not_supported",
+    //     );
+
+    //     Ok(())
+    // }
 }
