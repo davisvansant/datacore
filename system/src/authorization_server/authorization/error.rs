@@ -1,4 +1,52 @@
-use serde::Serialize;
+// use serde::Serialize;
+use axum::body::Body;
+use axum::http::header::{CONTENT_TYPE, LOCATION};
+use axum::http::status::StatusCode;
+use axum::response::{IntoResponse, Response};
+use serde::{Deserialize, Serialize};
+use serde_json::to_value;
+
+#[derive(Serialize)]
+pub struct AuthorizationError {
+    pub error: AuthorizationErrorCode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_uri: Option<String>,
+}
+
+impl IntoResponse for AuthorizationError {
+    fn into_response(self) -> Response {
+        let mut location_value = String::with_capacity(100);
+        let authorization_error = to_value(self).expect("authorization error as json value");
+
+        if let Some(error) = authorization_error["error"].as_str() {
+            location_value.push_str("error=");
+            location_value.push_str(error);
+        }
+
+        if let Some(error_description) = authorization_error["error_description"].as_str() {
+            location_value.push_str("error_description=");
+            location_value.push_str(error_description);
+        }
+
+        if let Some(error_uri) = authorization_error["error_uri"].as_str() {
+            location_value.push_str("error_uri=");
+            location_value.push_str(error_uri);
+        }
+
+        location_value.shrink_to_fit();
+
+        let response = Response::builder()
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .header(LOCATION, location_value)
+            .status(StatusCode::FOUND)
+            .body(Body::empty())
+            .expect("access token error response");
+
+        response.into_response()
+    }
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -17,7 +65,37 @@ pub enum AuthorizationErrorCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hyper::body::to_bytes;
     use serde_json::to_value;
+
+    #[tokio::test]
+    async fn authorization_error_into_response() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authorization_error = AuthorizationError {
+            error: AuthorizationErrorCode::InvalidRequestUri,
+            error_description: None,
+            error_uri: None,
+        };
+
+        let test_response = test_authorization_error.into_response();
+
+        assert!(test_response.headers().contains_key(CONTENT_TYPE));
+        assert!(test_response.headers().contains_key(LOCATION));
+        assert_eq!(
+            test_response.headers().get(CONTENT_TYPE).unwrap(),
+            "application/x-www-form-urlencoded",
+        );
+        assert_eq!(
+            test_response.headers().get(LOCATION).unwrap(),
+            "error=invalid_request_uri",
+        );
+        assert_eq!(test_response.status(), StatusCode::FOUND);
+
+        let test_body_bytes = to_bytes(&mut test_response.into_body()).await?;
+
+        assert!(test_body_bytes.is_empty());
+
+        Ok(())
+    }
 
     #[tokio::test]
     async fn authorization_error_code() -> Result<(), Box<dyn std::error::Error>> {

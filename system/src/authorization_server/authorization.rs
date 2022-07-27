@@ -6,6 +6,7 @@ use axum::response::Response;
 
 use super::AuthorizationServer;
 
+use error::{AuthorizationError, AuthorizationErrorCode};
 use request::{AuthorizationRequest, AuthorizationResponseType};
 use response::AuthorizationResponse;
 
@@ -17,7 +18,7 @@ impl AuthorizationServer {
     pub(crate) async fn authorization(
         headers: HeaderMap,
         query: Query<AuthorizationRequest>,
-    ) -> Result<Response<Body>, StatusCode> {
+    ) -> Result<Response<Body>, AuthorizationError> {
         for (key, value) in headers.iter() {
             println!("header key - {:?}", key);
             println!("header value - {:?}", value);
