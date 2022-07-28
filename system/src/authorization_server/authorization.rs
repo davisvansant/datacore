@@ -26,9 +26,15 @@ impl AuthorizationServer {
         AuthorizationServer::check_client_id(request.uri()).await?;
         AuthorizationServer::authorize_client(&query.client_id).await?;
 
-        let authorization_response = AuthorizationResponse {
-            code: String::from("some_code"),
-            state: None,
+        let authorization_response = match &query.state {
+            None => AuthorizationResponse {
+                code: String::from("some_code"),
+                state: None,
+            },
+            Some(state) => AuthorizationResponse {
+                code: String::from("some_code"),
+                state: Some(state.to_owned()),
+            },
         };
 
         let redirect_url = authorization_response.url().await;
