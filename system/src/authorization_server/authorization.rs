@@ -1,5 +1,5 @@
 use axum::body::Body;
-// use axum::extract::Query;
+use axum::extract::Query;
 use axum::http::header::{HeaderMap, CONTENT_TYPE, LOCATION};
 use axum::http::request::Request;
 use axum::http::uri::Uri;
@@ -18,11 +18,13 @@ mod response;
 
 impl AuthorizationServer {
     pub(crate) async fn authorization(
+        query: Query<AuthorizationRequest>,
         request: Request<Body>,
     ) -> Result<Response<Body>, AuthorizationError> {
         AuthorizationServer::check_content_type(request.headers()).await?;
         AuthorizationServer::check_response_type(request.uri()).await?;
         AuthorizationServer::check_client_id(request.uri()).await?;
+        AuthorizationServer::authorize_client(&query.client_id).await?;
 
         let authorization_response = AuthorizationResponse {
             code: String::from("some_code"),
@@ -124,6 +126,23 @@ impl AuthorizationServer {
                     return Err(authorization_error);
                 }
             },
+        }
+
+        Ok(())
+    }
+
+    async fn authorize_client(id: &str) -> Result<(), AuthorizationError> {
+        match id.is_ascii() {
+            true => println!("we need better way to authorize this client..."),
+            false => {
+                let authorization_error = AuthorizationError {
+                    error: AuthorizationErrorCode::UnauthorizedClient,
+                    error_description: None,
+                    error_uri: None,
+                };
+
+                return Err(authorization_error);
+            }
         }
 
         Ok(())
@@ -300,6 +319,22 @@ mod tests {
             AuthorizationServer::check_client_id(&test_uri_missing).await;
 
         assert!(test_check_client_id_missing.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn authorize_client() -> Result<(), Box<dyn std::error::Error>> {
+        let test_ascii_id = "@30kmcunQlkm0";
+        let test_ascii_id_ok = AuthorizationServer::authorize_client(test_ascii_id).await;
+
+        assert!(test_ascii_id_ok.is_ok());
+
+        let test_non_ascii_id = "❤Τêστ⊗";
+        let test_non_ascii_id_error =
+            AuthorizationServer::authorize_client(test_non_ascii_id).await;
+
+        assert!(test_non_ascii_id_error.is_err());
 
         Ok(())
     }
