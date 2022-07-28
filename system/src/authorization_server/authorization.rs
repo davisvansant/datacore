@@ -24,6 +24,7 @@ impl AuthorizationServer {
         AuthorizationServer::check_content_type(request.headers()).await?;
         AuthorizationServer::check_response_type(request.uri()).await?;
         AuthorizationServer::check_client_id(request.uri()).await?;
+        AuthorizationServer::check_scope(query.scope.as_ref()).await?;
         AuthorizationServer::authorize_client(&query.client_id).await?;
 
         let authorization_response = match &query.state {
@@ -132,6 +133,25 @@ impl AuthorizationServer {
                     return Err(authorization_error);
                 }
             },
+        }
+
+        Ok(())
+    }
+
+    async fn check_scope(query_scope: Option<&String>) -> Result<(), AuthorizationError> {
+        if let Some(access_token_scope) = query_scope {
+            match access_token_scope.is_empty() {
+                true => {
+                    let authorization_error = AuthorizationError {
+                        error: AuthorizationErrorCode::InvalidScope,
+                        error_description: None,
+                        error_uri: None,
+                    };
+
+                    return Err(authorization_error);
+                }
+                false => println!("verify -> {:?}", &access_token_scope),
+            }
         }
 
         Ok(())
@@ -325,6 +345,27 @@ mod tests {
             AuthorizationServer::check_client_id(&test_uri_missing).await;
 
         assert!(test_check_client_id_missing.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_scope() -> Result<(), Box<dyn std::error::Error>> {
+        let test_scope_some = Some(String::from("scope=some_test_scope"));
+        let test_scope_ok = AuthorizationServer::check_scope(test_scope_some.as_ref()).await;
+
+        assert!(test_scope_ok.is_ok());
+
+        let test_scope_some_empty = Some(String::from(""));
+        let test_scope_empty_error =
+            AuthorizationServer::check_scope(test_scope_some_empty.as_ref()).await;
+
+        assert!(test_scope_empty_error.is_err());
+
+        let test_scope_none = None;
+        let test_scope_none_ok = AuthorizationServer::check_scope(test_scope_none).await;
+
+        assert!(test_scope_none_ok.is_ok());
 
         Ok(())
     }
