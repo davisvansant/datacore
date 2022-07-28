@@ -1,9 +1,8 @@
-// use serde::Serialize;
 use axum::body::Body;
 use axum::http::header::{CONTENT_TYPE, LOCATION};
 use axum::http::status::StatusCode;
 use axum::response::{IntoResponse, Response};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::to_value;
 
 #[derive(Serialize)]
@@ -26,13 +25,13 @@ impl IntoResponse for AuthorizationError {
         }
 
         if let Some(error_description) = authorization_error["error_description"].as_str() {
-            location_value.push_str("&");
+            location_value.push('&');
             location_value.push_str("error_description=");
             location_value.push_str(error_description);
         }
 
         if let Some(error_uri) = authorization_error["error_uri"].as_str() {
-            location_value.push_str("&");
+            location_value.push('&');
             location_value.push_str("error_uri=");
             location_value.push_str(error_uri);
         }

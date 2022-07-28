@@ -36,7 +36,7 @@ impl AuthorizationServer {
         let response = Response::builder()
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .header(LOCATION, redirect_url)
-            .status(302)
+            .status(StatusCode::FOUND)
             .body(Body::empty())
             .unwrap();
 
@@ -136,7 +136,7 @@ impl AuthorizationServer {
             true => println!("we need better way to authorize this client..."),
             false => {
                 let authorization_error = AuthorizationError {
-                    error: AuthorizationErrorCode::UnauthorizedClient,
+                    error: AuthorizationErrorCode::AccessDenied,
                     error_description: None,
                     error_uri: None,
                 };
@@ -152,7 +152,7 @@ impl AuthorizationServer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::routing::{get, post};
+    use axum::routing::get;
     use axum::Router;
     use axum::Server;
     use hyper::{Body, Method};

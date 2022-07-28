@@ -39,7 +39,7 @@ impl AuthorizationServer {
             .header(CONTENT_TYPE, "application/json")
             .header(CACHE_CONTROL, "no-store")
             .header(PRAGMA, "no-cache")
-            .status(200)
+            .status(StatusCode::OK)
             .body(Body::from(
                 serde_json::to_string(&access_token_response).unwrap(),
             ))
@@ -52,7 +52,7 @@ impl AuthorizationServer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::routing::{get, post};
+    use axum::routing::post;
     use axum::Router;
     use axum::Server;
     use hyper::{Body, Method};
