@@ -26,11 +26,13 @@ impl IntoResponse for AuthorizationError {
         }
 
         if let Some(error_description) = authorization_error["error_description"].as_str() {
+            location_value.push_str("&");
             location_value.push_str("error_description=");
             location_value.push_str(error_description);
         }
 
         if let Some(error_uri) = authorization_error["error_uri"].as_str() {
+            location_value.push_str("&");
             location_value.push_str("error_uri=");
             location_value.push_str(error_uri);
         }
@@ -98,6 +100,80 @@ mod tests {
         assert_eq!(
             test_response.headers().get(LOCATION).unwrap(),
             "error=invalid_request",
+        );
+        assert_eq!(test_response.status(), StatusCode::FOUND);
+
+        let test_body_bytes = to_bytes(&mut test_response.into_body()).await?;
+
+        assert!(test_body_bytes.is_empty());
+
+        let test_authorization_error_description = AuthorizationError {
+            error: AuthorizationErrorCode::InvalidRequest,
+            error_description: Some(String::from("some_test_error_description")),
+            error_uri: None,
+        };
+
+        let test_response = test_authorization_error_description.into_response();
+
+        assert!(test_response.headers().contains_key(CONTENT_TYPE));
+        assert!(test_response.headers().contains_key(LOCATION));
+        assert_eq!(
+            test_response.headers().get(CONTENT_TYPE).unwrap(),
+            "application/x-www-form-urlencoded",
+        );
+        assert_eq!(
+            test_response.headers().get(LOCATION).unwrap(),
+            "error=invalid_request&error_description=some_test_error_description",
+        );
+        assert_eq!(test_response.status(), StatusCode::FOUND);
+
+        let test_body_bytes = to_bytes(&mut test_response.into_body()).await?;
+
+        assert!(test_body_bytes.is_empty());
+
+        // Ok(())
+
+        let test_authorization_error_uri = AuthorizationError {
+            error: AuthorizationErrorCode::InvalidRequest,
+            error_description: None,
+            error_uri: Some(String::from("some_test_error_uri")),
+        };
+
+        let test_response = test_authorization_error_uri.into_response();
+
+        assert!(test_response.headers().contains_key(CONTENT_TYPE));
+        assert!(test_response.headers().contains_key(LOCATION));
+        assert_eq!(
+            test_response.headers().get(CONTENT_TYPE).unwrap(),
+            "application/x-www-form-urlencoded",
+        );
+        assert_eq!(
+            test_response.headers().get(LOCATION).unwrap(),
+            "error=invalid_request&error_uri=some_test_error_uri",
+        );
+        assert_eq!(test_response.status(), StatusCode::FOUND);
+
+        let test_body_bytes = to_bytes(&mut test_response.into_body()).await?;
+
+        assert!(test_body_bytes.is_empty());
+
+        let test_authorization_error_description_and_uri = AuthorizationError {
+            error: AuthorizationErrorCode::InvalidRequest,
+            error_description: Some(String::from("some_test_error_description")),
+            error_uri: Some(String::from("some_test_error_uri")),
+        };
+
+        let test_response = test_authorization_error_description_and_uri.into_response();
+
+        assert!(test_response.headers().contains_key(CONTENT_TYPE));
+        assert!(test_response.headers().contains_key(LOCATION));
+        assert_eq!(
+            test_response.headers().get(CONTENT_TYPE).unwrap(),
+            "application/x-www-form-urlencoded",
+        );
+        assert_eq!(
+            test_response.headers().get(LOCATION).unwrap(),
+            "error=invalid_request&error_description=some_test_error_description&error_uri=some_test_error_uri",
         );
         assert_eq!(test_response.status(), StatusCode::FOUND);
 
