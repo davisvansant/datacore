@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub struct AccessTokenRequest {
-    pub grant_type: GrantType,
+    pub grant_type: AccessTokenGrantType,
     pub code: String,
     pub client_id: Option<String>,
     pub redirect_uri: Option<String>,
@@ -10,7 +10,7 @@ pub struct AccessTokenRequest {
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub enum GrantType {
+pub enum AccessTokenGrantType {
     AuthorizationCode,
 }
 
@@ -30,7 +30,7 @@ mod tests {
 
         assert_eq!(
             test_access_token_request.grant_type,
-            GrantType::AuthorizationCode,
+            AccessTokenGrantType::AuthorizationCode,
         );
         assert_eq!(test_access_token_request.code, "some_authorization_code");
 
