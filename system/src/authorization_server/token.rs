@@ -1,13 +1,15 @@
 use axum::body::Body;
 use axum::extract::Query;
 use axum::http::header::{HeaderMap, CACHE_CONTROL, CONTENT_TYPE, PRAGMA};
+use axum::http::request::Request;
+use axum::http::uri::Uri;
 use axum::http::StatusCode;
 use axum::response::Response;
 
 use super::AuthorizationServer;
 
 use error::{AccessTokenError, AccessTokenErrorCode};
-use request::AccessTokenRequest;
+use request::{AccessTokenGrantType, AccessTokenRequest};
 use response::{AccessTokenResponse, AccessTokenType};
 
 mod error;
@@ -18,16 +20,18 @@ impl AuthorizationServer {
     pub(crate) async fn token(
         headers: HeaderMap,
         query: Query<AccessTokenRequest>,
+        request: Request<Body>,
     ) -> Result<Response<Body>, AccessTokenError> {
-        for (key, value) in headers.iter() {
-            println!("header key {:?}", key);
-            println!("header value {:?}", value);
-        }
+        // for (key, value) in headers.iter() {
+        //     println!("header key {:?}", key);
+        //     println!("header value {:?}", value);
+        // }
 
-        println!("grant type = {:?}", query.grant_type);
-        println!("code = {:?}", query.code);
-        println!("redirect uri = {:?}", query.redirect_uri);
-        println!("client id = {:?}", query.client_id);
+        // println!("grant type = {:?}", query.grant_type);
+        // println!("code = {:?}", query.code);
+        // println!("redirect uri = {:?}", query.redirect_uri);
+        // println!("client id = {:?}", query.client_id);
+        AuthorizationServer::check_grant_type(request.uri()).await?;
 
         let access_token_response = AccessTokenResponse {
             access_token: String::from("some_access_token"),
@@ -46,6 +50,36 @@ impl AuthorizationServer {
             .unwrap();
 
         Ok(response)
+    }
+
+    async fn check_grant_type(uri: &Uri) -> Result<(), AccessTokenError> {
+        match uri.query() {
+            None => {
+                let access_token_error = AccessTokenError {
+                    error: AccessTokenErrorCode::InvalidRequest,
+                    error_description: Some(String::from("missing grant_type=")),
+                    error_uri: None,
+                };
+
+                return Err(access_token_error);
+            }
+            Some(query) => match query.contains("grant_type=authorization_code") {
+                true => println!("valid response type!"),
+                false => {
+                    let access_token_error = AccessTokenError {
+                        error: AccessTokenErrorCode::InvalidGrant,
+                        error_description: Some(String::from(
+                            "missing grant_type=authorization_code",
+                        )),
+                        error_uri: None,
+                    };
+
+                    return Err(access_token_error);
+                }
+            },
+        }
+
+        Ok(())
     }
 }
 
@@ -141,6 +175,40 @@ mod tests {
         assert_eq!(test_response_json.access_token, "some_access_token");
         assert_eq!(test_response_json.token_type, AccessTokenType::Bearer);
         assert_eq!(test_response_json.expires_in, 3600);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_grant_type() -> Result<(), Box<dyn std::error::Error>> {
+        let test_uri_ok = http::uri::Builder::new()
+            .path_and_query("/token?grant_type=authorization_code")
+            .build()
+            .unwrap();
+
+        let test_check_grant_type_ok = AuthorizationServer::check_grant_type(&test_uri_ok).await;
+
+        assert!(test_check_grant_type_ok.is_ok());
+
+        let test_uri_invalid = http::uri::Builder::new()
+            .path_and_query("/token?grant_type=something_else")
+            .build()
+            .unwrap();
+
+        let test_check_grant_type_invalid =
+            AuthorizationServer::check_grant_type(&test_uri_invalid).await;
+
+        assert!(test_check_grant_type_invalid.is_err());
+
+        let test_uri_missing = http::uri::Builder::new()
+            .path_and_query("/token?missing_grant_type")
+            .build()
+            .unwrap();
+
+        let test_check_grant_type_missing =
+            AuthorizationServer::check_grant_type(&test_uri_missing).await;
+
+        assert!(test_check_grant_type_missing.is_err());
 
         Ok(())
     }
