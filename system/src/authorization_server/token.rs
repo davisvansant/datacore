@@ -32,6 +32,7 @@ impl AuthorizationServer {
         // println!("redirect uri = {:?}", query.redirect_uri);
         // println!("client id = {:?}", query.client_id);
         AuthorizationServer::check_grant_type(request.uri()).await?;
+        AuthorizationServer::check_code(request.uri()).await?;
 
         let access_token_response = AccessTokenResponse {
             access_token: String::from("some_access_token"),
@@ -77,6 +78,39 @@ impl AuthorizationServer {
                     return Err(access_token_error);
                 }
             },
+        }
+
+        Ok(())
+    }
+
+    async fn check_code(uri: &Uri) -> Result<(), AccessTokenError> {
+        match uri.query() {
+            None => {
+                let access_token_error = AccessTokenError {
+                    error: AccessTokenErrorCode::InvalidRequest,
+                    error_description: Some(String::from("missing code=")),
+                    error_uri: None,
+                };
+
+                return Err(access_token_error);
+            }
+            Some(query) => {
+                match query
+                    .split('&')
+                    .find(|parameter| parameter.starts_with("code="))
+                {
+                    Some(code) => println!("query contains {:?}", &code),
+                    None => {
+                        let access_token_error = AccessTokenError {
+                            error: AccessTokenErrorCode::InvalidClient,
+                            error_description: None,
+                            error_uri: None,
+                        };
+
+                        return Err(access_token_error);
+                    }
+                }
+            }
         }
 
         Ok(())
@@ -209,6 +243,29 @@ mod tests {
             AuthorizationServer::check_grant_type(&test_uri_missing).await;
 
         assert!(test_check_grant_type_missing.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_code() -> Result<(), Box<dyn std::error::Error>> {
+        let test_uri_ok = http::uri::Builder::new()
+            .path_and_query("/token?grant_type=authorization_code&code=some_test_code")
+            .build()
+            .unwrap();
+
+        let test_check_code_ok = AuthorizationServer::check_code(&test_uri_ok).await;
+
+        assert!(test_check_code_ok.is_ok());
+
+        let test_uri_missing = http::uri::Builder::new()
+            .path_and_query("/token?grant_type=authorization_code&other_code=some_test_code")
+            .build()
+            .unwrap();
+
+        let test_check_code_missing = AuthorizationServer::check_code(&test_uri_missing).await;
+
+        assert!(test_check_code_missing.is_err());
 
         Ok(())
     }
