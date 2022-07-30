@@ -18,22 +18,18 @@ mod response;
 
 impl AuthorizationServer {
     pub(crate) async fn token(
-        headers: HeaderMap,
-        query: Query<AccessTokenRequest>,
+        _headers: HeaderMap,
+        _query: Query<AccessTokenRequest>,
         request: Request<Body>,
     ) -> Result<Response<Body>, AccessTokenError> {
-        // for (key, value) in headers.iter() {
-        //     println!("header key {:?}", key);
-        //     println!("header value {:?}", value);
-        // }
-
-        // println!("grant type = {:?}", query.grant_type);
-        // println!("code = {:?}", query.code);
-        // println!("redirect uri = {:?}", query.redirect_uri);
-        // println!("client id = {:?}", query.client_id);
         AuthorizationServer::check_grant_type(request.uri()).await?;
-        AuthorizationServer::check_code(request.uri()).await?;
-        check_client_id(request.uri()).await?;
+
+        let code = AuthorizationServer::check_code(request.uri()).await?;
+        let client_id = check_client_id(request.uri()).await?;
+
+        authenticate(&client_id).await?;
+        ensure(&code, &client_id).await?;
+        verify(&code).await?;
 
         let access_token_response = AccessTokenResponse {
             access_token: String::from("some_access_token"),
@@ -84,7 +80,7 @@ impl AuthorizationServer {
         Ok(())
     }
 
-    async fn check_code(uri: &Uri) -> Result<(), AccessTokenError> {
+    async fn check_code(uri: &Uri) -> Result<String, AccessTokenError> {
         match uri.query() {
             None => {
                 let access_token_error = AccessTokenError {
@@ -93,14 +89,29 @@ impl AuthorizationServer {
                     error_uri: None,
                 };
 
-                return Err(access_token_error);
+                Err(access_token_error)
             }
             Some(query) => {
                 match query
                     .split('&')
                     .find(|parameter| parameter.starts_with("code="))
                 {
-                    Some(code) => println!("query contains {:?}", &code),
+                    Some(code_parameter) => {
+                        println!("query contains {:?}", &code_parameter);
+
+                        match code_parameter.strip_prefix("code=") {
+                            None => {
+                                let access_token_error = AccessTokenError {
+                                    error: AccessTokenErrorCode::InvalidClient,
+                                    error_description: None,
+                                    error_uri: None,
+                                };
+
+                                Err(access_token_error)
+                            }
+                            Some(client_id) => Ok(client_id.to_owned()),
+                        }
+                    }
                     None => {
                         let access_token_error = AccessTokenError {
                             error: AccessTokenErrorCode::InvalidClient,
@@ -108,17 +119,15 @@ impl AuthorizationServer {
                             error_uri: None,
                         };
 
-                        return Err(access_token_error);
+                        Err(access_token_error)
                     }
                 }
             }
         }
-
-        Ok(())
     }
 }
 
-async fn check_client_id(uri: &Uri) -> Result<(), AccessTokenError> {
+async fn check_client_id(uri: &Uri) -> Result<String, AccessTokenError> {
     let access_token_error = AccessTokenError {
         error: AccessTokenErrorCode::InvalidRequest,
         error_description: Some(String::from("missing client_id")),
@@ -126,15 +135,58 @@ async fn check_client_id(uri: &Uri) -> Result<(), AccessTokenError> {
     };
 
     match uri.query() {
-        None => return Err(access_token_error),
+        None => Err(access_token_error),
         Some(query) => {
             match query
                 .split('&')
                 .find(|parameter| parameter.starts_with("client_id="))
             {
-                Some(client_id) => println!("query contains {:?}", &client_id),
-                None => return Err(access_token_error),
+                Some(client_id_parameter) => {
+                    println!("query contains {:?}", &client_id_parameter);
+
+                    match client_id_parameter.strip_prefix("client_id=") {
+                        None => Err(access_token_error),
+                        Some(client_id) => Ok(client_id.to_owned()),
+                    }
+                }
+                None => Err(access_token_error),
             }
+        }
+    }
+}
+
+async fn authenticate(client_id: &str) -> Result<(), AccessTokenError> {
+    match client_id.is_ascii() {
+        true => println!("authenticated client id!"),
+        false => {
+            let access_token_error = AccessTokenError {
+                error: AccessTokenErrorCode::InvalidClient,
+                error_description: Some(String::from("we need a better way to authenticate...")),
+                error_uri: None,
+            };
+
+            return Err(access_token_error);
+        }
+    }
+
+    Ok(())
+}
+
+async fn ensure(_code: &str, _client_id: &str) -> Result<(), AccessTokenError> {
+    Ok(())
+}
+
+async fn verify(code: &str) -> Result<(), AccessTokenError> {
+    match code.is_ascii() {
+        true => println!("code is verified!"),
+        false => {
+            let access_token_error = AccessTokenError {
+                error: AccessTokenErrorCode::InvalidClient,
+                error_description: Some(String::from("we need a better way to verify...")),
+                error_uri: None,
+            };
+
+            return Err(access_token_error);
         }
     }
 
@@ -304,6 +356,7 @@ mod tests {
         let test_check_client_id_ok = super::check_client_id(&test_uri_ok).await;
 
         assert!(test_check_client_id_ok.is_ok());
+        assert_eq!(test_check_client_id_ok.unwrap(), "some_test_client_id");
 
         let test_uri_missing = http::uri::Builder::new()
             .path_and_query("/token?grant_type=authorization_code&other_code=some_test_code&some_other_client_id=some_test_client_id")
@@ -313,6 +366,36 @@ mod tests {
         let test_check_client_id_missing = super::check_client_id(&test_uri_missing).await;
 
         assert!(test_check_client_id_missing.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn authenticate() -> Result<(), Box<dyn std::error::Error>> {
+        let test_ascii_client_id = "&lkmsaf##^Mlkm";
+        let test_client_id_ok = super::authenticate(test_ascii_client_id).await;
+
+        assert!(test_client_id_ok.is_ok());
+
+        let test_non_ascii_client_id = "❤Τêστ⊗";
+        let test_non_ascii_client_id_error = super::authenticate(test_non_ascii_client_id).await;
+
+        assert!(test_non_ascii_client_id_error.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn verify() -> Result<(), Box<dyn std::error::Error>> {
+        let test_ascii_code = "SAlmlmk60823S@0$";
+        let test_code_ok = super::verify(test_ascii_code).await;
+
+        assert!(test_code_ok.is_ok());
+
+        let test_non_ascii_code = "❤Τêστ⊗";
+        let test_non_ascii_code_error = super::verify(test_non_ascii_code).await;
+
+        assert!(test_non_ascii_code_error.is_err());
 
         Ok(())
     }
