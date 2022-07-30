@@ -33,6 +33,7 @@ impl AuthorizationServer {
         // println!("client id = {:?}", query.client_id);
         AuthorizationServer::check_grant_type(request.uri()).await?;
         AuthorizationServer::check_code(request.uri()).await?;
+        check_client_id(request.uri()).await?;
 
         let access_token_response = AccessTokenResponse {
             access_token: String::from("some_access_token"),
@@ -117,6 +118,29 @@ impl AuthorizationServer {
     }
 }
 
+async fn check_client_id(uri: &Uri) -> Result<(), AccessTokenError> {
+    let access_token_error = AccessTokenError {
+        error: AccessTokenErrorCode::InvalidRequest,
+        error_description: Some(String::from("missing client_id")),
+        error_uri: None,
+    };
+
+    match uri.query() {
+        None => return Err(access_token_error),
+        Some(query) => {
+            match query
+                .split('&')
+                .find(|parameter| parameter.starts_with("client_id="))
+            {
+                Some(client_id) => println!("query contains {:?}", &client_id),
+                None => return Err(access_token_error),
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,7 +166,7 @@ mod tests {
         let test_uri = http::uri::Builder::new()
             .scheme("http")
             .authority("127.0.0.1:6749")
-            .path_and_query("/token?grant_type=authorization_code&code=some_authorization_code")
+            .path_and_query("/token?grant_type=authorization_code&code=some_authorization_code&client_id=some_test_client_id")
             .build()
             .unwrap();
         let test_request = http::request::Builder::new()
@@ -266,6 +290,29 @@ mod tests {
         let test_check_code_missing = AuthorizationServer::check_code(&test_uri_missing).await;
 
         assert!(test_check_code_missing.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_client_id() -> Result<(), Box<dyn std::error::Error>> {
+        let test_uri_ok = http::uri::Builder::new()
+            .path_and_query("/token?grant_type=authorization_code&code=some_test_code&client_id=some_test_client_id")
+            .build()
+            .unwrap();
+
+        let test_check_client_id_ok = super::check_client_id(&test_uri_ok).await;
+
+        assert!(test_check_client_id_ok.is_ok());
+
+        let test_uri_missing = http::uri::Builder::new()
+            .path_and_query("/token?grant_type=authorization_code&other_code=some_test_code&some_other_client_id=some_test_client_id")
+            .build()
+            .unwrap();
+
+        let test_check_client_id_missing = super::check_client_id(&test_uri_missing).await;
+
+        assert!(test_check_client_id_missing.is_err());
 
         Ok(())
     }
