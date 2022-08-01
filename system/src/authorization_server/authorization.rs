@@ -23,9 +23,11 @@ impl AuthorizationServer {
     ) -> Result<Response<Body>, AuthorizationError> {
         check_content_type(request.headers()).await?;
         check_response_type(request.uri()).await?;
-        check_client_id(request.uri()).await?;
+
+        let client_id = check_client_id(request.uri()).await?;
+
         check_scope(query.scope.as_ref()).await?;
-        authorize_client(&query.client_id).await?;
+        authorize_client(&client_id).await?;
 
         let authorization_response = match &query.state {
             None => AuthorizationResponse {
@@ -103,32 +105,32 @@ async fn check_response_type(uri: &Uri) -> Result<(), AuthorizationError> {
     Ok(())
 }
 
-async fn check_client_id(uri: &Uri) -> Result<(), AuthorizationError> {
+async fn check_client_id(uri: &Uri) -> Result<String, AuthorizationError> {
+    let authorization_error = AuthorizationError {
+        error: AuthorizationErrorCode::InvalidRequest,
+        error_description: Some(String::from("missing client ID query parameter")),
+        error_uri: None,
+    };
+
     match uri.query() {
-        None => {
-            let authorization_error = AuthorizationError {
-                error: AuthorizationErrorCode::InvalidRequest,
-                error_description: Some(String::from("Missing URI query")),
-                error_uri: None,
-            };
+        None => Err(authorization_error),
+        Some(query) => {
+            match query
+                .split('&')
+                .find(|parameter| parameter.starts_with("client_id="))
+            {
+                Some(client_id_parameter) => {
+                    println!("query contains {:?}", &client_id_parameter);
 
-            return Err(authorization_error);
-        }
-        Some(query) => match query.contains("client_id=") {
-            true => println!("request contains client_id"),
-            false => {
-                let authorization_error = AuthorizationError {
-                    error: AuthorizationErrorCode::InvalidRequest,
-                    error_description: Some(String::from("client ID is missing!")),
-                    error_uri: None,
-                };
-
-                return Err(authorization_error);
+                    match client_id_parameter.strip_prefix("client_id=") {
+                        None => Err(authorization_error),
+                        Some(client_id) => Ok(client_id.to_owned()),
+                    }
+                }
+                None => Err(authorization_error),
             }
-        },
+        }
     }
-
-    Ok(())
 }
 
 async fn check_scope(query_scope: Option<&String>) -> Result<(), AuthorizationError> {
@@ -342,9 +344,10 @@ mod tests {
         let test_check_client_id_ok = super::check_client_id(&test_uri_ok).await;
 
         assert!(test_check_client_id_ok.is_ok());
+        assert_eq!(test_check_client_id_ok.unwrap(), "some_client_id");
 
         let test_uri_missing = http::uri::Builder::new()
-            .path_and_query("/authorize?missing")
+            .path_and_query("/authorize?missing_client_id=some_test_client_id")
             .build()
             .unwrap();
 
