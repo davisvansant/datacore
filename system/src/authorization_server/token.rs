@@ -37,15 +37,8 @@ impl AuthorizationServer {
             expires_in: 3600,
         };
 
-        let response = Response::builder()
-            .header(CONTENT_TYPE, "application/json")
-            .header(CACHE_CONTROL, "no-store")
-            .header(PRAGMA, "no-cache")
-            .status(StatusCode::OK)
-            .body(Body::from(
-                serde_json::to_string(&access_token_response).unwrap(),
-            ))
-            .unwrap();
+        let json = serde_json::to_vec(&access_token_response).expect("json");
+        let response = issue_token(json).await?;
 
         Ok(response)
     }
@@ -191,12 +184,34 @@ async fn verify(code: &str) -> Result<(), AccessTokenError> {
     Ok(())
 }
 
+async fn issue_token(json: Vec<u8>) -> Result<Response<Body>, AccessTokenError> {
+    match Response::builder()
+        .header(CONTENT_TYPE, "application/json")
+        .header(CACHE_CONTROL, "no-store")
+        .header(PRAGMA, "no-cache")
+        .status(StatusCode::OK)
+        .body(Body::from(json))
+    {
+        Ok(access_token_response) => Ok(access_token_response),
+        Err(error) => {
+            let access_token_error = AccessTokenError {
+                error: AccessTokenErrorCode::InvalidClient,
+                error_description: Some(error.to_string()),
+                error_uri: None,
+            };
+
+            Err(access_token_error)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use axum::routing::post;
     use axum::Router;
     use axum::Server;
+    use hyper::body::to_bytes;
     use hyper::{Body, Method};
     use std::net::SocketAddr;
     use std::str::FromStr;
@@ -392,6 +407,48 @@ mod tests {
         let test_non_ascii_code_error = super::verify(test_non_ascii_code).await;
 
         assert!(test_non_ascii_code_error.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn issue_token() -> Result<(), Box<dyn std::error::Error>> {
+        let test_access_token_response = AccessTokenResponse {
+            access_token: String::from("some_test_access_token"),
+            token_type: AccessTokenType::Bearer,
+            expires_in: 3600,
+        };
+
+        let test_json = serde_json::to_vec(&test_access_token_response).expect("json");
+        let test_response = super::issue_token(test_json).await.expect("test_response");
+
+        assert!(test_response.headers().contains_key(CONTENT_TYPE));
+        assert!(test_response.headers().contains_key(CACHE_CONTROL));
+        assert!(test_response.headers().contains_key(PRAGMA));
+        assert_eq!(
+            test_response.headers().get(CONTENT_TYPE).unwrap(),
+            "application/json",
+        );
+        assert_eq!(
+            test_response.headers().get(CACHE_CONTROL).unwrap(),
+            "no-store",
+        );
+        assert_eq!(test_response.headers().get(PRAGMA).unwrap(), "no-cache");
+        assert_eq!(test_response.status(), StatusCode::OK);
+
+        let test_body_bytes = to_bytes(&mut test_response.into_body()).await?;
+        let test_access_token_response_deserialized: AccessTokenResponse =
+            serde_json::from_slice(&test_body_bytes)?;
+
+        assert_eq!(
+            test_access_token_response_deserialized.access_token,
+            "some_test_access_token",
+        );
+        assert_eq!(
+            test_access_token_response_deserialized.token_type,
+            AccessTokenType::Bearer,
+        );
+        assert_eq!(test_access_token_response_deserialized.expires_in, 3600);
 
         Ok(())
     }
