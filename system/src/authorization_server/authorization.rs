@@ -21,11 +21,11 @@ impl AuthorizationServer {
         query: Query<AuthorizationRequest>,
         request: Request<Body>,
     ) -> Result<Response<Body>, AuthorizationError> {
-        AuthorizationServer::check_content_type(request.headers()).await?;
-        AuthorizationServer::check_response_type(request.uri()).await?;
-        AuthorizationServer::check_client_id(request.uri()).await?;
-        AuthorizationServer::check_scope(query.scope.as_ref()).await?;
-        AuthorizationServer::authorize_client(&query.client_id).await?;
+        check_content_type(request.headers()).await?;
+        check_response_type(request.uri()).await?;
+        check_client_id(request.uri()).await?;
+        check_scope(query.scope.as_ref()).await?;
+        authorize_client(&query.client_id).await?;
 
         let authorization_response = match &query.state {
             None => AuthorizationResponse {
@@ -43,130 +43,128 @@ impl AuthorizationServer {
 
         Ok(response)
     }
+}
 
-    async fn check_content_type(headers: &HeaderMap) -> Result<(), AuthorizationError> {
-        match headers.get(CONTENT_TYPE) {
-            None => {
-                let authorization_error = AuthorizationError {
-                    error: AuthorizationErrorCode::InvalidRequest,
-                    error_description: Some(String::from("Missing Header: Content-Type")),
-                    error_uri: None,
-                };
+async fn check_content_type(headers: &HeaderMap) -> Result<(), AuthorizationError> {
+    match headers.get(CONTENT_TYPE) {
+        None => {
+            let authorization_error = AuthorizationError {
+                error: AuthorizationErrorCode::InvalidRequest,
+                error_description: Some(String::from("Missing Header: Content-Type")),
+                error_uri: None,
+            };
 
-                return Err(authorization_error);
-            }
-            Some(application_x_www_form_urlencoded) => {
-                match application_x_www_form_urlencoded == "application/x-www-form-urlencoded" {
-                    true => println!("valid header!"),
-                    false => {
-                        let authorization_error = AuthorizationError {
-                            error: AuthorizationErrorCode::InvalidRequest,
-                            error_description: Some(String::from(
-                                "Header: Content-Type is invalid!",
-                            )),
-                            error_uri: None,
-                        };
-
-                        return Err(authorization_error);
-                    }
-                }
-            }
+            return Err(authorization_error);
         }
-
-        Ok(())
-    }
-
-    async fn check_response_type(uri: &Uri) -> Result<(), AuthorizationError> {
-        match uri.query() {
-            None => {
-                let authorization_error = AuthorizationError {
-                    error: AuthorizationErrorCode::InvalidRequest,
-                    error_description: Some(String::from("Missing URI query")),
-                    error_uri: None,
-                };
-
-                return Err(authorization_error);
-            }
-            Some(query) => match query.contains("response_type=code") {
-                true => println!("valid response type!"),
-                false => {
-                    let authorization_error = AuthorizationError {
-                        error: AuthorizationErrorCode::UnsupportedResponseType,
-                        error_description: None,
-                        error_uri: None,
-                    };
-
-                    return Err(authorization_error);
-                }
-            },
-        }
-
-        Ok(())
-    }
-
-    async fn check_client_id(uri: &Uri) -> Result<(), AuthorizationError> {
-        match uri.query() {
-            None => {
-                let authorization_error = AuthorizationError {
-                    error: AuthorizationErrorCode::InvalidRequest,
-                    error_description: Some(String::from("Missing URI query")),
-                    error_uri: None,
-                };
-
-                return Err(authorization_error);
-            }
-            Some(query) => match query.contains("client_id=") {
-                true => println!("request contains client_id"),
+        Some(application_x_www_form_urlencoded) => {
+            match application_x_www_form_urlencoded == "application/x-www-form-urlencoded" {
+                true => println!("valid header!"),
                 false => {
                     let authorization_error = AuthorizationError {
                         error: AuthorizationErrorCode::InvalidRequest,
-                        error_description: Some(String::from("client ID is missing!")),
+                        error_description: Some(String::from("Header: Content-Type is invalid!")),
                         error_uri: None,
                     };
 
                     return Err(authorization_error);
                 }
-            },
-        }
-
-        Ok(())
-    }
-
-    async fn check_scope(query_scope: Option<&String>) -> Result<(), AuthorizationError> {
-        if let Some(access_token_scope) = query_scope {
-            match access_token_scope.is_empty() {
-                true => {
-                    let authorization_error = AuthorizationError {
-                        error: AuthorizationErrorCode::InvalidScope,
-                        error_description: None,
-                        error_uri: None,
-                    };
-
-                    return Err(authorization_error);
-                }
-                false => println!("verify -> {:?}", &access_token_scope),
             }
         }
-
-        Ok(())
     }
 
-    async fn authorize_client(id: &str) -> Result<(), AuthorizationError> {
-        match id.is_ascii() {
-            true => println!("we need better way to authorize this client..."),
+    Ok(())
+}
+
+async fn check_response_type(uri: &Uri) -> Result<(), AuthorizationError> {
+    match uri.query() {
+        None => {
+            let authorization_error = AuthorizationError {
+                error: AuthorizationErrorCode::InvalidRequest,
+                error_description: Some(String::from("Missing URI query")),
+                error_uri: None,
+            };
+
+            return Err(authorization_error);
+        }
+        Some(query) => match query.contains("response_type=code") {
+            true => println!("valid response type!"),
             false => {
                 let authorization_error = AuthorizationError {
-                    error: AuthorizationErrorCode::AccessDenied,
+                    error: AuthorizationErrorCode::UnsupportedResponseType,
                     error_description: None,
                     error_uri: None,
                 };
 
                 return Err(authorization_error);
             }
-        }
-
-        Ok(())
+        },
     }
+
+    Ok(())
+}
+
+async fn check_client_id(uri: &Uri) -> Result<(), AuthorizationError> {
+    match uri.query() {
+        None => {
+            let authorization_error = AuthorizationError {
+                error: AuthorizationErrorCode::InvalidRequest,
+                error_description: Some(String::from("Missing URI query")),
+                error_uri: None,
+            };
+
+            return Err(authorization_error);
+        }
+        Some(query) => match query.contains("client_id=") {
+            true => println!("request contains client_id"),
+            false => {
+                let authorization_error = AuthorizationError {
+                    error: AuthorizationErrorCode::InvalidRequest,
+                    error_description: Some(String::from("client ID is missing!")),
+                    error_uri: None,
+                };
+
+                return Err(authorization_error);
+            }
+        },
+    }
+
+    Ok(())
+}
+
+async fn check_scope(query_scope: Option<&String>) -> Result<(), AuthorizationError> {
+    if let Some(access_token_scope) = query_scope {
+        match access_token_scope.is_empty() {
+            true => {
+                let authorization_error = AuthorizationError {
+                    error: AuthorizationErrorCode::InvalidScope,
+                    error_description: None,
+                    error_uri: None,
+                };
+
+                return Err(authorization_error);
+            }
+            false => println!("verify -> {:?}", &access_token_scope),
+        }
+    }
+
+    Ok(())
+}
+
+async fn authorize_client(id: &str) -> Result<(), AuthorizationError> {
+    match id.is_ascii() {
+        true => println!("we need better way to authorize this client..."),
+        false => {
+            let authorization_error = AuthorizationError {
+                error: AuthorizationErrorCode::AccessDenied,
+                error_description: None,
+                error_uri: None,
+            };
+
+            return Err(authorization_error);
+        }
+    }
+
+    Ok(())
 }
 
 async fn grant_access(redirect_url: &str) -> Result<Response<Body>, AuthorizationError> {
@@ -275,7 +273,7 @@ mod tests {
             .unwrap();
 
         let test_check_content_type_ok =
-            AuthorizationServer::check_content_type(test_authorization_request_ok.headers()).await;
+            super::check_content_type(test_authorization_request_ok.headers()).await;
 
         assert!(test_check_content_type_ok.is_ok());
 
@@ -286,8 +284,7 @@ mod tests {
             .unwrap();
 
         let test_check_content_type_invalid =
-            AuthorizationServer::check_content_type(test_authorization_request_invalid.headers())
-                .await;
+            super::check_content_type(test_authorization_request_invalid.headers()).await;
 
         assert!(test_check_content_type_invalid.is_err());
 
@@ -297,8 +294,7 @@ mod tests {
             .unwrap();
 
         let test_check_content_type_missing =
-            AuthorizationServer::check_content_type(test_authorization_request_missing.headers())
-                .await;
+            super::check_content_type(test_authorization_request_missing.headers()).await;
 
         assert!(test_check_content_type_missing.is_err());
 
@@ -312,8 +308,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let test_check_response_type_ok =
-            AuthorizationServer::check_response_type(&test_uri_ok).await;
+        let test_check_response_type_ok = super::check_response_type(&test_uri_ok).await;
 
         assert!(test_check_response_type_ok.is_ok());
 
@@ -322,8 +317,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let test_check_response_type_invalid =
-            AuthorizationServer::check_response_type(&test_uri_invalid).await;
+        let test_check_response_type_invalid = super::check_response_type(&test_uri_invalid).await;
 
         assert!(test_check_response_type_invalid.is_err());
 
@@ -332,8 +326,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let test_check_response_type_missing =
-            AuthorizationServer::check_response_type(&test_uri_missing).await;
+        let test_check_response_type_missing = super::check_response_type(&test_uri_missing).await;
 
         assert!(test_check_response_type_missing.is_err());
 
@@ -347,7 +340,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let test_check_client_id_ok = AuthorizationServer::check_client_id(&test_uri_ok).await;
+        let test_check_client_id_ok = super::check_client_id(&test_uri_ok).await;
 
         assert!(test_check_client_id_ok.is_ok());
 
@@ -356,8 +349,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let test_check_client_id_missing =
-            AuthorizationServer::check_client_id(&test_uri_missing).await;
+        let test_check_client_id_missing = super::check_client_id(&test_uri_missing).await;
 
         assert!(test_check_client_id_missing.is_err());
 
@@ -367,18 +359,17 @@ mod tests {
     #[tokio::test]
     async fn check_scope() -> Result<(), Box<dyn std::error::Error>> {
         let test_scope_some = Some(String::from("scope=some_test_scope"));
-        let test_scope_ok = AuthorizationServer::check_scope(test_scope_some.as_ref()).await;
+        let test_scope_ok = super::check_scope(test_scope_some.as_ref()).await;
 
         assert!(test_scope_ok.is_ok());
 
         let test_scope_some_empty = Some(String::from(""));
-        let test_scope_empty_error =
-            AuthorizationServer::check_scope(test_scope_some_empty.as_ref()).await;
+        let test_scope_empty_error = super::check_scope(test_scope_some_empty.as_ref()).await;
 
         assert!(test_scope_empty_error.is_err());
 
         let test_scope_none = None;
-        let test_scope_none_ok = AuthorizationServer::check_scope(test_scope_none).await;
+        let test_scope_none_ok = super::check_scope(test_scope_none).await;
 
         assert!(test_scope_none_ok.is_ok());
 
@@ -388,13 +379,12 @@ mod tests {
     #[tokio::test]
     async fn authorize_client() -> Result<(), Box<dyn std::error::Error>> {
         let test_ascii_id = "@30kmcunQlkm0";
-        let test_ascii_id_ok = AuthorizationServer::authorize_client(test_ascii_id).await;
+        let test_ascii_id_ok = super::authorize_client(test_ascii_id).await;
 
         assert!(test_ascii_id_ok.is_ok());
 
         let test_non_ascii_id = "❤Τêστ⊗";
-        let test_non_ascii_id_error =
-            AuthorizationServer::authorize_client(test_non_ascii_id).await;
+        let test_non_ascii_id_error = super::authorize_client(test_non_ascii_id).await;
 
         assert!(test_non_ascii_id_error.is_err());
 
