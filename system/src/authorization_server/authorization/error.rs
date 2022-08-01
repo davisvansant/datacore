@@ -5,7 +5,7 @@ use axum::response::{IntoResponse, Response};
 use serde::Serialize;
 use serde_json::to_value;
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct AuthorizationError {
     pub error: AuthorizationErrorCode,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -62,7 +62,7 @@ impl IntoResponse for AuthorizationError {
 //     RequestUriNotSupported,
 //     RegistrationNotSupported,
 // }
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthorizationErrorCode {
     InvalidRequest,
