@@ -17,7 +17,7 @@ mod request;
 mod response;
 
 impl AuthorizationServer {
-    pub(crate) async fn authorization(
+    pub(crate) async fn authorize(
         query: Query<AuthorizationRequest>,
         request: Request<Body>,
     ) -> Result<Response<Body>, AuthorizationError> {
@@ -201,8 +201,7 @@ mod tests {
     #[tokio::test]
     async fn authorize_get() -> Result<(), Box<dyn std::error::Error>> {
         let test_socket_address = SocketAddr::from_str("127.0.0.1:6749")?;
-        let test_endpoint =
-            Router::new().route("/authorize", get(AuthorizationServer::authorization));
+        let test_endpoint = Router::new().route("/authorize", get(AuthorizationServer::authorize));
 
         let test_server =
             Server::bind(&test_socket_address).serve(test_endpoint.into_make_service());

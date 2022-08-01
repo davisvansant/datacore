@@ -27,8 +27,8 @@ impl AuthorizationServer {
 
     async fn router(&self) -> Router {
         let authorization_endpoint = Router::new()
-            .route("/authorize", get(AuthorizationServer::authorization))
-            .route("/authorize", post(AuthorizationServer::authorization));
+            .route("/authorize", get(AuthorizationServer::authorize))
+            .route("/authorize", post(AuthorizationServer::authorize));
 
         let token_endpoint = Router::new()
             .route("/token", get(AuthorizationServer::token))
