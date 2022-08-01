@@ -26,7 +26,7 @@ impl AuthorizationServer {
 
         let client_id = check_client_id(request.uri()).await?;
 
-        check_scope(query.scope.as_ref()).await?;
+        check_scope(request.uri()).await?;
         authorize(&client_id).await?;
 
         let authorization_response = match &query.state {
@@ -133,23 +133,36 @@ async fn check_client_id(uri: &Uri) -> Result<String, AuthorizationError> {
     }
 }
 
-async fn check_scope(query_scope: Option<&String>) -> Result<(), AuthorizationError> {
-    if let Some(access_token_scope) = query_scope {
-        match access_token_scope.is_empty() {
-            true => {
-                let authorization_error = AuthorizationError {
-                    error: AuthorizationErrorCode::InvalidScope,
-                    error_description: None,
-                    error_uri: None,
-                };
+async fn check_scope(uri: &Uri) -> Result<(), AuthorizationError> {
+    let authorization_error = AuthorizationError {
+        error: AuthorizationErrorCode::InvalidScope,
+        error_description: None,
+        error_uri: None,
+    };
 
-                return Err(authorization_error);
+    match uri.query() {
+        None => Err(authorization_error),
+        Some(query) => {
+            match query
+                .split('&')
+                .find(|parameter| parameter.starts_with("scope="))
+            {
+                Some(scope_parameter) => {
+                    println!("query contains {:?}", &scope_parameter);
+
+                    match scope_parameter.strip_prefix("scope=") {
+                        None => Err(authorization_error),
+                        Some(scope) => {
+                            println!("scope paramenter value -> {:?}", &scope);
+
+                            Ok(())
+                        }
+                    }
+                }
+                None => Ok(()),
             }
-            false => println!("verify -> {:?}", &access_token_scope),
         }
     }
-
-    Ok(())
 }
 
 async fn authorize(id: &str) -> Result<(), AuthorizationError> {
@@ -360,20 +373,21 @@ mod tests {
 
     #[tokio::test]
     async fn check_scope() -> Result<(), Box<dyn std::error::Error>> {
-        let test_scope_some = Some(String::from("scope=some_test_scope"));
-        let test_scope_ok = super::check_scope(test_scope_some.as_ref()).await;
+        let test_uri_ok = http::uri::Builder::new()
+            .path_and_query("/authorize?scope=some_test_scope")
+            .build()
+            .unwrap();
+        let test_scope_ok = super::check_scope(&test_uri_ok).await;
 
         assert!(test_scope_ok.is_ok());
 
-        let test_scope_some_empty = Some(String::from(""));
-        let test_scope_empty_error = super::check_scope(test_scope_some_empty.as_ref()).await;
+        let test_uri_missing = http::uri::Builder::new()
+            .path_and_query("/authorize?another_scope=some_test_scope")
+            .build()
+            .unwrap();
+        let test_scope_missing_ok = super::check_scope(&test_uri_missing).await;
 
-        assert!(test_scope_empty_error.is_err());
-
-        let test_scope_none = None;
-        let test_scope_none_ok = super::check_scope(test_scope_none).await;
-
-        assert!(test_scope_none_ok.is_ok());
+        assert!(test_scope_missing_ok.is_ok());
 
         Ok(())
     }
