@@ -27,7 +27,7 @@ impl AuthorizationServer {
         let client_id = check_client_id(request.uri()).await?;
 
         check_scope(query.scope.as_ref()).await?;
-        authorize_client(&client_id).await?;
+        authorize(&client_id).await?;
 
         let authorization_response = match &query.state {
             None => AuthorizationResponse {
@@ -152,7 +152,7 @@ async fn check_scope(query_scope: Option<&String>) -> Result<(), AuthorizationEr
     Ok(())
 }
 
-async fn authorize_client(id: &str) -> Result<(), AuthorizationError> {
+async fn authorize(id: &str) -> Result<(), AuthorizationError> {
     match id.is_ascii() {
         true => println!("we need better way to authorize this client..."),
         false => {
@@ -379,14 +379,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn authorize_client() -> Result<(), Box<dyn std::error::Error>> {
+    async fn authorize() -> Result<(), Box<dyn std::error::Error>> {
         let test_ascii_id = "@30kmcunQlkm0";
-        let test_ascii_id_ok = super::authorize_client(test_ascii_id).await;
+        let test_ascii_id_ok = super::authorize(test_ascii_id).await;
 
         assert!(test_ascii_id_ok.is_ok());
 
         let test_non_ascii_id = "❤Τêστ⊗";
-        let test_non_ascii_id_error = super::authorize_client(test_non_ascii_id).await;
+        let test_non_ascii_id_error = super::authorize(test_non_ascii_id).await;
 
         assert!(test_non_ascii_id_error.is_err());
 
