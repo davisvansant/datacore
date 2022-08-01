@@ -39,13 +39,7 @@ impl AuthorizationServer {
         };
 
         let redirect_url = authorization_response.url().await;
-
-        let response = Response::builder()
-            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .header(LOCATION, redirect_url)
-            .status(StatusCode::FOUND)
-            .body(Body::empty())
-            .unwrap();
+        let response = grant_access(&redirect_url).await?;
 
         Ok(response)
     }
@@ -175,12 +169,33 @@ impl AuthorizationServer {
     }
 }
 
+async fn grant_access(redirect_url: &str) -> Result<Response<Body>, AuthorizationError> {
+    match Response::builder()
+        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .header(LOCATION, redirect_url)
+        .status(StatusCode::FOUND)
+        .body(Body::empty())
+    {
+        Ok(authorization_response) => Ok(authorization_response),
+        Err(error) => {
+            let authorization_error = AuthorizationError {
+                error: AuthorizationErrorCode::ServerError,
+                error_description: Some(error.to_string()),
+                error_uri: None,
+            };
+
+            Err(authorization_error)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use axum::routing::get;
     use axum::Router;
     use axum::Server;
+    use hyper::body::to_bytes;
     use hyper::{Body, Method};
     use std::net::SocketAddr;
     use std::str::FromStr;
@@ -382,6 +397,32 @@ mod tests {
             AuthorizationServer::authorize_client(test_non_ascii_id).await;
 
         assert!(test_non_ascii_id_error.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn grant_access() -> Result<(), Box<dyn std::error::Error>> {
+        let test_redirect_url = "some_test_redirect_url";
+        let test_response = super::grant_access(test_redirect_url)
+            .await
+            .expect("test_response");
+
+        assert!(test_response.headers().contains_key(CONTENT_TYPE));
+        assert!(test_response.headers().contains_key(LOCATION));
+        assert_eq!(
+            test_response.headers().get(CONTENT_TYPE).unwrap(),
+            "application/x-www-form-urlencoded",
+        );
+        assert_eq!(
+            test_response.headers().get(LOCATION).unwrap(),
+            "some_test_redirect_url",
+        );
+        assert_eq!(test_response.status(), StatusCode::FOUND);
+
+        let test_body_bytes = to_bytes(&mut test_response.into_body()).await?;
+
+        assert!(test_body_bytes.is_empty());
 
         Ok(())
     }
