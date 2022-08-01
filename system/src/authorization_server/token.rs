@@ -22,9 +22,9 @@ impl AuthorizationServer {
         _query: Query<AccessTokenRequest>,
         request: Request<Body>,
     ) -> Result<Response<Body>, AccessTokenError> {
-        AuthorizationServer::check_grant_type(request.uri()).await?;
+        check_grant_type(request.uri()).await?;
 
-        let code = AuthorizationServer::check_code(request.uri()).await?;
+        let code = check_code(request.uri()).await?;
         let client_id = check_client_id(request.uri()).await?;
 
         authenticate(&client_id).await?;
@@ -49,78 +49,76 @@ impl AuthorizationServer {
 
         Ok(response)
     }
+}
 
-    async fn check_grant_type(uri: &Uri) -> Result<(), AccessTokenError> {
-        match uri.query() {
-            None => {
+async fn check_grant_type(uri: &Uri) -> Result<(), AccessTokenError> {
+    match uri.query() {
+        None => {
+            let access_token_error = AccessTokenError {
+                error: AccessTokenErrorCode::InvalidRequest,
+                error_description: Some(String::from("missing grant_type=")),
+                error_uri: None,
+            };
+
+            return Err(access_token_error);
+        }
+        Some(query) => match query.contains("grant_type=authorization_code") {
+            true => println!("valid response type!"),
+            false => {
                 let access_token_error = AccessTokenError {
-                    error: AccessTokenErrorCode::InvalidRequest,
-                    error_description: Some(String::from("missing grant_type=")),
+                    error: AccessTokenErrorCode::InvalidGrant,
+                    error_description: Some(String::from("missing grant_type=authorization_code")),
                     error_uri: None,
                 };
 
                 return Err(access_token_error);
             }
-            Some(query) => match query.contains("grant_type=authorization_code") {
-                true => println!("valid response type!"),
-                false => {
+        },
+    }
+
+    Ok(())
+}
+
+async fn check_code(uri: &Uri) -> Result<String, AccessTokenError> {
+    match uri.query() {
+        None => {
+            let access_token_error = AccessTokenError {
+                error: AccessTokenErrorCode::InvalidRequest,
+                error_description: Some(String::from("missing code=")),
+                error_uri: None,
+            };
+
+            Err(access_token_error)
+        }
+        Some(query) => {
+            match query
+                .split('&')
+                .find(|parameter| parameter.starts_with("code="))
+            {
+                Some(code_parameter) => {
+                    println!("query contains {:?}", &code_parameter);
+
+                    match code_parameter.strip_prefix("code=") {
+                        None => {
+                            let access_token_error = AccessTokenError {
+                                error: AccessTokenErrorCode::InvalidClient,
+                                error_description: None,
+                                error_uri: None,
+                            };
+
+                            Err(access_token_error)
+                        }
+                        Some(client_id) => Ok(client_id.to_owned()),
+                    }
+                }
+                None => {
                     let access_token_error = AccessTokenError {
-                        error: AccessTokenErrorCode::InvalidGrant,
-                        error_description: Some(String::from(
-                            "missing grant_type=authorization_code",
-                        )),
+                        error: AccessTokenErrorCode::InvalidClient,
+                        error_description: None,
                         error_uri: None,
                     };
 
-                    return Err(access_token_error);
-                }
-            },
-        }
-
-        Ok(())
-    }
-
-    async fn check_code(uri: &Uri) -> Result<String, AccessTokenError> {
-        match uri.query() {
-            None => {
-                let access_token_error = AccessTokenError {
-                    error: AccessTokenErrorCode::InvalidRequest,
-                    error_description: Some(String::from("missing code=")),
-                    error_uri: None,
-                };
-
-                Err(access_token_error)
-            }
-            Some(query) => {
-                match query
-                    .split('&')
-                    .find(|parameter| parameter.starts_with("code="))
-                {
-                    Some(code_parameter) => {
-                        println!("query contains {:?}", &code_parameter);
-
-                        match code_parameter.strip_prefix("code=") {
-                            None => {
-                                let access_token_error = AccessTokenError {
-                                    error: AccessTokenErrorCode::InvalidClient,
-                                    error_description: None,
-                                    error_uri: None,
-                                };
-
-                                Err(access_token_error)
-                            }
-                            Some(client_id) => Ok(client_id.to_owned()),
-                        }
-                    }
-                    None => {
-                        let access_token_error = AccessTokenError {
-                            error: AccessTokenErrorCode::InvalidClient,
-                            error_description: None,
-                            error_uri: None,
-                        };
-
-                        Err(access_token_error)
-                    }
+                    Err(access_token_error)
                 }
             }
         }
@@ -296,7 +294,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let test_check_grant_type_ok = AuthorizationServer::check_grant_type(&test_uri_ok).await;
+        let test_check_grant_type_ok = super::check_grant_type(&test_uri_ok).await;
 
         assert!(test_check_grant_type_ok.is_ok());
 
@@ -305,8 +303,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let test_check_grant_type_invalid =
-            AuthorizationServer::check_grant_type(&test_uri_invalid).await;
+        let test_check_grant_type_invalid = super::check_grant_type(&test_uri_invalid).await;
 
         assert!(test_check_grant_type_invalid.is_err());
 
@@ -315,8 +312,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let test_check_grant_type_missing =
-            AuthorizationServer::check_grant_type(&test_uri_missing).await;
+        let test_check_grant_type_missing = super::check_grant_type(&test_uri_missing).await;
 
         assert!(test_check_grant_type_missing.is_err());
 
@@ -330,7 +326,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let test_check_code_ok = AuthorizationServer::check_code(&test_uri_ok).await;
+        let test_check_code_ok = super::check_code(&test_uri_ok).await;
 
         assert!(test_check_code_ok.is_ok());
 
@@ -339,7 +335,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let test_check_code_missing = AuthorizationServer::check_code(&test_uri_missing).await;
+        let test_check_code_missing = super::check_code(&test_uri_missing).await;
 
         assert!(test_check_code_missing.is_err());
 
