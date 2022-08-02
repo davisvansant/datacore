@@ -55,22 +55,27 @@ async fn check_grant_type(uri: &Uri) -> Result<(), AccessTokenError> {
 
             Err(access_token_error)
         }
-        Some(query) => match query.contains("grant_type=authorization_code") {
-            true => {
-                println!("valid response type!");
+        Some(query) => {
+            match query
+                .split('&')
+                .find(|parameter| parameter.starts_with("grant_type=authorization_code"))
+            {
+                Some(grant_type_parameter) => {
+                    println!("query contains {:?}", &grant_type_parameter);
 
-                Ok(())
-            }
-            false => {
-                let access_token_error = AccessTokenError {
-                    error: AccessTokenErrorCode::InvalidGrant,
-                    error_description: Some(String::from("missing grant_type=authorization_code")),
-                    error_uri: None,
-                };
+                    Ok(())
+                }
+                None => {
+                    let access_token_error = AccessTokenError {
+                        error: AccessTokenErrorCode::InvalidClient,
+                        error_description: None,
+                        error_uri: None,
+                    };
 
-                Err(access_token_error)
+                    Err(access_token_error)
+                }
             }
-        },
+        }
     }
 }
 
@@ -329,7 +334,7 @@ mod tests {
         assert!(test_check_grant_type_invalid.is_err());
 
         let test_uri_missing = http::uri::Builder::new()
-            .path_and_query("/token?missing_grant_type")
+            .path_and_query("/token?another_grant_type=authorization_code")
             .build()
             .unwrap();
 
