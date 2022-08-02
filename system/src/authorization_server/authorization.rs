@@ -78,31 +78,28 @@ async fn check_content_type(headers: &HeaderMap) -> Result<(), AuthorizationErro
 }
 
 async fn check_response_type(uri: &Uri) -> Result<(), AuthorizationError> {
+    let authorization_error = AuthorizationError {
+        error: AuthorizationErrorCode::InvalidRequest,
+        error_description: Some(String::from("missing query parameter")),
+        error_uri: None,
+    };
+
     match uri.query() {
-        None => {
-            let authorization_error = AuthorizationError {
-                error: AuthorizationErrorCode::InvalidRequest,
-                error_description: Some(String::from("Missing URI query")),
-                error_uri: None,
-            };
+        None => Err(authorization_error),
+        Some(query) => {
+            match query
+                .split('&')
+                .find(|parameter| parameter.starts_with("response_type=code"))
+            {
+                Some(response_type_parameter) => {
+                    println!("query contains {:?}", &response_type_parameter);
 
-            return Err(authorization_error);
-        }
-        Some(query) => match query.contains("response_type=code") {
-            true => println!("valid response type!"),
-            false => {
-                let authorization_error = AuthorizationError {
-                    error: AuthorizationErrorCode::UnsupportedResponseType,
-                    error_description: None,
-                    error_uri: None,
-                };
-
-                return Err(authorization_error);
+                    Ok(())
+                }
+                None => Err(authorization_error),
             }
-        },
+        }
     }
-
-    Ok(())
 }
 
 async fn check_client_id(uri: &Uri) -> Result<String, AuthorizationError> {
@@ -336,7 +333,7 @@ mod tests {
         assert!(test_check_response_type_invalid.is_err());
 
         let test_uri_missing = http::uri::Builder::new()
-            .path_and_query("/authorize?missing")
+            .path_and_query("/authorize?another_response_type=code")
             .build()
             .unwrap();
 
