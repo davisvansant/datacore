@@ -21,22 +21,31 @@ impl AuthorizationServer {
         query: Query<AuthorizationRequest>,
         request: Request<Body>,
     ) -> Result<Response<Body>, AuthorizationError> {
+        println!("request query -> {:?}", query.response_type);
+        println!("request query -> {:?}", query.client_id);
+        println!("request query -> {:?}", query.redirect_uri);
+        println!("request query -> {:?}", query.scope);
+        println!("request query -> {:?}", query.state);
+
         check_content_type(request.headers()).await?;
         check_response_type(request.uri()).await?;
 
         let client_id = check_client_id(request.uri()).await?;
 
         check_scope(request.uri()).await?;
+
+        let state_request = check_state(request.uri()).await?;
+
         authorize(&client_id).await?;
 
-        let authorization_response = match &query.state {
+        let authorization_response = match state_request {
             None => AuthorizationResponse {
                 code: String::from("some_code"),
                 state: None,
             },
             Some(state) => AuthorizationResponse {
                 code: String::from("some_code"),
-                state: Some(state.to_owned()),
+                state: Some(state),
             },
         };
 
@@ -159,6 +168,38 @@ async fn check_scope(uri: &Uri) -> Result<(), AuthorizationError> {
                     }
                 }
                 None => Ok(()),
+            }
+        }
+    }
+}
+
+async fn check_state(uri: &Uri) -> Result<Option<String>, AuthorizationError> {
+    let authorization_error = AuthorizationError {
+        error: AuthorizationErrorCode::InvalidRequest,
+        error_description: None,
+        error_uri: None,
+    };
+
+    match uri.query() {
+        None => Err(authorization_error),
+        Some(query) => {
+            match query
+                .split('&')
+                .find(|parameter| parameter.starts_with("state="))
+            {
+                Some(state_parameter) => {
+                    println!("query contains {:?}", &state_parameter);
+
+                    match state_parameter.strip_prefix("state=") {
+                        None => Err(authorization_error),
+                        Some(state) => {
+                            println!("state paramenter value -> {:?}", &state);
+
+                            Ok(Some(state.to_owned()))
+                        }
+                    }
+                }
+                None => Ok(None),
             }
         }
     }
@@ -389,6 +430,32 @@ mod tests {
         let test_scope_missing_ok = super::check_scope(&test_uri_missing).await;
 
         assert!(test_scope_missing_ok.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_state() -> Result<(), Box<dyn std::error::Error>> {
+        let test_uri_ok = http::uri::Builder::new()
+            .path_and_query("/authorize?state=some_test_state")
+            .build()
+            .unwrap();
+
+        let test_state_ok = super::check_state(&test_uri_ok).await;
+
+        assert!(test_state_ok.is_ok());
+        assert!(test_state_ok.as_ref().unwrap().is_some());
+        assert_eq!(test_state_ok.unwrap().unwrap(), "some_test_state");
+
+        let test_uri_missing = http::uri::Builder::new()
+            .path_and_query("/authorize?another_state=some_test_state")
+            .build()
+            .unwrap();
+
+        let test_state_missing_ok_none = super::check_state(&test_uri_missing).await;
+
+        assert!(test_state_missing_ok_none.is_ok());
+        assert!(test_state_missing_ok_none.unwrap().is_none());
 
         Ok(())
     }
