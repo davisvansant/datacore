@@ -51,12 +51,14 @@ impl ClientRegistration {
                     error_description: String::from("Request is not valid JSON!"),
                 };
 
-                return Err(client_registration_error);
+                Err(client_registration_error)
             }
-            Some(application_json) => println!("valid request! -> {:?}", application_json),
-        }
+            Some(application_json) => {
+                println!("valid request! -> {:?}", application_json);
 
-        Ok(())
+                Ok(())
+            }
+        }
     }
 
     async fn check_redirect_uri(

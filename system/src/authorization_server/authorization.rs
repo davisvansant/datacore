@@ -56,11 +56,15 @@ async fn check_content_type(headers: &HeaderMap) -> Result<(), AuthorizationErro
                 error_uri: None,
             };
 
-            return Err(authorization_error);
+            Err(authorization_error)
         }
         Some(application_x_www_form_urlencoded) => {
             match application_x_www_form_urlencoded == "application/x-www-form-urlencoded" {
-                true => println!("valid header!"),
+                true => {
+                    println!("valid header!");
+
+                    Ok(())
+                }
                 false => {
                     let authorization_error = AuthorizationError {
                         error: AuthorizationErrorCode::InvalidRequest,
@@ -68,13 +72,11 @@ async fn check_content_type(headers: &HeaderMap) -> Result<(), AuthorizationErro
                         error_uri: None,
                     };
 
-                    return Err(authorization_error);
+                    Err(authorization_error)
                 }
             }
         }
     }
-
-    Ok(())
 }
 
 async fn check_response_type(uri: &Uri) -> Result<(), AuthorizationError> {
@@ -164,7 +166,11 @@ async fn check_scope(uri: &Uri) -> Result<(), AuthorizationError> {
 
 async fn authorize(id: &str) -> Result<(), AuthorizationError> {
     match id.is_ascii() {
-        true => println!("we need better way to authorize this client..."),
+        true => {
+            println!("we need better way to authorize this client...");
+
+            Ok(())
+        }
         false => {
             let authorization_error = AuthorizationError {
                 error: AuthorizationErrorCode::AccessDenied,
@@ -172,11 +178,9 @@ async fn authorize(id: &str) -> Result<(), AuthorizationError> {
                 error_uri: None,
             };
 
-            return Err(authorization_error);
+            Err(authorization_error)
         }
     }
-
-    Ok(())
 }
 
 async fn grant_access(redirect_url: &str) -> Result<Response<Body>, AuthorizationError> {

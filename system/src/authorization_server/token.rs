@@ -53,10 +53,14 @@ async fn check_grant_type(uri: &Uri) -> Result<(), AccessTokenError> {
                 error_uri: None,
             };
 
-            return Err(access_token_error);
+            Err(access_token_error)
         }
         Some(query) => match query.contains("grant_type=authorization_code") {
-            true => println!("valid response type!"),
+            true => {
+                println!("valid response type!");
+
+                Ok(())
+            }
             false => {
                 let access_token_error = AccessTokenError {
                     error: AccessTokenErrorCode::InvalidGrant,
@@ -64,12 +68,10 @@ async fn check_grant_type(uri: &Uri) -> Result<(), AccessTokenError> {
                     error_uri: None,
                 };
 
-                return Err(access_token_error);
+                Err(access_token_error)
             }
         },
     }
-
-    Ok(())
 }
 
 async fn check_code(uri: &Uri) -> Result<String, AccessTokenError> {
@@ -148,7 +150,11 @@ async fn check_client_id(uri: &Uri) -> Result<String, AccessTokenError> {
 
 async fn authenticate(client_id: &str) -> Result<(), AccessTokenError> {
     match client_id.is_ascii() {
-        true => println!("authenticated client id!"),
+        true => {
+            println!("authenticated client id!");
+
+            Ok(())
+        }
         false => {
             let access_token_error = AccessTokenError {
                 error: AccessTokenErrorCode::InvalidClient,
@@ -156,11 +162,9 @@ async fn authenticate(client_id: &str) -> Result<(), AccessTokenError> {
                 error_uri: None,
             };
 
-            return Err(access_token_error);
+            Err(access_token_error)
         }
     }
-
-    Ok(())
 }
 
 async fn ensure(_code: &str, _client_id: &str) -> Result<(), AccessTokenError> {
@@ -169,7 +173,11 @@ async fn ensure(_code: &str, _client_id: &str) -> Result<(), AccessTokenError> {
 
 async fn verify(code: &str) -> Result<(), AccessTokenError> {
     match code.is_ascii() {
-        true => println!("code is verified!"),
+        true => {
+            println!("code is verified!");
+
+            Ok(())
+        }
         false => {
             let access_token_error = AccessTokenError {
                 error: AccessTokenErrorCode::InvalidClient,
@@ -177,11 +185,9 @@ async fn verify(code: &str) -> Result<(), AccessTokenError> {
                 error_uri: None,
             };
 
-            return Err(access_token_error);
+            Err(access_token_error)
         }
     }
-
-    Ok(())
 }
 
 async fn issue_token(json: Vec<u8>) -> Result<Response<Body>, AccessTokenError> {
