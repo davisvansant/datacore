@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct AuthorizationRequest {
     pub response_type: AuthorizationResponseType,
     pub client_id: String,
