@@ -9,7 +9,7 @@ use axum::response::Response;
 use super::AuthorizationServer;
 
 use error::{AuthorizationError, AuthorizationErrorCode};
-use request::{AuthorizationRequest, AuthorizationResponseType};
+use request::AuthorizationRequest;
 use response::AuthorizationResponse;
 
 mod error;
@@ -97,14 +97,20 @@ async fn check_content_type(headers: &HeaderMap) -> Result<(), AuthorizationErro
 }
 
 async fn check_response_type(uri: &Uri) -> Result<(), AuthorizationError> {
-    let authorization_error = AuthorizationError {
+    let authorization_error_invalid_request = AuthorizationError {
         error: AuthorizationErrorCode::InvalidRequest,
         error_description: Some(String::from("missing query parameter")),
         error_uri: None,
     };
 
+    let authorization_error_unsupported_response_type = AuthorizationError {
+        error: AuthorizationErrorCode::UnsupportedResponseType,
+        error_description: Some(String::from("expected response_type=code")),
+        error_uri: None,
+    };
+
     match uri.query() {
-        None => Err(authorization_error),
+        None => Err(authorization_error_invalid_request),
         Some(query) => {
             match query
                 .split('&')
@@ -115,7 +121,7 @@ async fn check_response_type(uri: &Uri) -> Result<(), AuthorizationError> {
 
                     Ok(())
                 }
-                None => Err(authorization_error),
+                None => Err(authorization_error_unsupported_response_type),
             }
         }
     }

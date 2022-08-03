@@ -9,7 +9,7 @@ use axum::response::Response;
 use super::AuthorizationServer;
 
 use error::{AccessTokenError, AccessTokenErrorCode};
-use request::{AccessTokenGrantType, AccessTokenRequest};
+use request::AccessTokenRequest;
 use response::{AccessTokenResponse, AccessTokenType};
 
 mod error;
