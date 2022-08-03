@@ -8,23 +8,23 @@ pub(crate) struct AuthorizationResponse {
 }
 
 impl AuthorizationResponse {
-    pub async fn url(&self) -> String {
-        let mut url = String::with_capacity(100);
+    pub async fn query(&self) -> String {
+        let mut query = String::with_capacity(100);
 
         if self.state.is_some() {
-            url.push_str("code=");
-            url.push_str(self.code.as_str());
-            url.push('&');
-            url.push_str("state=");
-            url.push_str(self.state.as_ref().unwrap().as_str());
+            query.push_str("code=");
+            query.push_str(self.code.as_str());
+            query.push('&');
+            query.push_str("state=");
+            query.push_str(self.state.as_ref().unwrap().as_str());
         } else {
-            url.push_str("code=");
-            url.push_str(self.code.as_str());
+            query.push_str("code=");
+            query.push_str(self.code.as_str());
         }
 
-        url.shrink_to_fit();
+        query.shrink_to_fit();
 
-        url
+        query
     }
 }
 
@@ -47,14 +47,14 @@ mod tests {
         Ok(())
     }
     #[tokio::test]
-    async fn authorization_response_url() -> Result<(), Box<dyn std::error::Error>> {
+    async fn authorization_response_query() -> Result<(), Box<dyn std::error::Error>> {
         let test_authorization_response = AuthorizationResponse {
             code: String::from("some_test_code"),
             state: None,
         };
 
         assert_eq!(
-            test_authorization_response.url().await,
+            test_authorization_response.query().await,
             "code=some_test_code",
         );
 
@@ -64,7 +64,7 @@ mod tests {
         };
 
         assert_eq!(
-            test_authorization_response_state.url().await,
+            test_authorization_response_state.query().await,
             "code=some_test_code&state=some_test_state",
         );
 
