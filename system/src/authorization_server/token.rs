@@ -31,6 +31,8 @@ impl AuthorizationServer {
         ensure(&code, &client_id).await?;
         verify(&code).await?;
 
+        let request_redirect_uri = check_redirect_uri(request.uri()).await?;
+
         let access_token_response = AccessTokenResponse {
             access_token: String::from("some_access_token"),
             token_type: AccessTokenType::Bearer,
@@ -120,6 +122,34 @@ async fn check_code(uri: &Uri) -> Result<String, AccessTokenError> {
 
                     Err(access_token_error)
                 }
+            }
+        }
+    }
+}
+
+async fn check_redirect_uri(uri: &Uri) -> Result<Option<String>, AccessTokenError> {
+    let access_token_error = AccessTokenError {
+        error: AccessTokenErrorCode::InvalidRequest,
+        error_description: Some(String::from("invalid redirect uri")),
+        error_uri: None,
+    };
+
+    match uri.query() {
+        None => Ok(None),
+        Some(query) => {
+            match query
+                .split('&')
+                .find(|parameter| parameter.starts_with("redirect_uri="))
+            {
+                Some(redirect_uri_parameter) => {
+                    println!("query contains {:?}", &redirect_uri_parameter);
+
+                    match redirect_uri_parameter.strip_prefix("redirect_uri=") {
+                        None => Err(access_token_error),
+                        Some(redirect_uri) => Ok(Some(redirect_uri.to_owned())),
+                    }
+                }
+                None => Ok(None),
             }
         }
     }
@@ -364,6 +394,35 @@ mod tests {
         let test_check_code_missing = super::check_code(&test_uri_missing).await;
 
         assert!(test_check_code_missing.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_redirect_uri() -> Result<(), Box<dyn std::error::Error>> {
+        let test_uri_ok = http::uri::Builder::new()
+            .path_and_query("/token?redirect_uri=some_redirect_uri")
+            .build()
+            .unwrap();
+
+        let test_check_redirect_uri_ok = super::check_redirect_uri(&test_uri_ok).await;
+
+        assert!(test_check_redirect_uri_ok.is_ok());
+        assert!(test_check_redirect_uri_ok.as_ref().unwrap().is_some());
+        assert_eq!(
+            test_check_redirect_uri_ok.unwrap().unwrap(),
+            "some_redirect_uri",
+        );
+
+        let test_uri_missing = http::uri::Builder::new()
+            .path_and_query("/token?another_redirect_uri=some_other_redirect_uri")
+            .build()
+            .unwrap();
+
+        let test_check_redirect_uri_missing = super::check_redirect_uri(&test_uri_missing).await;
+
+        assert!(test_check_redirect_uri_missing.is_ok());
+        assert!(test_check_redirect_uri_missing.unwrap().is_none());
 
         Ok(())
     }
