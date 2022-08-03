@@ -2,7 +2,7 @@ use axum::body::Body;
 use axum::extract::Query;
 use axum::http::header::{HeaderMap, CONTENT_TYPE, LOCATION};
 use axum::http::request::Request;
-use axum::http::uri::Uri;
+use axum::http::uri::{Builder, Uri};
 use axum::http::StatusCode;
 use axum::response::Response;
 
@@ -31,6 +31,7 @@ impl AuthorizationServer {
         check_response_type(request.uri()).await?;
 
         let client_id = check_client_id(request.uri()).await?;
+        let request_redirect_uri = check_redirect_uri(request.uri()).await?;
 
         check_scope(request.uri()).await?;
 
@@ -49,8 +50,15 @@ impl AuthorizationServer {
             },
         };
 
-        let redirect_url = authorization_response.url().await;
-        let response = grant_access(&redirect_url).await?;
+        let redirect_query = authorization_response.query().await;
+        let response_redirect_uri = build_uri(&redirect_query).await?;
+        let response = match request_redirect_uri {
+            None => {
+                // obtain redirect uri via registered client
+                grant_access(response_redirect_uri).await?
+            }
+            Some(_uri) => grant_access(response_redirect_uri).await?,
+        };
 
         Ok(response)
     }
@@ -141,6 +149,38 @@ async fn check_client_id(uri: &Uri) -> Result<String, AuthorizationError> {
     }
 }
 
+async fn check_redirect_uri(uri: &Uri) -> Result<Option<String>, AuthorizationError> {
+    let authorization_error = AuthorizationError {
+        error: AuthorizationErrorCode::InvalidRequest,
+        error_description: None,
+        error_uri: None,
+    };
+
+    match uri.query() {
+        None => Err(authorization_error),
+        Some(query) => {
+            match query
+                .split('&')
+                .find(|parameter| parameter.starts_with("redirect_uri="))
+            {
+                Some(redirect_uri_parameter) => {
+                    println!("query contains {:?}", &redirect_uri_parameter);
+
+                    match redirect_uri_parameter.strip_prefix("redirect_uri=") {
+                        None => Err(authorization_error),
+                        Some(redirect_uri) => {
+                            println!("redirect uri paramenter value -> {:?}", &redirect_uri);
+
+                            Ok(Some(redirect_uri.to_owned()))
+                        }
+                    }
+                }
+                None => Ok(None),
+            }
+        }
+    }
+}
+
 async fn check_scope(uri: &Uri) -> Result<(), AuthorizationError> {
     let authorization_error = AuthorizationError {
         error: AuthorizationErrorCode::InvalidScope,
@@ -224,10 +264,37 @@ async fn authorize(id: &str) -> Result<(), AuthorizationError> {
     }
 }
 
-async fn grant_access(redirect_url: &str) -> Result<Response<Body>, AuthorizationError> {
+async fn build_uri(query: &str) -> Result<Uri, AuthorizationError> {
+    let mut path_and_query = String::with_capacity(100);
+    let path = "/some_redirect_path?";
+
+    path_and_query.push_str(path);
+    path_and_query.push_str(query);
+    path_and_query.shrink_to_fit();
+
+    match Builder::new()
+        .scheme("https")
+        .authority("some_url")
+        .path_and_query(&path_and_query)
+        .build()
+    {
+        Ok(uri) => Ok(uri),
+        Err(error) => {
+            let authorization_error = AuthorizationError {
+                error: AuthorizationErrorCode::ServerError,
+                error_description: Some(error.to_string()),
+                error_uri: None,
+            };
+
+            Err(authorization_error)
+        }
+    }
+}
+
+async fn grant_access(redirect_uri: Uri) -> Result<Response<Body>, AuthorizationError> {
     match Response::builder()
         .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-        .header(LOCATION, redirect_url)
+        .header(LOCATION, redirect_uri.to_string().as_str())
         .status(StatusCode::FOUND)
         .body(Body::empty())
     {
@@ -311,7 +378,7 @@ mod tests {
                 .headers()
                 .get(LOCATION)
                 .unwrap(),
-            "code=some_code",
+            "https://some_url/some_redirect_path?code=some_code",
         );
         assert!(hyper::body::to_bytes(test_response.unwrap().body_mut())
             .await?
@@ -414,6 +481,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn check_redirect_uri() -> Result<(), Box<dyn std::error::Error>> {
+        let test_uri_ok = http::uri::Builder::new()
+            .path_and_query("/authorize?redirect_uri=some_test_redirect_uri")
+            .build()
+            .unwrap();
+
+        let test_redirect_uri_ok = super::check_redirect_uri(&test_uri_ok).await;
+
+        assert!(test_redirect_uri_ok.is_ok());
+        assert!(test_redirect_uri_ok.as_ref().unwrap().is_some());
+        assert_eq!(
+            test_redirect_uri_ok.unwrap().unwrap(),
+            "some_test_redirect_uri",
+        );
+
+        let test_uri_missing = http::uri::Builder::new()
+            .path_and_query("/authorize?another_redirect_uri=some_test_redirect_uri")
+            .build()
+            .unwrap();
+
+        let test_redirect_uri_missing_ok = super::check_redirect_uri(&test_uri_missing).await;
+
+        assert!(test_redirect_uri_missing_ok.is_ok());
+        assert!(test_redirect_uri_missing_ok.unwrap().is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn check_scope() -> Result<(), Box<dyn std::error::Error>> {
         let test_uri_ok = http::uri::Builder::new()
             .path_and_query("/authorize?scope=some_test_scope")
@@ -476,8 +572,21 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn build_uri() -> Result<(), Box<dyn std::error::Error>> {
+        let test_query = "some_test_query=some_test_value";
+        let test_uri = super::build_uri(test_query).await.unwrap();
+
+        assert_eq!(
+            test_uri,
+            "https://some_url/some_redirect_path?some_test_query=some_test_value",
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn grant_access() -> Result<(), Box<dyn std::error::Error>> {
-        let test_redirect_url = "some_test_redirect_url";
+        let test_redirect_url = Uri::from_static("some_test_redirect_url");
         let test_response = super::grant_access(test_redirect_url)
             .await
             .expect("test_response");
