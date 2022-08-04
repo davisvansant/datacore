@@ -27,8 +27,11 @@ impl AuthorizationServer {
         let code = check_code(request.uri()).await?;
         let client_id = check_client_id(request.uri()).await?;
 
-        authenticate(&client_id).await?;
-        ensure(&code, &client_id).await?;
+        if let Some(id) = client_id {
+            authenticate(&id).await?;
+            ensure(&code, &id).await?
+        }
+
         verify(&code).await?;
 
         let request_redirect_uri = check_redirect_uri(request.uri()).await?;
@@ -155,7 +158,7 @@ async fn check_redirect_uri(uri: &Uri) -> Result<Option<String>, AccessTokenErro
     }
 }
 
-async fn check_client_id(uri: &Uri) -> Result<String, AccessTokenError> {
+async fn check_client_id(uri: &Uri) -> Result<Option<String>, AccessTokenError> {
     let access_token_error = AccessTokenError {
         error: AccessTokenErrorCode::InvalidRequest,
         error_description: Some(String::from("missing client_id")),
@@ -163,7 +166,7 @@ async fn check_client_id(uri: &Uri) -> Result<String, AccessTokenError> {
     };
 
     match uri.query() {
-        None => Err(access_token_error),
+        None => Ok(None),
         Some(query) => {
             match query
                 .split('&')
@@ -174,10 +177,10 @@ async fn check_client_id(uri: &Uri) -> Result<String, AccessTokenError> {
 
                     match client_id_parameter.strip_prefix("client_id=") {
                         None => Err(access_token_error),
-                        Some(client_id) => Ok(client_id.to_owned()),
+                        Some(client_id) => Ok(Some(client_id.to_owned())),
                     }
                 }
-                None => Err(access_token_error),
+                None => Ok(None),
             }
         }
     }
@@ -437,7 +440,11 @@ mod tests {
         let test_check_client_id_ok = super::check_client_id(&test_uri_ok).await;
 
         assert!(test_check_client_id_ok.is_ok());
-        assert_eq!(test_check_client_id_ok.unwrap(), "some_test_client_id");
+        assert!(test_check_client_id_ok.as_ref().unwrap().is_some());
+        assert_eq!(
+            test_check_client_id_ok.unwrap().unwrap(),
+            "some_test_client_id",
+        );
 
         let test_uri_missing = http::uri::Builder::new()
             .path_and_query("/token?grant_type=authorization_code&other_code=some_test_code&some_other_client_id=some_test_client_id")
@@ -446,7 +453,8 @@ mod tests {
 
         let test_check_client_id_missing = super::check_client_id(&test_uri_missing).await;
 
-        assert!(test_check_client_id_missing.is_err());
+        assert!(test_check_client_id_missing.is_ok());
+        assert!(test_check_client_id_missing.unwrap().is_none());
 
         Ok(())
     }
