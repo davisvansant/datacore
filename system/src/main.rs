@@ -2,6 +2,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use system::authorization_server::AuthorizationServer;
 use system::client_registration::ClientRegistration;
+use system::state::State;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -24,7 +25,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    tokio::try_join!(authorization_server_handle, client_registration_handle)?;
+    let (mut state, _send_request) = State::init().await;
+    let state_handle = tokio::spawn(async move {
+        if let Err(error) = state.run().await {
+            println!("state -> {:?}", error);
+        }
+    });
+
+    tokio::try_join!(
+        state_handle,
+        authorization_server_handle,
+        client_registration_handle,
+    )?;
 
     Ok(())
 }
