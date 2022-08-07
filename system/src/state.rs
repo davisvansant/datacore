@@ -1,18 +1,21 @@
-use tokio::sync::mpsc::{channel, Receiver, Sender};
-
-pub use channel::Request;
+pub use channel::{ReceiveRequest, Request, SendRequest};
 
 mod channel;
 
 pub struct State {
-    receiver: Receiver<Request>,
+    receiver: ReceiveRequest,
 }
 
 impl State {
-    pub async fn init() -> (State, Sender<Request>) {
-        let (sender, receiver) = channel(64);
+    pub async fn init() -> (State, SendRequest) {
+        let (send_request, receive_request) = SendRequest::init().await;
 
-        (State { receiver }, sender)
+        (
+            State {
+                receiver: receive_request,
+            },
+            send_request,
+        )
     }
 
     pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {

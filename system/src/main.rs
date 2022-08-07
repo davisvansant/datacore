@@ -25,7 +25,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let (mut state, _sender) = State::init().await;
+    let (mut state, _send_request) = State::init().await;
+
     let state_handle = tokio::spawn(async move {
         if let Err(error) = state.run().await {
             println!("state -> {:?}", error);
