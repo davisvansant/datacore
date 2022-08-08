@@ -2,7 +2,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use system::authorization_server::AuthorizationServer;
 use system::client_registration::ClientRegistration;
-use system::state::State;
+use system::state::{Data, State};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let (mut state, _send_request) = State::init().await;
+    let (mut state, _send_request) = State::init(Data::InMemory).await;
 
     let state_handle = tokio::spawn(async move {
         if let Err(error) = state.run().await {
