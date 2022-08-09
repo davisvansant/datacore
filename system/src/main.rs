@@ -2,6 +2,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use system::authorization_server::AuthorizationServer;
 use system::client_registration::ClientRegistration;
+use system::state::access_tokens::AccessTokens;
 use system::state::authorization_codes::AuthorizationCodes;
 use system::state::client_registry::ClientRegistry;
 
@@ -42,9 +43,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    let (mut access_tokens, _access_tokens_request) = AccessTokens::init().await;
+
+    let access_tokens_handle = tokio::spawn(async move {
+        if let Err(error) = access_tokens.run().await {
+            println!("access tokens -> {:?}", error);
+        }
+    });
+
     tokio::try_join!(
         client_registry_handle,
         authorization_codes_handle,
+        access_tokens_handle,
         authorization_server_handle,
         client_registration_handle,
     )?;
