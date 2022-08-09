@@ -2,6 +2,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use system::authorization_server::AuthorizationServer;
 use system::client_registration::ClientRegistration;
+use system::state::authorization_codes::AuthorizationCodes;
 use system::state::client_registry::ClientRegistry;
 
 #[tokio::main]
@@ -33,8 +34,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    let (mut authorization_codes, _authorization_codes_request) = AuthorizationCodes::init().await;
+
+    let authorization_codes_handle = tokio::spawn(async move {
+        if let Err(error) = authorization_codes.run().await {
+            println!("authorization codes -> {:?}", error);
+        }
+    });
+
     tokio::try_join!(
         client_registry_handle,
+        authorization_codes_handle,
         authorization_server_handle,
         client_registration_handle,
     )?;
