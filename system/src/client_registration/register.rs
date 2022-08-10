@@ -11,6 +11,8 @@ use error::{ClientRegistrationError, ClientRegistrationErrorCode};
 use request::ClientMetadata;
 use response::ClientInformation;
 
+use crate::state::client_registry::channel::ClientRegistryRequest;
+
 mod error;
 mod request;
 mod response;
@@ -18,6 +20,7 @@ mod response;
 impl ClientRegistration {
     pub(crate) async fn register(
         request: Request<Body>,
+        client_registry_request: ClientRegistryRequest,
     ) -> Result<Response<Body>, ClientRegistrationError> {
         check_content_type(request.headers()).await?;
 
@@ -185,7 +188,14 @@ mod tests {
     #[tokio::test]
     async fn register_post() -> Result<(), Box<dyn std::error::Error>> {
         let test_socket_address = SocketAddr::from_str("127.0.0.1:7591")?;
-        let test_endpoint = Router::new().route("/register", post(ClientRegistration::register));
+        let test_client_registry_request = ClientRegistryRequest::init().await;
+
+        let test_endpoint = Router::new().route(
+            "/register",
+            post(move |test_request| {
+                ClientRegistration::register(test_request, test_client_registry_request.0)
+            }),
+        );
 
         let test_server =
             Server::bind(&test_socket_address).serve(test_endpoint.into_make_service());
