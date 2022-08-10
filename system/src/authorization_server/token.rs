@@ -12,6 +12,8 @@ use error::{AccessTokenError, AccessTokenErrorCode};
 use request::AccessTokenRequest;
 use response::{AccessTokenResponse, AccessTokenType};
 
+use crate::state::access_tokens::channel::AccessTokensRequest;
+
 mod error;
 mod request;
 mod response;
@@ -21,6 +23,7 @@ impl AuthorizationServer {
         _headers: HeaderMap,
         _query: Query<AccessTokenRequest>,
         request: Request<Body>,
+        access_tokens_request: AccessTokensRequest,
     ) -> Result<Response<Body>, AccessTokenError> {
         check_grant_type(request.uri()).await?;
 
@@ -263,7 +266,18 @@ mod tests {
     #[tokio::test]
     async fn token_post() -> Result<(), Box<dyn std::error::Error>> {
         let test_socket_address = SocketAddr::from_str("127.0.0.1:6749")?;
-        let test_endpoint = Router::new().route("/token", post(AuthorizationServer::token));
+        let test_access_tokens_request = AccessTokensRequest::init().await;
+        let test_endpoint = Router::new().route(
+            "/token",
+            post(move |test_headers, test_query, test_request| {
+                AuthorizationServer::token(
+                    test_headers,
+                    test_query,
+                    test_request,
+                    test_access_tokens_request.0,
+                )
+            }),
+        );
 
         let test_server =
             Server::bind(&test_socket_address).serve(test_endpoint.into_make_service());

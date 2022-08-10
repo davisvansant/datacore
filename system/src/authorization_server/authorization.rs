@@ -12,6 +12,8 @@ use error::{AuthorizationError, AuthorizationErrorCode};
 use request::AuthorizationRequest;
 use response::AuthorizationResponse;
 
+use crate::state::authorization_codes::channel::AuthorizationCodesRequest;
+
 mod error;
 mod request;
 mod response;
@@ -20,6 +22,7 @@ impl AuthorizationServer {
     pub(crate) async fn authorize(
         query: Query<AuthorizationRequest>,
         request: Request<Body>,
+        authorization_codes_request: AuthorizationCodesRequest,
     ) -> Result<Response<Body>, AuthorizationError> {
         println!("request query -> {:?}", query.response_type);
         println!("request query -> {:?}", query.client_id);
@@ -331,7 +334,17 @@ mod tests {
     #[tokio::test]
     async fn authorize_get() -> Result<(), Box<dyn std::error::Error>> {
         let test_socket_address = SocketAddr::from_str("127.0.0.1:6749")?;
-        let test_endpoint = Router::new().route("/authorize", get(AuthorizationServer::authorize));
+        let test_authorization_codes_request = AuthorizationCodesRequest::init().await;
+        let test_endpoint = Router::new().route(
+            "/authorize",
+            get(move |test_query, test_request| {
+                AuthorizationServer::authorize(
+                    test_query,
+                    test_request,
+                    test_authorization_codes_request.0,
+                )
+            }),
+        );
 
         let test_server =
             Server::bind(&test_socket_address).serve(test_endpoint.into_make_service());
