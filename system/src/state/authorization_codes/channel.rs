@@ -4,6 +4,8 @@ pub type ReceiveRequest = Receiver<Request>;
 
 #[derive(Debug)]
 pub enum Request {
+    Issue,
+    Revoke(String),
     Shutdown,
 }
 
