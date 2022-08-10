@@ -7,6 +7,7 @@ pub enum Request {
     Shutdown,
 }
 
+#[derive(Clone)]
 pub struct AuthorizationCodesRequest {
     channel: Sender<Request>,
 }

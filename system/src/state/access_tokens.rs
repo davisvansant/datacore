@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use channel::{AccessTokensRequest, ReceiveRequest, Request};
 
-mod channel;
+pub mod channel;
 
 pub struct AccessTokens {
     receiver: ReceiveRequest,

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use channel::{AuthorizationCodesRequest, ReceiveRequest, Request};
 
-mod channel;
+pub mod channel;
 
 pub struct AuthorizationCodes {
     receiver: ReceiveRequest,

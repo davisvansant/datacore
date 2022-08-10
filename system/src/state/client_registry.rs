@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use channel::{ClientRegistryRequest, ReceiveRequest, Request};
 
-mod channel;
+pub mod channel;
 
 pub struct ClientRegistry {
     receiver: ReceiveRequest,

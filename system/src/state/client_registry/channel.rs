@@ -11,6 +11,7 @@ pub enum Request {
     Shutdown,
 }
 
+#[derive(Clone)]
 pub struct ClientRegistryRequest {
     channel: Sender<Request>,
 }
