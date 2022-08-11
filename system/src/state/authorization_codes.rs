@@ -4,8 +4,12 @@ use channel::{AuthorizationCodesRequest, ReceiveRequest, Request};
 
 pub mod channel;
 
+use crate::state::authorization_code_lifetime::channel::AuthorizationCodeLifetimeRequest;
+use crate::state::authorization_code_lifetime::AuthorizationCodeLifetime;
+
 pub struct AuthorizationCodes {
     receiver: ReceiveRequest,
+    authorization_code_lifetime_request: AuthorizationCodeLifetimeRequest,
     issued: HashMap<String, String>,
     expired: HashMap<String, String>,
 }
@@ -17,9 +21,19 @@ impl AuthorizationCodes {
         let issued = HashMap::with_capacity(capacity);
         let expired = HashMap::with_capacity(capacity);
 
+        let (mut authorization_code_lifetime, authorization_code_lifetime_request) =
+            AuthorizationCodeLifetime::init(send_request.to_owned()).await;
+
+        tokio::spawn(async move {
+            if let Err(error) = authorization_code_lifetime.run().await {
+                println!("authorication code lifetime -> {:?}", error);
+            }
+        });
+
         (
             AuthorizationCodes {
                 receiver: receive_request,
+                authorization_code_lifetime_request,
                 issued,
                 expired,
             },
@@ -52,6 +66,10 @@ impl AuthorizationCodes {
             None => {
                 println!("issued code!");
 
+                self.authorization_code_lifetime_request
+                    .start_timer(authorization_code.to_owned())
+                    .await?;
+
                 Ok(authorization_code)
             }
             Some(old_authorization_code) => {
@@ -73,9 +91,15 @@ impl AuthorizationCodes {
                 Err(Box::from(error))
             }
             Some((authorization_code, client_id)) => {
+                let expired_authorization_code = authorization_code.to_owned();
+
                 match self.expired.insert(authorization_code, client_id) {
                     None => {
                         println!("added authorization code to expired list...");
+
+                        self.authorization_code_lifetime_request
+                            .abort_timer(expired_authorization_code)
+                            .await?;
 
                         Ok(())
                     }
@@ -97,6 +121,8 @@ impl AuthorizationCodes {
         authorization_code: String,
         verify_client_id: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        let used_authorization_code = authorization_code.to_owned();
+
         match self.issued.remove(&authorization_code) {
             None => {
                 let error = String::from("invalid authorization code");
@@ -104,7 +130,13 @@ impl AuthorizationCodes {
                 Err(Box::from(error))
             }
             Some(valid_client_id) => match verify_client_id == valid_client_id {
-                true => Ok(()),
+                true => {
+                    self.authorization_code_lifetime_request
+                        .abort_timer(used_authorization_code)
+                        .await?;
+
+                    Ok(())
+                }
                 false => {
                     let error = String::from("invalid client id for issued authentication code");
 
