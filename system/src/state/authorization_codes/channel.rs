@@ -4,7 +4,7 @@ pub type ReceiveRequest = Receiver<Request>;
 
 #[derive(Debug)]
 pub enum Request {
-    Issue,
+    Issue(String),
     Revoke(String),
     Authenticate((String, String)),
     Shutdown,
@@ -22,8 +22,8 @@ impl AuthorizationCodesRequest {
         (AuthorizationCodesRequest { channel: sender }, receiver)
     }
 
-    pub async fn issue(&self) -> Result<(), Box<dyn std::error::Error>> {
-        self.channel.send(Request::Issue).await?;
+    pub async fn issue(&self, client_id: String) -> Result<(), Box<dyn std::error::Error>> {
+        self.channel.send(Request::Issue(client_id)).await?;
 
         Ok(())
     }
