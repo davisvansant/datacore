@@ -1,3 +1,5 @@
+use rand::distributions::{Alphanumeric, DistString};
+use rand::thread_rng;
 use std::collections::HashMap;
 
 use channel::{AuthorizationCodesRequest, ReceiveRequest, Request};
@@ -44,8 +46,8 @@ impl AuthorizationCodes {
     pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         while let Some(request) = self.receiver.recv().await {
             match request {
-                Request::Issue => {
-                    let authorization_code = self.issue().await?;
+                Request::Issue(client_id) => {
+                    let authorization_code = self.issue(client_id).await?;
                 }
                 Request::Revoke(authorization_code) => self.revoke(authorization_code).await?,
                 Request::Authenticate((authorization_code, client_id)) => {
@@ -58,9 +60,8 @@ impl AuthorizationCodes {
         Ok(())
     }
 
-    async fn issue(&mut self) -> Result<String, Box<dyn std::error::Error>> {
-        let authorization_code = String::from("some_awesome_authorization_code");
-        let client_id = String::from("some_awesome_client_id");
+    async fn issue(&mut self, client_id: String) -> Result<String, Box<dyn std::error::Error>> {
+        let authorization_code = generate().await;
 
         match self.issued.insert(authorization_code.to_owned(), client_id) {
             None => {
@@ -147,6 +148,10 @@ impl AuthorizationCodes {
     }
 }
 
+async fn generate() -> String {
+    Alphanumeric.sample_string(&mut thread_rng(), 16)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,6 +162,18 @@ mod tests {
 
         assert!(test_authorization_codes.issued.is_empty());
         assert!(test_authorization_codes.expired.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn generate() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authorization_code = super::generate().await;
+
+        println!("{:?}", &test_authorization_code);
+
+        assert!(test_authorization_code.is_ascii());
+        assert_eq!(test_authorization_code.len(), 16);
 
         Ok(())
     }
