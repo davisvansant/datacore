@@ -1,6 +1,7 @@
 use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::oneshot;
 
-pub type ReceiveRequest = Receiver<Request>;
+pub type ReceiveRequest = Receiver<(Request, oneshot::Sender<Response>)>;
 
 #[derive(Debug)]
 pub enum Request {
@@ -10,9 +11,14 @@ pub enum Request {
     Shutdown,
 }
 
+#[derive(Debug)]
+pub enum Response {
+    AuthorizationCode(String),
+}
+
 #[derive(Clone)]
 pub struct AuthorizationCodesRequest {
-    channel: Sender<Request>,
+    channel: Sender<(Request, oneshot::Sender<Response>)>,
 }
 
 impl AuthorizationCodesRequest {
@@ -22,18 +28,26 @@ impl AuthorizationCodesRequest {
         (AuthorizationCodesRequest { channel: sender }, receiver)
     }
 
-    pub async fn issue(&self, client_id: String) -> Result<(), Box<dyn std::error::Error>> {
-        self.channel.send(Request::Issue(client_id)).await?;
+    pub async fn issue(&self, client_id: String) -> Result<String, Box<dyn std::error::Error>> {
+        let (send_response, receive_response) = oneshot::channel();
 
-        Ok(())
+        self.channel
+            .send((Request::Issue(client_id), send_response))
+            .await?;
+
+        match receive_response.await? {
+            Response::AuthorizationCode(authorization_code) => Ok(authorization_code),
+        }
     }
 
     pub async fn revoke(
         &self,
         authorization_code: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        let (_send_response, _receive_response) = oneshot::channel();
+
         self.channel
-            .send(Request::Revoke(authorization_code))
+            .send((Request::Revoke(authorization_code), _send_response))
             .await?;
 
         Ok(())
@@ -44,15 +58,24 @@ impl AuthorizationCodesRequest {
         authorization_code: String,
         client_id: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        let (_send_response, _receive_response) = oneshot::channel();
+
         self.channel
-            .send(Request::Authenticate((authorization_code, client_id)))
+            .send((
+                Request::Authenticate((authorization_code, client_id)),
+                _send_response,
+            ))
             .await?;
 
         Ok(())
     }
 
     pub async fn shutdown(&self) -> Result<(), Box<dyn std::error::Error>> {
-        self.channel.send(Request::Shutdown).await?;
+        let (_send_response, _receive_response) = oneshot::channel();
+
+        self.channel
+            .send((Request::Shutdown, _send_response))
+            .await?;
 
         Ok(())
     }

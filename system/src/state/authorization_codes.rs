@@ -2,7 +2,7 @@ use rand::distributions::{Alphanumeric, DistString};
 use rand::thread_rng;
 use std::collections::HashMap;
 
-use channel::{AuthorizationCodesRequest, ReceiveRequest, Request};
+use channel::{AuthorizationCodesRequest, ReceiveRequest, Request, Response};
 
 pub mod channel;
 
@@ -44,10 +44,12 @@ impl AuthorizationCodes {
     }
 
     pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        while let Some(request) = self.receiver.recv().await {
+        while let Some((request, response)) = self.receiver.recv().await {
             match request {
                 Request::Issue(client_id) => {
                     let authorization_code = self.issue(client_id).await?;
+
+                    response.send(Response::AuthorizationCode(authorization_code));
                 }
                 Request::Revoke(authorization_code) => self.revoke(authorization_code).await?,
                 Request::Authenticate((authorization_code, client_id)) => {
