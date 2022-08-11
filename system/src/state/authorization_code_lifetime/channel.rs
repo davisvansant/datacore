@@ -23,4 +23,26 @@ impl AuthorizationCodeLifetimeRequest {
             receiver,
         )
     }
+
+    pub async fn start_timer(
+        &self,
+        authorization_code: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.channel
+            .send(Request::StartTimer(authorization_code))
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn abort_timer(
+        &self,
+        authorization_code: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.channel
+            .send(Request::AbortTimer(authorization_code))
+            .await?;
+
+        Ok(())
+    }
 }
