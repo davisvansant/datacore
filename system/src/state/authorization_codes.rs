@@ -34,6 +34,9 @@ impl AuthorizationCodes {
                     let authorization_code = self.issue().await?;
                 }
                 Request::Revoke(authorization_code) => self.revoke(authorization_code).await?,
+                Request::Authenticate((authorization_code, client_id)) => {
+                    self.authenticate(authorization_code, client_id).await?;
+                }
                 Request::Shutdown => self.receiver.close(),
             }
         }
@@ -86,6 +89,28 @@ impl AuthorizationCodes {
                     }
                 }
             }
+        }
+    }
+
+    async fn authenticate(
+        &mut self,
+        authorization_code: String,
+        verify_client_id: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        match self.issued.remove(&authorization_code) {
+            None => {
+                let error = String::from("invalid authorization code");
+
+                Err(Box::from(error))
+            }
+            Some(valid_client_id) => match verify_client_id == valid_client_id {
+                true => Ok(()),
+                false => {
+                    let error = String::from("invalid client id for issued authentication code");
+
+                    Err(Box::from(error))
+                }
+            },
         }
     }
 }

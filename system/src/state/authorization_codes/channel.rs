@@ -6,6 +6,7 @@ pub type ReceiveRequest = Receiver<Request>;
 pub enum Request {
     Issue,
     Revoke(String),
+    Authenticate((String, String)),
     Shutdown,
 }
 
