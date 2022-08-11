@@ -46,11 +46,11 @@ impl AuthorizationServer {
 
         let authorization_response = match state_request {
             None => AuthorizationResponse {
-                code: String::from("some_code"),
+                code: authorization_code,
                 state: None,
             },
             Some(state) => AuthorizationResponse {
-                code: String::from("some_code"),
+                code: authorization_code,
                 state: Some(state),
             },
         };
@@ -325,6 +325,7 @@ async fn grant_access(redirect_uri: Uri) -> Result<Response<Body>, Authorization
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::authorization_codes::AuthorizationCodes;
     use axum::routing::get;
     use axum::Router;
     use axum::Server;
@@ -336,15 +337,20 @@ mod tests {
     #[tokio::test]
     async fn authorize_get() -> Result<(), Box<dyn std::error::Error>> {
         let test_socket_address = SocketAddr::from_str("127.0.0.1:6749")?;
-        let test_authorization_codes_request = AuthorizationCodesRequest::init().await;
+        let mut test_authorization_codes = AuthorizationCodes::init().await;
+
+        tokio::spawn(async move {
+            test_authorization_codes
+                .0
+                .run()
+                .await
+                .expect("test authorization codes to return test authorization code");
+        });
+
         let test_endpoint = Router::new().route(
             "/authorize",
             get(move |test_query, test_request| {
-                AuthorizationServer::authorize(
-                    test_query,
-                    test_request,
-                    test_authorization_codes_request.0,
-                )
+                AuthorizationServer::authorize(test_query, test_request, test_authorization_codes.1)
             }),
         );
 
@@ -392,15 +398,15 @@ mod tests {
             .unwrap()
             .headers()
             .contains_key(LOCATION));
-        assert_eq!(
-            test_response
-                .as_ref()
-                .unwrap()
-                .headers()
-                .get(LOCATION)
-                .unwrap(),
-            "https://some_url/some_redirect_path?code=some_code",
-        );
+        assert!(test_response
+            .as_ref()
+            .unwrap()
+            .headers()
+            .get(LOCATION)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("https://some_url/some_redirect_path?code="));
         assert!(hyper::body::to_bytes(test_response.unwrap().body_mut())
             .await?
             .is_empty());
