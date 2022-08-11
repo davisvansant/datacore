@@ -21,4 +21,39 @@ impl AuthorizationCodesRequest {
 
         (AuthorizationCodesRequest { channel: sender }, receiver)
     }
+
+    pub async fn issue(&self) -> Result<(), Box<dyn std::error::Error>> {
+        self.channel.send(Request::Issue).await?;
+
+        Ok(())
+    }
+
+    pub async fn revoke(
+        &self,
+        authorization_code: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.channel
+            .send(Request::Revoke(authorization_code))
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn authenticate(
+        &self,
+        authorization_code: String,
+        client_id: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.channel
+            .send(Request::Authenticate((authorization_code, client_id)))
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn shutdown(&self) -> Result<(), Box<dyn std::error::Error>> {
+        self.channel.send(Request::Shutdown).await?;
+
+        Ok(())
+    }
 }
