@@ -42,6 +42,8 @@ impl AuthorizationServer {
 
         authorize(&client_id).await?;
 
+        let authorization_code = authorization_codes_request.issue(client_id).await.unwrap();
+
         let authorization_response = match state_request {
             None => AuthorizationResponse {
                 code: String::from("some_code"),
