@@ -2,7 +2,7 @@ use rand::distributions::{Alphanumeric, DistString};
 use rand::thread_rng;
 use std::collections::HashMap;
 
-use channel::{AccessTokensRequest, ReceiveRequest, Request};
+use channel::{AccessTokensRequest, ReceiveRequest, Request, Response};
 
 pub mod channel;
 
@@ -30,12 +30,12 @@ impl AccessTokens {
     }
 
     pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        while let Some(request) = self.receiver.recv().await {
+        while let Some((request, response)) = self.receiver.recv().await {
             match request {
                 Request::Issue(client_id) => {
-                    self.issue(client_id).await?;
+                    let access_token = self.issue(client_id).await?;
 
-                    println!("send issued token back to client...");
+                    response.send(Response::AccessToken(access_token));
                 }
                 Request::Shutdown => self.receiver.close(),
             }
