@@ -53,7 +53,7 @@ impl AuthorizationCodes {
                 }
                 Request::Revoke(authorization_code) => self.revoke(authorization_code).await?,
                 Request::Authenticate((authorization_code, client_id)) => {
-                    self.authenticate(authorization_code, client_id).await?;
+                    self.authenticate(&authorization_code, &client_id).await?;
                 }
                 Request::Shutdown => self.receiver.close(),
             }
@@ -121,12 +121,12 @@ impl AuthorizationCodes {
 
     async fn authenticate(
         &mut self,
-        authorization_code: String,
-        verify_client_id: String,
+        authorization_code: &str,
+        verify_client_id: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let used_authorization_code = authorization_code.to_owned();
 
-        match self.issued.remove(&authorization_code) {
+        match self.issued.remove(authorization_code) {
             None => {
                 let error = String::from("invalid authorization code");
 
@@ -206,6 +206,38 @@ mod tests {
             .await;
 
         assert!(test_revoke_error.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn authenticate() -> Result<(), Box<dyn std::error::Error>> {
+        let (mut test_authorization_codes, _) = AuthorizationCodes::init().await;
+        let test_client_id = String::from("some_test_client_id");
+        let test_authorization_code = test_authorization_codes
+            .issue(test_client_id.to_owned())
+            .await?;
+
+        assert_eq!(test_authorization_codes.issued.len(), 1);
+
+        let test_authenticate_ok = test_authorization_codes
+            .authenticate(&test_authorization_code, &test_client_id)
+            .await;
+
+        assert!(test_authenticate_ok.is_ok());
+        assert_eq!(test_authorization_codes.issued.len(), 0);
+
+        let test_client_id = String::from("some_other_test_client_id");
+        let test_authorization_code = test_authorization_codes
+            .issue(test_client_id.to_owned())
+            .await?;
+        let test_invalid_client_id = "some_test_invalid_client_id";
+        let test_authenticate_error = test_authorization_codes
+            .authenticate(&test_authorization_code, test_invalid_client_id)
+            .await;
+
+        assert!(test_authenticate_error.is_err());
+        assert_eq!(test_authorization_codes.issued.len(), 0);
 
         Ok(())
     }
