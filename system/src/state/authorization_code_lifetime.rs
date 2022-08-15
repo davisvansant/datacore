@@ -110,4 +110,55 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn start_timer() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authorization_codes_request = AuthorizationCodesRequest::init().await;
+        let (mut test_authorization_code_lifetime, _) =
+            AuthorizationCodeLifetime::init(test_authorization_codes_request.0).await;
+        let test_authorization_code = String::from("some_test_authorization_code");
+
+        test_authorization_code_lifetime
+            .start_timer(test_authorization_code.to_owned())
+            .await?;
+
+        assert_eq!(test_authorization_code_lifetime.timer_handles.len(), 1);
+
+        if let Some(test_join_handle) = test_authorization_code_lifetime
+            .timer_handles
+            .get(&test_authorization_code)
+        {
+            assert!(!test_join_handle.is_finished());
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn abort_timer() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authorization_codes_request = AuthorizationCodesRequest::init().await;
+        let (mut test_authorization_code_lifetime, _) =
+            AuthorizationCodeLifetime::init(test_authorization_codes_request.0).await;
+        let test_authorization_code = String::from("some_test_authorization_code");
+
+        test_authorization_code_lifetime
+            .start_timer(test_authorization_code.to_owned())
+            .await?;
+
+        let test_invalid_authorization_code = String::from("some_invalid_authorization_code");
+
+        let test_authorization_code_lifetime_error = test_authorization_code_lifetime
+            .abort_timer(test_invalid_authorization_code)
+            .await;
+
+        assert!(test_authorization_code_lifetime_error.is_err());
+
+        test_authorization_code_lifetime
+            .abort_timer(test_authorization_code.to_owned())
+            .await?;
+
+        assert_eq!(test_authorization_code_lifetime.timer_handles.len(), 0);
+
+        Ok(())
+    }
 }
