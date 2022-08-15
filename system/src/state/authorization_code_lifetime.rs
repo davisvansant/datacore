@@ -95,3 +95,19 @@ impl AuthorizationCodeLifetime {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn init() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authorization_codes_request = AuthorizationCodesRequest::init().await;
+        let (test_authorization_code_lifetime, _) =
+            AuthorizationCodeLifetime::init(test_authorization_codes_request.0).await;
+
+        assert_eq!(test_authorization_code_lifetime.timer_handles.len(), 0);
+
+        Ok(())
+    }
+}
