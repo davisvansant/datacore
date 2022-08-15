@@ -131,6 +131,26 @@ mod tests {
             assert!(!test_join_handle.is_finished());
         }
 
+        let test_timer_authorization_code = String::from("test_timer_authorization_code");
+        let test_timer = tokio::spawn(async move {
+            sleep(Duration::from_nanos(1)).await;
+
+            // the hands of fate
+        });
+
+        test_authorization_code_lifetime
+            .timer_handles
+            .insert(test_timer_authorization_code.to_owned(), test_timer);
+
+        if let Some(test_timer_handle) = test_authorization_code_lifetime
+            .timer_handles
+            .get(&test_timer_authorization_code)
+        {
+            sleep(Duration::from_millis(1)).await;
+
+            assert!(test_timer_handle.is_finished());
+        }
+
         Ok(())
     }
 
