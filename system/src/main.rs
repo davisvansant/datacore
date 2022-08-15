@@ -5,6 +5,7 @@ use system::client_registration::ClientRegistration;
 use system::state::access_tokens::AccessTokens;
 use system::state::authorization_codes::AuthorizationCodes;
 use system::state::client_registry::ClientRegistry;
+use system::token_introspection::TokenIntrospection;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -57,12 +58,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    let token_introspection_socket_address = SocketAddr::new(IpAddr::V4(ip_address), 7662);
+    let token_introspection = TokenIntrospection::init(token_introspection_socket_address).await;
+    let token_introspection_handle = tokio::spawn(async move {
+        if let Err(error) = token_introspection.run().await {
+            println!("token introspection -> {:?}", error);
+        }
+    });
+
     tokio::try_join!(
         client_registry_handle,
         authorization_codes_handle,
         access_tokens_handle,
         authorization_server_handle,
         client_registration_handle,
+        token_introspection_handle,
     )?;
 
     Ok(())
