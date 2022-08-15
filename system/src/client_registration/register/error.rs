@@ -26,7 +26,7 @@ impl IntoResponse for ClientRegistrationError {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ClientRegistrationErrorCode {
     InvalidRedirectUri,

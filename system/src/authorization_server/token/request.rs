@@ -8,7 +8,7 @@ pub struct AccessTokenRequest {
     pub redirect_uri: Option<String>,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum AccessTokenGrantType {
     AuthorizationCode,

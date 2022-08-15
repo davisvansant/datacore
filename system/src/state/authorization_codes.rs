@@ -49,7 +49,7 @@ impl AuthorizationCodes {
                 Request::Issue(client_id) => {
                     let authorization_code = self.issue(client_id).await?;
 
-                    response.send(Response::AuthorizationCode(authorization_code));
+                    let _ = response.send(Response::AuthorizationCode(authorization_code));
                 }
                 Request::Revoke(authorization_code) => self.revoke(authorization_code).await?,
                 Request::Authenticate((authorization_code, client_id)) => {
@@ -76,7 +76,10 @@ impl AuthorizationCodes {
                 Ok(authorization_code)
             }
             Some(old_authorization_code) => {
-                let error = String::from("authorization code is currently in use...");
+                let error = format!(
+                    "authorization code is currently in use -> {:?}",
+                    old_authorization_code,
+                );
 
                 Err(Box::from(error))
             }

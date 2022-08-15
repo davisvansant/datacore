@@ -49,7 +49,7 @@ impl ClientRegistry {
         let client_id = String::from("client_id");
         let client_metadata = String::from("client_metadata");
 
-        if let None = self.registered.insert(client_id, client_metadata) {
+        if self.registered.insert(client_id, client_metadata).is_none() {
             println!("registered new client!");
         }
 

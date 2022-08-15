@@ -24,7 +24,6 @@ impl TokenIntrospection {
     }
 
     async fn router(&self) -> Router {
-        let placeholder_for_state_request = String::from("state request");
         let token_introspection_endpoint = Router::new().route(
             "/introspect",
             post(move |request| TokenIntrospection::introspect(request)),

@@ -1,9 +1,8 @@
 use axum::body::Body;
-use axum::http::header::{HeaderMap, CACHE_CONTROL, CONTENT_TYPE, PRAGMA};
+use axum::http::header::CONTENT_TYPE;
 use axum::http::request::Request;
 use axum::http::StatusCode;
 use axum::response::Response;
-use hyper::body::{to_bytes, Bytes};
 
 use super::TokenIntrospection;
 
@@ -26,7 +25,6 @@ mod tests {
     use axum::Router;
     use axum::Server;
     use hyper::{Body, Method};
-    use serde_json::{json, to_vec};
     use std::net::SocketAddr;
     use std::str::FromStr;
 

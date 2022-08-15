@@ -35,12 +35,12 @@ impl AccessTokens {
                 Request::Issue(client_id) => {
                     let access_token = self.issue(client_id).await?;
 
-                    response.send(Response::AccessToken(access_token));
+                    let _ = response.send(Response::AccessToken(access_token));
                 }
                 Request::Introspect(access_token) => {
                     let client_id = self.introspect(&access_token).await?;
 
-                    response.send(Response::ActiveToken((access_token, client_id)));
+                    let _ = response.send(Response::ActiveToken((access_token, client_id)));
                 }
                 Request::Shutdown => self.receiver.close(),
             }
@@ -56,7 +56,10 @@ impl AccessTokens {
         match self.issued.insert(access_token, client_id) {
             None => Ok(issued_access_token),
             Some(associated_client_id) => {
-                let error = String::from("issued token is already associated with a client id");
+                let error = format!(
+                    "issued token is already associated with a client {:?}",
+                    associated_client_id,
+                );
 
                 Err(Box::from(error))
             }

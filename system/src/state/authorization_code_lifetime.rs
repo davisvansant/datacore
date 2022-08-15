@@ -71,7 +71,9 @@ impl AuthorizationCodeLifetime {
 
         match self.timer_handles.insert(authorization_code, handle) {
             None => println!("added new handle"),
-            Some(previous_handle) => println!("updated authorization code handle..."),
+            Some(previous_handle) => {
+                println!("updated authorization code handle -> {:?}", previous_handle);
+            }
         }
 
         Ok(())

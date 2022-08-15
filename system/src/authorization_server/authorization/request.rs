@@ -9,7 +9,7 @@ pub(crate) struct AuthorizationRequest {
     pub state: Option<String>,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthorizationResponseType {
     Code,
