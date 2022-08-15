@@ -169,6 +169,21 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn issue() -> Result<(), Box<dyn std::error::Error>> {
+        let (mut test_authorization_codes, _) = AuthorizationCodes::init().await;
+        let test_client_id = String::from("some_test_client_id");
+
+        assert_eq!(test_authorization_codes.issued.len(), 0);
+
+        let test_issue_ok = test_authorization_codes.issue(test_client_id).await;
+
+        assert!(test_issue_ok.is_ok());
+        assert_eq!(test_authorization_codes.issued.len(), 1);
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn generate() -> Result<(), Box<dyn std::error::Error>> {
         let test_authorization_code = super::generate().await;
 
