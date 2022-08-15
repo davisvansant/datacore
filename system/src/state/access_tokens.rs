@@ -96,4 +96,20 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn issue() -> Result<(), Box<dyn std::error::Error>> {
+        let (mut test_access_tokens, _) = AccessTokens::init().await;
+
+        let test_client_id = String::from("some_test_client_id");
+
+        assert_eq!(test_access_tokens.issued.len(), 0);
+
+        let test_access_token_ok = test_access_tokens.issue(test_client_id.to_owned()).await;
+
+        assert!(test_access_token_ok.is_ok());
+        assert_eq!(test_access_tokens.issued.len(), 1);
+
+        Ok(())
+    }
 }
