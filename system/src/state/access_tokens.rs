@@ -37,6 +37,11 @@ impl AccessTokens {
 
                     response.send(Response::AccessToken(access_token));
                 }
+                Request::Introspect(access_token) => {
+                    let client_id = self.introspect(&access_token).await?;
+
+                    response.send(Response::ActiveToken((access_token, client_id)));
+                }
                 Request::Shutdown => self.receiver.close(),
             }
         }
@@ -55,6 +60,21 @@ impl AccessTokens {
 
                 Err(Box::from(error))
             }
+        }
+    }
+
+    async fn introspect(
+        &mut self,
+        access_token: &str,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        match self.issued.get(access_token) {
+            None => {
+                let error = String::from("invalid access token");
+
+                Err(Box::from(error))
+            }
+
+            Some(client_id) => Ok(client_id.to_owned()),
         }
     }
 }
