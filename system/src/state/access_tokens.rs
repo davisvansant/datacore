@@ -112,4 +112,25 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn introspect() -> Result<(), Box<dyn std::error::Error>> {
+        let (mut test_access_tokens, _) = AccessTokens::init().await;
+
+        let test_client_id = String::from("some_test_client_id");
+        let test_access_token = test_access_tokens.issue(test_client_id).await?;
+        let test_introspect_ok = test_access_tokens.introspect(&test_access_token).await;
+
+        assert!(test_introspect_ok.is_ok());
+        assert_eq!(test_introspect_ok.unwrap(), "some_test_client_id");
+
+        let test_invalid_access_token = "some_invalid_access_token";
+        let test_introspect_error = test_access_tokens
+            .introspect(test_invalid_access_token)
+            .await;
+
+        assert!(test_introspect_error.is_err());
+
+        Ok(())
+    }
 }
