@@ -133,4 +133,14 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn generate() -> Result<(), Box<dyn std::error::Error>> {
+        let test_access_token = super::generate().await;
+
+        assert!(test_access_token.is_ascii());
+        assert_eq!(test_access_token.len(), 16);
+
+        Ok(())
+    }
 }
