@@ -184,6 +184,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn revoke() -> Result<(), Box<dyn std::error::Error>> {
+        let (mut test_authorization_codes, _) = AuthorizationCodes::init().await;
+        let test_client_id = String::from("some_test_client_id");
+        let test_authorization_code = test_authorization_codes.issue(test_client_id).await?;
+
+        assert_eq!(test_authorization_codes.issued.len(), 1);
+        assert_eq!(test_authorization_codes.expired.len(), 0);
+
+        let test_revoke_ok = test_authorization_codes
+            .revoke(test_authorization_code)
+            .await;
+
+        assert!(test_revoke_ok.is_ok());
+        assert_eq!(test_authorization_codes.issued.len(), 0);
+        assert_eq!(test_authorization_codes.expired.len(), 1);
+
+        let test_invalid_access_token = String::from("some_invalid_access_token");
+        let test_revoke_error = test_authorization_codes
+            .revoke(test_invalid_access_token)
+            .await;
+
+        assert!(test_revoke_error.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn generate() -> Result<(), Box<dyn std::error::Error>> {
         let test_authorization_code = super::generate().await;
 
