@@ -32,23 +32,30 @@ impl AuthorizationServer {
 
         if let Some(id) = client_id {
             authenticate(&id).await?;
-            ensure(&code, &id).await?
+            ensure(&code, &id).await?;
+            verify(&code).await?;
+
+            let access_token = access_tokens_request.issue(id).await.expect("access token");
+            let request_redirect_uri = check_redirect_uri(request.uri()).await?;
+            let access_token_response = AccessTokenResponse {
+                access_token,
+                token_type: AccessTokenType::Bearer,
+                expires_in: 3600,
+            };
+
+            let json = serde_json::to_vec(&access_token_response).expect("json");
+            let response = issue_token(json).await?;
+
+            Ok(response)
+        } else {
+            let access_token_error = AccessTokenError {
+                error: AccessTokenErrorCode::InvalidRequest,
+                error_description: None,
+                error_uri: None,
+            };
+
+            Err(access_token_error)
         }
-
-        verify(&code).await?;
-
-        let request_redirect_uri = check_redirect_uri(request.uri()).await?;
-
-        let access_token_response = AccessTokenResponse {
-            access_token: String::from("some_access_token"),
-            token_type: AccessTokenType::Bearer,
-            expires_in: 3600,
-        };
-
-        let json = serde_json::to_vec(&access_token_response).expect("json");
-        let response = issue_token(json).await?;
-
-        Ok(response)
     }
 }
 
@@ -255,6 +262,7 @@ async fn issue_token(json: Vec<u8>) -> Result<Response<Body>, AccessTokenError> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::access_tokens::AccessTokens;
     use axum::routing::post;
     use axum::Router;
     use axum::Server;
@@ -266,7 +274,16 @@ mod tests {
     #[tokio::test]
     async fn token_post() -> Result<(), Box<dyn std::error::Error>> {
         let test_socket_address = SocketAddr::from_str("127.0.0.1:6749")?;
-        let test_access_tokens_request = AccessTokensRequest::init().await;
+        let mut test_access_tokens = AccessTokens::init().await;
+
+        tokio::spawn(async move {
+            test_access_tokens
+                .0
+                .run()
+                .await
+                .expect("test access tokens");
+        });
+
         let test_endpoint = Router::new().route(
             "/token",
             post(move |test_headers, test_query, test_request| {
@@ -274,7 +291,7 @@ mod tests {
                     test_headers,
                     test_query,
                     test_request,
-                    test_access_tokens_request.0,
+                    test_access_tokens.1,
                 )
             }),
         );
@@ -353,7 +370,7 @@ mod tests {
         let test_response_body = hyper::body::to_bytes(test_response.unwrap().body_mut()).await?;
         let test_response_json: AccessTokenResponse = serde_json::from_slice(&test_response_body)?;
 
-        assert_eq!(test_response_json.access_token, "some_access_token");
+        assert_eq!(test_response_json.access_token.len(), 16);
         assert_eq!(test_response_json.token_type, AccessTokenType::Bearer);
         assert_eq!(test_response_json.expires_in, 3600);
 
