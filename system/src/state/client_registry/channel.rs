@@ -14,7 +14,7 @@ pub enum Request {
 
 #[derive(Debug)]
 pub enum Response {
-    ClientID(String),
+    ClientInformation(String),
 }
 
 #[derive(Clone)]
@@ -40,7 +40,7 @@ impl ClientRegistryRequest {
             .await?;
 
         match receive_response.await? {
-            Response::ClientID(client_id) => Ok(client_id),
+            Response::ClientInformation(client_information) => Ok(client_information),
         }
     }
 

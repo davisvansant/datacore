@@ -34,6 +34,8 @@ impl ClientRegistry {
             match request {
                 Request::Register => {
                     let client_id = self.add().await?;
+
+                    let _ = response.send(Response::ClientInformation(client_id));
                 }
                 Request::Read(client_id) => {
                     let _client_metdata = self.read(&client_id).await?;
