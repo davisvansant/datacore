@@ -1,6 +1,7 @@
 use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::oneshot;
 
-pub type ReceiveRequest = Receiver<Request>;
+pub type ReceiveRequest = Receiver<(Request, oneshot::Sender<Response>)>;
 
 #[derive(Debug)]
 pub enum Request {
@@ -11,9 +12,14 @@ pub enum Request {
     Shutdown,
 }
 
+#[derive(Debug)]
+pub enum Response {
+    ClientID(String),
+}
+
 #[derive(Clone)]
 pub struct ClientRegistryRequest {
-    channel: Sender<Request>,
+    channel: Sender<(Request, oneshot::Sender<Response>)>,
 }
 
 impl ClientRegistryRequest {
@@ -23,14 +29,27 @@ impl ClientRegistryRequest {
         (ClientRegistryRequest { channel: sender }, receiver)
     }
 
-    pub async fn register(&self) -> Result<(), Box<dyn std::error::Error>> {
-        self.channel.send(Request::Register).await?;
+    pub async fn register(
+        &self,
+        client_metadata: String,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let (send_response, receive_response) = oneshot::channel();
 
-        Ok(())
+        self.channel
+            .send((Request::Register, send_response))
+            .await?;
+
+        match receive_response.await? {
+            Response::ClientID(client_id) => Ok(client_id),
+        }
     }
 
     pub async fn read(&self, client_id: String) -> Result<(), Box<dyn std::error::Error>> {
-        self.channel.send(Request::Read(client_id)).await?;
+        let (_send_response, _receive_response) = oneshot::channel();
+
+        self.channel
+            .send((Request::Read(client_id), _send_response))
+            .await?;
 
         Ok(())
     }
@@ -40,15 +59,21 @@ impl ClientRegistryRequest {
         client_id: String,
         client_metadata: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        let (_send_response, _receive_response) = oneshot::channel();
+
         self.channel
-            .send(Request::Update(client_id, client_metadata))
+            .send((Request::Update(client_id, client_metadata), _send_response))
             .await?;
 
         Ok(())
     }
 
     pub async fn remove(&self, client_id: String) -> Result<(), Box<dyn std::error::Error>> {
-        self.channel.send(Request::Remove(client_id)).await?;
+        let (_send_response, _receive_response) = oneshot::channel();
+
+        self.channel
+            .send((Request::Remove(client_id), _send_response))
+            .await?;
 
         Ok(())
     }

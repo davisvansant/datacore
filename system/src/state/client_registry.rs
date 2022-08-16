@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use uuid::fmt::Simple;
 use uuid::Uuid;
 
-use channel::{ClientRegistryRequest, ReceiveRequest, Request};
+use channel::{ClientRegistryRequest, ReceiveRequest, Request, Response};
 
 pub mod channel;
 
@@ -30,7 +30,7 @@ impl ClientRegistry {
     }
 
     pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        while let Some(request) = self.receiver.recv().await {
+        while let Some((request, response)) = self.receiver.recv().await {
             match request {
                 Request::Register => {
                     let client_id = self.add().await?;
