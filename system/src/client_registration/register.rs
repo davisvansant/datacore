@@ -33,8 +33,13 @@ impl ClientRegistration {
         check_valid_software_statement(&client_metadata).await?;
         check_approved_software_statement(&client_metadata).await?;
 
+        let client_id = client_registry_request
+            .register(client_metadata.client_name)
+            .await
+            .expect("client information");
+
         let client_information = ClientInformation {
-            client_id: String::from("some_client_id"),
+            client_id,
             client_secret: String::from("some_client_secret"),
             client_id_issued_at: String::from("some_client_id_issued_at"),
             client_secret_expires_at: String::from("some_client_secret_expires_at"),
@@ -177,6 +182,7 @@ async fn success(json: Vec<u8>) -> Result<Response<Body>, ClientRegistrationErro
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::client_registry::ClientRegistry;
     use axum::routing::post;
     use axum::Router;
     use axum::Server;
@@ -188,12 +194,20 @@ mod tests {
     #[tokio::test]
     async fn register_post() -> Result<(), Box<dyn std::error::Error>> {
         let test_socket_address = SocketAddr::from_str("127.0.0.1:7591")?;
-        let test_client_registry_request = ClientRegistryRequest::init().await;
+        let mut test_client_registry = ClientRegistry::init().await;
+
+        tokio::spawn(async move {
+            test_client_registry
+                .0
+                .run()
+                .await
+                .expect("test client registry");
+        });
 
         let test_endpoint = Router::new().route(
             "/register",
             post(move |test_request| {
-                ClientRegistration::register(test_request, test_client_registry_request.0)
+                ClientRegistration::register(test_request, test_client_registry.1)
             }),
         );
 
@@ -297,6 +311,20 @@ mod tests {
                 .get(PRAGMA)
                 .unwrap(),
             "no-cache",
+        );
+
+        let test_response_body = hyper::body::to_bytes(test_response.unwrap().body_mut()).await?;
+        let test_response_json: ClientInformation = serde_json::from_slice(&test_response_body)?;
+
+        assert_eq!(test_response_json.client_id.len(), 32);
+        assert_eq!(test_response_json.client_secret, "some_client_secret");
+        assert_eq!(
+            test_response_json.client_id_issued_at,
+            "some_client_id_issued_at",
+        );
+        assert_eq!(
+            test_response_json.client_secret_expires_at,
+            "some_client_secret_expires_at",
         );
 
         Ok(())
