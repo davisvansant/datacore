@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use uuid::fmt::Simple;
+use uuid::Uuid;
 
 use channel::{ClientRegistryRequest, ReceiveRequest, Request};
 
@@ -104,6 +106,10 @@ impl ClientRegistry {
     }
 }
 
+async fn issue_id() -> Simple {
+    Uuid::new_v4().simple()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,6 +195,19 @@ mod tests {
         assert!(test_remove_ok.is_ok());
 
         assert_eq!(test_client_registry.registered.len(), 0);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn issue_id() -> Result<(), Box<dyn std::error::Error>> {
+        let test_client_id = super::issue_id().await;
+
+        assert_eq!(
+            test_client_id.as_uuid().get_version(),
+            Some(uuid::Version::Random),
+        );
+        assert_eq!(test_client_id.to_string().len(), 32);
 
         Ok(())
     }
