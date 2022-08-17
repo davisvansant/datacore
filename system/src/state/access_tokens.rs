@@ -37,6 +37,9 @@ impl AccessTokens {
 
                     let _ = response.send(Response::AccessToken(access_token));
                 }
+                Request::Expire(access_token) => {
+                    self.expire(&access_token).await?;
+                }
                 Request::Introspect(access_token) => {
                     let client_id = self.introspect(&access_token).await?;
 
@@ -62,6 +65,29 @@ impl AccessTokens {
                 );
 
                 Err(Box::from(error))
+            }
+        }
+    }
+
+    async fn expire(&mut self, access_token: &str) -> Result<(), Box<dyn std::error::Error>> {
+        match self.issued.remove_entry(access_token) {
+            None => {
+                let error = String::from("invalid access token");
+
+                Err(Box::from(error))
+            }
+            Some((expired_access_token, expired_client_id)) => {
+                match self.expired.insert(expired_access_token, expired_client_id) {
+                    None => Ok(()),
+                    Some(old_expired_client_id_value) => {
+                        let error = format!(
+                            "expired access token client id -> {:?}",
+                            old_expired_client_id_value,
+                        );
+
+                        Err(Box::from(error))
+                    }
+                }
             }
         }
     }
@@ -112,6 +138,26 @@ mod tests {
 
         assert!(test_access_token_ok.is_ok());
         assert_eq!(test_access_tokens.issued.len(), 1);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn expire() -> Result<(), Box<dyn std::error::Error>> {
+        let (mut test_access_tokens, _) = AccessTokens::init().await;
+
+        let test_client_id = String::from("some_test_client_id");
+        let test_access_token = test_access_tokens.issue(test_client_id).await?;
+
+        assert_eq!(test_access_tokens.expired.len(), 0);
+
+        test_access_tokens.expire(&test_access_token).await?;
+
+        assert_eq!(test_access_tokens.expired.len(), 1);
+        assert!(test_access_tokens
+            .expire("test_invalid_access_token")
+            .await
+            .is_err());
 
         Ok(())
     }

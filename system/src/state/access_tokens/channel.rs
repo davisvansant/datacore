@@ -6,6 +6,7 @@ pub type ReceiveRequest = Receiver<(Request, oneshot::Sender<Response>)>;
 #[derive(Debug)]
 pub enum Request {
     Issue(String),
+    Expire(String),
     Introspect(String),
     Shutdown,
 }
@@ -43,6 +44,16 @@ impl AccessTokensRequest {
                 Err(Box::from(error))
             }
         }
+    }
+
+    pub async fn expire(&self, access_token: String) -> Result<(), Box<dyn std::error::Error>> {
+        let (_send_response, _receive_response) = oneshot::channel();
+
+        self.channel
+            .send((Request::Expire(access_token), _send_response))
+            .await?;
+
+        Ok(())
     }
 
     pub async fn introspect(
