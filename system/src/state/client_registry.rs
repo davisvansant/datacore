@@ -32,8 +32,8 @@ impl ClientRegistry {
     pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         while let Some((request, response)) = self.receiver.recv().await {
             match request {
-                Request::Register => {
-                    let client_id = self.add().await?;
+                Request::Register(client_metadata) => {
+                    let client_id = self.add(client_metadata).await?;
 
                     let _ = response.send(Response::ClientInformation(client_id));
                 }
@@ -51,9 +51,8 @@ impl ClientRegistry {
         Ok(())
     }
 
-    async fn add(&mut self) -> Result<String, Box<dyn std::error::Error>> {
+    async fn add(&mut self, client_metadata: String) -> Result<String, Box<dyn std::error::Error>> {
         let client_id = issue_id().await;
-        let client_metadata = String::from("client_metadata");
 
         if self
             .registered
@@ -137,7 +136,9 @@ mod tests {
 
         assert_eq!(test_client_registry.registered.len(), 0);
 
-        test_client_registry.add().await?;
+        let test_client_metadata = String::from("test_client_metadata");
+
+        test_client_registry.add(test_client_metadata).await?;
 
         assert_eq!(test_client_registry.registered.len(), 1);
 
@@ -151,11 +152,12 @@ mod tests {
 
         assert!(test_value_error.is_err());
 
-        let test_client_id = test_client_registry.add().await?;
+        let test_client_metadata = String::from("test_client_metadata");
+        let test_client_id = test_client_registry.add(test_client_metadata).await?;
         let test_value_ok = test_client_registry.read(&test_client_id).await;
 
         assert!(test_value_ok.is_ok());
-        assert_eq!(test_value_ok.unwrap(), "client_metadata");
+        assert_eq!(test_value_ok.unwrap(), "test_client_metadata");
 
         Ok(())
     }
@@ -171,13 +173,20 @@ mod tests {
 
         assert!(test_update_error.is_err());
 
-        let test_client_id = test_client_registry.add().await?;
+        let test_initial_client_metadata = String::from("test_initial_client_metadata");
+        let test_client_id = test_client_registry
+            .add(test_initial_client_metadata)
+            .await?;
         let test_client_metadata = String::from("some_new_test_client_metadata");
         let test_update_ok = test_client_registry
-            .update(test_client_id, test_client_metadata)
+            .update(test_client_id.to_owned(), test_client_metadata)
             .await;
 
         assert!(test_update_ok.is_ok());
+
+        let test_updated_metadata_value = test_client_registry.read(&test_client_id).await?;
+
+        assert_eq!(test_updated_metadata_value, "some_new_test_client_metadata");
 
         Ok(())
     }
@@ -190,7 +199,8 @@ mod tests {
 
         assert!(test_remove_error.is_err());
 
-        let test_valid_client_id = test_client_registry.add().await?;
+        let test_client_metadata = String::from("some_test_client_metadata");
+        let test_valid_client_id = test_client_registry.add(test_client_metadata).await?;
 
         assert_eq!(test_client_registry.registered.len(), 1);
 

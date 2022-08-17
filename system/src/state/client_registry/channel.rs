@@ -5,7 +5,7 @@ pub type ReceiveRequest = Receiver<(Request, oneshot::Sender<Response>)>;
 
 #[derive(Debug)]
 pub enum Request {
-    Register,
+    Register(String),
     Read(String),
     Update(String, String),
     Remove(String),
@@ -36,7 +36,7 @@ impl ClientRegistryRequest {
         let (send_response, receive_response) = oneshot::channel();
 
         self.channel
-            .send((Request::Register, send_response))
+            .send((Request::Register(client_metadata), send_response))
             .await?;
 
         match receive_response.await? {
