@@ -9,21 +9,17 @@ pub mod channel;
 pub struct ClientRegistry {
     receiver: ReceiveRequest,
     registered: HashMap<String, String>,
-    unregistered: HashMap<String, String>,
 }
 
 impl ClientRegistry {
     pub async fn init() -> (ClientRegistry, ClientRegistryRequest) {
         let (send_request, receive_request) = ClientRegistryRequest::init().await;
-        let capacity = 50;
-        let registered = HashMap::with_capacity(capacity);
-        let unregistered = HashMap::with_capacity(capacity);
+        let registered = HashMap::with_capacity(50);
 
         (
             ClientRegistry {
                 receiver: receive_request,
                 registered,
-                unregistered,
             },
             send_request,
         )
