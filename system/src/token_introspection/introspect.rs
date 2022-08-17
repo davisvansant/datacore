@@ -4,10 +4,15 @@ use axum::http::request::Request;
 use axum::http::StatusCode;
 use axum::response::Response;
 
+use crate::token_introspection::AccessTokensRequest;
+
 use super::TokenIntrospection;
 
 impl TokenIntrospection {
-    pub async fn introspect(_request: Request<Body>) -> Result<Response<Body>, StatusCode> {
+    pub async fn introspect(
+        _request: Request<Body>,
+        access_tokens_request: AccessTokensRequest,
+    ) -> Result<Response<Body>, StatusCode> {
         let response = Response::builder()
             .header(CONTENT_TYPE, "application/json")
             .status(StatusCode::OK)
@@ -21,6 +26,7 @@ impl TokenIntrospection {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::access_tokens::AccessTokens;
     use axum::routing::post;
     use axum::Router;
     use axum::Server;
@@ -31,10 +37,21 @@ mod tests {
     #[tokio::test]
     async fn introspect_post() -> Result<(), Box<dyn std::error::Error>> {
         let test_socket_address = SocketAddr::from_str("127.0.0.1:7662")?;
+        let mut test_access_tokens = AccessTokens::init().await;
+
+        tokio::spawn(async move {
+            test_access_tokens
+                .0
+                .run()
+                .await
+                .expect("test access tokens");
+        });
 
         let test_endpoint = Router::new().route(
             "/introspect",
-            post(move |test_request| TokenIntrospection::introspect(test_request)),
+            post(move |test_request| {
+                TokenIntrospection::introspect(test_request, test_access_tokens.1)
+            }),
         );
 
         let test_server =

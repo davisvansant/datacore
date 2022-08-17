@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let authorization_server = AuthorizationServer::init(
         authorization_server_socket_address,
         authorization_codes_request,
-        access_tokens_request,
+        access_tokens_request.to_owned(),
     )
     .await;
 
@@ -59,7 +59,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let token_introspection_socket_address = SocketAddr::new(IpAddr::V4(ip_address), 7662);
-    let token_introspection = TokenIntrospection::init(token_introspection_socket_address).await;
+    let token_introspection = TokenIntrospection::init(
+        token_introspection_socket_address,
+        access_tokens_request.to_owned(),
+    )
+    .await;
+
     let token_introspection_handle = tokio::spawn(async move {
         if let Err(error) = token_introspection.run().await {
             println!("token introspection -> {:?}", error);
