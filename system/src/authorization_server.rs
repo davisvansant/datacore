@@ -8,7 +8,7 @@ use crate::state::access_tokens::channel::AccessTokensRequest;
 use crate::state::authorization_codes::channel::AuthorizationCodesRequest;
 
 mod authorization;
-mod token;
+pub mod token;
 mod userinfo;
 
 pub struct AuthorizationServer {

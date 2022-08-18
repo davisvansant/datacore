@@ -14,7 +14,7 @@ use response::{AccessTokenResponse, AccessTokenType};
 
 use crate::state::access_tokens::channel::AccessTokensRequest;
 
-mod error;
+pub mod error;
 mod request;
 mod response;
 
