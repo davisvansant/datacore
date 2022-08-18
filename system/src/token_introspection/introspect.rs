@@ -3,16 +3,25 @@ use axum::http::header::CONTENT_TYPE;
 use axum::http::request::Request;
 use axum::http::StatusCode;
 use axum::response::Response;
+use hyper::body::{to_bytes, Bytes};
 
+use crate::authorization_server::token::error::{AccessTokenError, AccessTokenErrorCode};
 use crate::token_introspection::AccessTokensRequest;
 
 use super::TokenIntrospection;
 
+use request::IntrospectionRequest;
+
+mod request;
+
 impl TokenIntrospection {
     pub async fn introspect(
-        _request: Request<Body>,
+        request: Request<Body>,
         access_tokens_request: AccessTokensRequest,
-    ) -> Result<Response<Body>, StatusCode> {
+    ) -> Result<Response<Body>, AccessTokenError> {
+        let request_body = request.into_body();
+        let bytes = bytes(request_body).await?;
+        let introspection_request = IntrospectionRequest::init(&bytes).await?;
         let response = Response::builder()
             .header(CONTENT_TYPE, "application/json")
             .status(StatusCode::OK)
@@ -20,6 +29,21 @@ impl TokenIntrospection {
             .unwrap();
 
         Ok(response)
+    }
+}
+
+async fn bytes(body: Body) -> Result<Bytes, AccessTokenError> {
+    match to_bytes(body).await {
+        Ok(bytes) => Ok(bytes),
+        Err(error) => {
+            let access_token_error = AccessTokenError {
+                error: AccessTokenErrorCode::InvalidRequest,
+                error_description: Some(error.to_string()),
+                error_uri: None,
+            };
+
+            Err(access_token_error)
+        }
     }
 }
 
@@ -72,7 +96,7 @@ mod tests {
             .uri(test_uri)
             .header(CONTENT_TYPE, "application/json")
             .method(Method::POST)
-            .body(Body::empty())
+            .body(Body::from(Bytes::from("token=some_access_token")))
             .unwrap();
 
         let test_client = hyper::client::Client::new();
