@@ -1,5 +1,5 @@
 use axum::body::Body;
-use axum::http::header::CONTENT_TYPE;
+use axum::http::header::{HeaderMap, CONTENT_TYPE};
 use axum::http::request::Request;
 use axum::http::StatusCode;
 use axum::response::Response;
@@ -19,6 +19,8 @@ impl TokenIntrospection {
         request: Request<Body>,
         access_tokens_request: AccessTokensRequest,
     ) -> Result<Response<Body>, AccessTokenError> {
+        check_content_type(request.headers()).await?;
+
         let request_body = request.into_body();
         let bytes = bytes(request_body).await?;
         let introspection_request = IntrospectionRequest::init(&bytes).await?;
@@ -29,6 +31,38 @@ impl TokenIntrospection {
             .unwrap();
 
         Ok(response)
+    }
+}
+
+async fn check_content_type(headers: &HeaderMap) -> Result<(), AccessTokenError> {
+    match headers.get(CONTENT_TYPE) {
+        None => {
+            let access_token_error = AccessTokenError {
+                error: AccessTokenErrorCode::InvalidRequest,
+                error_description: Some(String::from("Missing Header: Content-Type")),
+                error_uri: None,
+            };
+
+            Err(access_token_error)
+        }
+        Some(application_x_www_form_urlencoded) => {
+            match application_x_www_form_urlencoded == "application/x-www-form-urlencoded" {
+                true => {
+                    println!("valid header!");
+
+                    Ok(())
+                }
+                false => {
+                    let access_token_error = AccessTokenError {
+                        error: AccessTokenErrorCode::InvalidRequest,
+                        error_description: Some(String::from("Header: Content-Type is invalid!")),
+                        error_uri: None,
+                    };
+
+                    Err(access_token_error)
+                }
+            }
+        }
     }
 }
 
@@ -51,6 +85,7 @@ async fn bytes(body: Body) -> Result<Bytes, AccessTokenError> {
 mod tests {
     use super::*;
     use crate::state::access_tokens::AccessTokens;
+    use axum::http::header::HeaderValue;
     use axum::routing::post;
     use axum::Router;
     use axum::Server;
@@ -94,7 +129,7 @@ mod tests {
 
         let test_request = http::request::Builder::new()
             .uri(test_uri)
-            .header(CONTENT_TYPE, "application/json")
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .method(Method::POST)
             .body(Body::from(Bytes::from("token=some_access_token")))
             .unwrap();
@@ -118,6 +153,45 @@ mod tests {
                 .get(CONTENT_TYPE)
                 .unwrap(),
             "application/json",
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_content_type() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_introspection_request_headers_ok = HeaderMap::with_capacity(1);
+
+        test_introspection_request_headers_ok.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_str("application/x-www-form-urlencoded").unwrap(),
+        );
+
+        assert!(
+            super::check_content_type(&test_introspection_request_headers_ok)
+                .await
+                .is_ok()
+        );
+
+        let mut test_introspection_request_headers_invalid = HeaderMap::with_capacity(1);
+
+        test_introspection_request_headers_invalid.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_str("applicationx-www-form-urlencoded").unwrap(),
+        );
+
+        assert!(
+            super::check_content_type(&test_introspection_request_headers_invalid)
+                .await
+                .is_err()
+        );
+
+        let test_introspection_request_headers_missing = HeaderMap::with_capacity(1);
+
+        assert!(
+            super::check_content_type(&test_introspection_request_headers_missing)
+                .await
+                .is_err()
         );
 
         Ok(())
