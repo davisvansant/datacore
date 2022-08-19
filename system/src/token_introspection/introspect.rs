@@ -11,8 +11,10 @@ use crate::token_introspection::AccessTokensRequest;
 use super::TokenIntrospection;
 
 use request::IntrospectionRequest;
+use response::IntrospectionResponse;
 
 mod request;
+mod response;
 
 impl TokenIntrospection {
     pub async fn introspect(
@@ -69,6 +71,25 @@ async fn check_content_type(headers: &HeaderMap) -> Result<(), AccessTokenError>
 async fn bytes(body: Body) -> Result<Bytes, AccessTokenError> {
     match to_bytes(body).await {
         Ok(bytes) => Ok(bytes),
+        Err(error) => {
+            let access_token_error = AccessTokenError {
+                error: AccessTokenErrorCode::InvalidRequest,
+                error_description: Some(error.to_string()),
+                error_uri: None,
+            };
+
+            Err(access_token_error)
+        }
+    }
+}
+
+async fn introspection_response(json: Vec<u8>) -> Result<Response<Body>, AccessTokenError> {
+    match Response::builder()
+        .header(CONTENT_TYPE, "application/json")
+        .status(StatusCode::OK)
+        .body(Body::from(json))
+    {
+        Ok(introspection_response) => Ok(introspection_response),
         Err(error) => {
             let access_token_error = AccessTokenError {
                 error: AccessTokenErrorCode::InvalidRequest,
@@ -193,6 +214,44 @@ mod tests {
                 .await
                 .is_err()
         );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn introspection_response() -> Result<(), Box<dyn std::error::Error>> {
+        let test_introspection_response = IntrospectionResponse {
+            active: true,
+            scope: None,
+            client_id: None,
+            username: None,
+            token_type: None,
+            exp: None,
+            iat: None,
+            nbf: None,
+            sub: None,
+            aud: None,
+            iss: None,
+            jti: None,
+        };
+
+        let test_json = serde_json::to_vec(&test_introspection_response).expect("json");
+        let test_response = super::introspection_response(test_json)
+            .await
+            .expect("test_response");
+
+        assert!(test_response.headers().contains_key(CONTENT_TYPE));
+        assert_eq!(
+            test_response.headers().get(CONTENT_TYPE).unwrap(),
+            "application/json",
+        );
+        assert_eq!(test_response.status(), StatusCode::OK);
+
+        let test_body_bytes = to_bytes(&mut test_response.into_body()).await?;
+        let test_access_token_response_deserialized: IntrospectionResponse =
+            serde_json::from_slice(&test_body_bytes)?;
+
+        assert!(test_access_token_response_deserialized.active);
 
         Ok(())
     }
