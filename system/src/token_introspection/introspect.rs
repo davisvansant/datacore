@@ -4,6 +4,7 @@ use axum::http::request::Request;
 use axum::http::StatusCode;
 use axum::response::Response;
 use hyper::body::{to_bytes, Bytes};
+use serde_json::to_vec;
 
 use crate::authorization_server::token::error::{AccessTokenError, AccessTokenErrorCode};
 use crate::token_introspection::AccessTokensRequest;
@@ -26,11 +27,24 @@ impl TokenIntrospection {
         let request_body = request.into_body();
         let bytes = bytes(request_body).await?;
         let introspection_request = IntrospectionRequest::init(&bytes).await?;
-        let response = Response::builder()
-            .header(CONTENT_TYPE, "application/json")
-            .status(StatusCode::OK)
-            .body(Body::empty())
-            .unwrap();
+
+        let introspection_response = IntrospectionResponse {
+            active: true,
+            scope: None,
+            client_id: None,
+            username: None,
+            token_type: None,
+            exp: None,
+            iat: None,
+            nbf: None,
+            sub: None,
+            aud: None,
+            iss: None,
+            jti: None,
+        };
+
+        let json = json(introspection_response).await?;
+        let response = response(json).await?;
 
         Ok(response)
     }
@@ -83,7 +97,24 @@ async fn bytes(body: Body) -> Result<Bytes, AccessTokenError> {
     }
 }
 
-async fn introspection_response(json: Vec<u8>) -> Result<Response<Body>, AccessTokenError> {
+async fn json(introspection_response: IntrospectionResponse) -> Result<Vec<u8>, AccessTokenError> {
+    match to_vec(&introspection_response) {
+        Ok(json) => Ok(json),
+        Err(error) => {
+            println!("json serialization -> {:?}", error);
+
+            let access_token_error = AccessTokenError {
+                error: AccessTokenErrorCode::InvalidRequest,
+                error_description: None,
+                error_uri: None,
+            };
+
+            Err(access_token_error)
+        }
+    }
+}
+
+async fn response(json: Vec<u8>) -> Result<Response<Body>, AccessTokenError> {
     match Response::builder()
         .header(CONTENT_TYPE, "application/json")
         .status(StatusCode::OK)
@@ -219,7 +250,29 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn introspection_response() -> Result<(), Box<dyn std::error::Error>> {
+    async fn json() -> Result<(), Box<dyn std::error::Error>> {
+        let test_introspection_response = IntrospectionResponse {
+            active: true,
+            scope: None,
+            client_id: None,
+            username: None,
+            token_type: None,
+            exp: None,
+            iat: None,
+            nbf: None,
+            sub: None,
+            aud: None,
+            iss: None,
+            jti: None,
+        };
+
+        assert!(super::json(test_introspection_response).await.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn response() -> Result<(), Box<dyn std::error::Error>> {
         let test_introspection_response = IntrospectionResponse {
             active: true,
             scope: None,
@@ -236,9 +289,7 @@ mod tests {
         };
 
         let test_json = serde_json::to_vec(&test_introspection_response).expect("json");
-        let test_response = super::introspection_response(test_json)
-            .await
-            .expect("test_response");
+        let test_response = super::response(test_json).await.expect("test_response");
 
         assert!(test_response.headers().contains_key(CONTENT_TYPE));
         assert_eq!(
