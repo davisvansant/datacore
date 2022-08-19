@@ -27,7 +27,9 @@ impl TokenIntrospection {
         let request_body = request.into_body();
         let bytes = bytes(request_body).await?;
         let introspection_request = IntrospectionRequest::init(&bytes).await?;
-
+        let _ = access_tokens_request
+            .introspect(introspection_request.token)
+            .await;
         let introspection_response = IntrospectionResponse {
             active: true,
             scope: None,
@@ -155,7 +157,7 @@ mod tests {
                 .0
                 .run()
                 .await
-                .expect("test access tokens");
+                .expect("test access tokens whaaaa");
         });
 
         let test_endpoint = Router::new().route(
