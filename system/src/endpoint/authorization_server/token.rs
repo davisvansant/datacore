@@ -5,6 +5,7 @@ use axum::http::request::Request;
 use axum::http::uri::Uri;
 use axum::http::StatusCode;
 use axum::response::Response;
+use serde_json::to_vec;
 
 use super::AuthorizationServer;
 
@@ -37,7 +38,7 @@ impl AuthorizationServer {
 
             let access_token_response = access_tokens_request.issue(id).await?;
             let request_redirect_uri = check_redirect_uri(request.uri()).await?;
-            let json = serde_json::to_vec(&access_token_response).expect("json");
+            let json = json(access_token_response).await?;
             let response = issue_token(json).await?;
 
             Ok(response)
@@ -224,6 +225,23 @@ async fn verify(code: &str) -> Result<(), AccessTokenError> {
             let access_token_error = AccessTokenError {
                 error: AccessTokenErrorCode::InvalidClient,
                 error_description: Some(String::from("we need a better way to verify...")),
+                error_uri: None,
+            };
+
+            Err(access_token_error)
+        }
+    }
+}
+
+async fn json(access_token_response: AccessTokenResponse) -> Result<Vec<u8>, AccessTokenError> {
+    match to_vec(&access_token_response) {
+        Ok(json) => Ok(json),
+        Err(error) => {
+            println!("json serialization -> {:?}", error);
+
+            let access_token_error = AccessTokenError {
+                error: AccessTokenErrorCode::InvalidRequest,
+                error_description: None,
                 error_uri: None,
             };
 
