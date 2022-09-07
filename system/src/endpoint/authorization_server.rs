@@ -7,7 +7,7 @@ use axum::Server;
 use crate::state::access_tokens::channel::AccessTokensRequest;
 use crate::state::authorization_codes::channel::AuthorizationCodesRequest;
 
-mod authorization;
+pub mod authorization;
 pub mod token;
 mod userinfo;
 

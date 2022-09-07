@@ -1,6 +1,9 @@
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::oneshot;
 
+use crate::endpoint::authorization_server::authorization::error::AuthorizationError;
+use crate::endpoint::authorization_server::authorization::error::AuthorizationErrorCode;
+
 pub type ReceiveRequest = Receiver<(Request, oneshot::Sender<Response>)>;
 
 #[derive(Debug)]
@@ -28,15 +31,28 @@ impl AuthorizationCodesRequest {
         (AuthorizationCodesRequest { channel: sender }, receiver)
     }
 
-    pub async fn issue(&self, client_id: String) -> Result<String, Box<dyn std::error::Error>> {
+    pub async fn issue(&self, client_id: String) -> Result<String, AuthorizationError> {
         let (send_response, receive_response) = oneshot::channel();
 
-        self.channel
-            .send((Request::Issue(client_id), send_response))
-            .await?;
+        let authorization_error = AuthorizationError {
+            error: AuthorizationErrorCode::ServerError,
+            error_description: None,
+            error_uri: None,
+        };
 
-        match receive_response.await? {
-            Response::AuthorizationCode(authorization_code) => Ok(authorization_code),
+        if let Err(error) = self
+            .channel
+            .send((Request::Issue(client_id), send_response))
+            .await
+        {
+            println!("issue request -> {:?}", error);
+
+            return Err(authorization_error);
+        }
+
+        match receive_response.await {
+            Ok(Response::AuthorizationCode(authorization_code)) => Ok(authorization_code),
+            _ => Err(authorization_error),
         }
     }
 

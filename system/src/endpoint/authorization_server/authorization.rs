@@ -14,7 +14,7 @@ use response::AuthorizationResponse;
 
 use crate::state::authorization_codes::channel::AuthorizationCodesRequest;
 
-mod error;
+pub mod error;
 mod request;
 mod response;
 
@@ -42,7 +42,7 @@ impl AuthorizationServer {
 
         authorize(&client_id).await?;
 
-        let authorization_code = authorization_codes_request.issue(client_id).await.unwrap();
+        let authorization_code = authorization_codes_request.issue(client_id).await?;
 
         let authorization_response = match state_request {
             None => AuthorizationResponse {
