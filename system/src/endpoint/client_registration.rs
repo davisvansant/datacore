@@ -6,7 +6,7 @@ use axum::Server;
 
 use crate::state::client_registry::channel::ClientRegistryRequest;
 
-mod register;
+pub mod register;
 
 pub struct ClientRegistration {
     socket_address: SocketAddr,

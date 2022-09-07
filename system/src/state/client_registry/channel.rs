@@ -1,6 +1,9 @@
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::oneshot;
 
+use crate::endpoint::client_registration::register::error::ClientRegistrationError;
+use crate::endpoint::client_registration::register::error::ClientRegistrationErrorCode;
+
 pub type ReceiveRequest = Receiver<(Request, oneshot::Sender<Response>)>;
 
 #[derive(Debug)]
@@ -32,15 +35,27 @@ impl ClientRegistryRequest {
     pub async fn register(
         &self,
         client_metadata: String,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    ) -> Result<String, ClientRegistrationError> {
         let (send_response, receive_response) = oneshot::channel();
 
-        self.channel
-            .send((Request::Register(client_metadata), send_response))
-            .await?;
+        let client_registration_error = ClientRegistrationError {
+            error: ClientRegistrationErrorCode::InvalidClientMetadata,
+            error_description: String::from("Internal error"),
+        };
 
-        match receive_response.await? {
-            Response::ClientInformation(client_information) => Ok(client_information),
+        if let Err(error) = self
+            .channel
+            .send((Request::Register(client_metadata), send_response))
+            .await
+        {
+            println!("client registry request -> {:?}", error);
+
+            return Err(client_registration_error);
+        }
+
+        match receive_response.await {
+            Ok(Response::ClientInformation(client_information)) => Ok(client_information),
+            _ => Err(client_registration_error),
         }
     }
 

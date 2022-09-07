@@ -13,7 +13,7 @@ use response::ClientInformation;
 
 use crate::state::client_registry::channel::ClientRegistryRequest;
 
-mod error;
+pub mod error;
 mod request;
 mod response;
 
@@ -35,8 +35,7 @@ impl ClientRegistration {
 
         let client_id = client_registry_request
             .register(client_metadata.client_name)
-            .await
-            .expect("client information");
+            .await?;
 
         let client_information = ClientInformation {
             client_id,
