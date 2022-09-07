@@ -6,8 +6,8 @@ use axum::response::Response;
 use hyper::body::{to_bytes, Bytes};
 use serde_json::to_vec;
 
-use crate::authorization_server::token::error::{AccessTokenError, AccessTokenErrorCode};
-use crate::token_introspection::AccessTokensRequest;
+use crate::endpoint::authorization_server::token::error::{AccessTokenError, AccessTokenErrorCode};
+use crate::endpoint::token_introspection::AccessTokensRequest;
 
 use super::TokenIntrospection;
 

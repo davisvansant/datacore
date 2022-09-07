@@ -1,4 +1,4 @@
-use crate::authorization_server::token::error::{AccessTokenError, AccessTokenErrorCode};
+use crate::endpoint::authorization_server::token::error::{AccessTokenError, AccessTokenErrorCode};
 
 pub struct IntrospectionRequest {
     pub token: String,

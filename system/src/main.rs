@@ -1,11 +1,11 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-use system::authorization_server::AuthorizationServer;
-use system::client_registration::ClientRegistration;
+use system::endpoint::authorization_server::AuthorizationServer;
+use system::endpoint::client_registration::ClientRegistration;
+use system::endpoint::token_introspection::TokenIntrospection;
 use system::state::access_tokens::AccessTokens;
 use system::state::authorization_codes::AuthorizationCodes;
 use system::state::client_registry::ClientRegistry;
-use system::token_introspection::TokenIntrospection;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
