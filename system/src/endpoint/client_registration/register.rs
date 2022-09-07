@@ -15,7 +15,7 @@ use crate::state::client_registry::channel::ClientRegistryRequest;
 
 pub mod error;
 mod request;
-mod response;
+pub mod response;
 
 impl ClientRegistration {
     pub(crate) async fn register(
@@ -33,16 +33,9 @@ impl ClientRegistration {
         check_valid_software_statement(&client_metadata).await?;
         check_approved_software_statement(&client_metadata).await?;
 
-        let client_id = client_registry_request
+        let client_information = client_registry_request
             .register(client_metadata.client_name)
             .await?;
-
-        let client_information = ClientInformation {
-            client_id,
-            client_secret: String::from("some_client_secret"),
-            client_id_issued_at: String::from("some_client_id_issued_at"),
-            client_secret_expires_at: String::from("some_client_secret_expires_at"),
-        };
 
         let json = serde_json::to_vec(&client_information).expect("json");
         let response = success(json).await?;

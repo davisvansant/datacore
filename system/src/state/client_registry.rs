@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use uuid::fmt::Simple;
 use uuid::Uuid;
 
+use crate::endpoint::client_registration::register::response::ClientInformation;
+
 use channel::{ClientRegistryRequest, ReceiveRequest, Request, Response};
 
 pub mod channel;
@@ -29,9 +31,9 @@ impl ClientRegistry {
         while let Some((request, response)) = self.receiver.recv().await {
             match request {
                 Request::Register(client_metadata) => {
-                    let client_id = self.add(client_metadata).await?;
+                    let client_information = self.add(client_metadata).await?;
 
-                    let _ = response.send(Response::ClientInformation(client_id));
+                    let _ = response.send(Response::ClientInformation(client_information));
                 }
                 Request::Read(client_id) => {
                     let _client_metdata = self.read(&client_id).await?;
@@ -47,7 +49,10 @@ impl ClientRegistry {
         Ok(())
     }
 
-    async fn add(&mut self, client_metadata: String) -> Result<String, Box<dyn std::error::Error>> {
+    async fn add(
+        &mut self,
+        client_metadata: String,
+    ) -> Result<ClientInformation, Box<dyn std::error::Error>> {
         let client_id = issue_id().await;
 
         if self
@@ -58,7 +63,14 @@ impl ClientRegistry {
             println!("registered new client!");
         }
 
-        Ok(client_id.to_string())
+        let client_information = ClientInformation {
+            client_id: client_id.to_string(),
+            client_secret: String::from("some_client_secret"),
+            client_id_issued_at: String::from("some_client_id_issued_at"),
+            client_secret_expires_at: String::from("some_client_secret_expires_at"),
+        };
+
+        Ok(client_information)
     }
 
     async fn read(&mut self, client_id: &str) -> Result<String, Box<dyn std::error::Error>> {
@@ -149,8 +161,10 @@ mod tests {
         assert!(test_value_error.is_err());
 
         let test_client_metadata = String::from("test_client_metadata");
-        let test_client_id = test_client_registry.add(test_client_metadata).await?;
-        let test_value_ok = test_client_registry.read(&test_client_id).await;
+        let test_client_information = test_client_registry.add(test_client_metadata).await?;
+        let test_value_ok = test_client_registry
+            .read(&test_client_information.client_id)
+            .await;
 
         assert!(test_value_ok.is_ok());
         assert_eq!(test_value_ok.unwrap(), "test_client_metadata");
@@ -170,17 +184,22 @@ mod tests {
         assert!(test_update_error.is_err());
 
         let test_initial_client_metadata = String::from("test_initial_client_metadata");
-        let test_client_id = test_client_registry
+        let test_client_information = test_client_registry
             .add(test_initial_client_metadata)
             .await?;
         let test_client_metadata = String::from("some_new_test_client_metadata");
         let test_update_ok = test_client_registry
-            .update(test_client_id.to_owned(), test_client_metadata)
+            .update(
+                test_client_information.client_id.to_owned(),
+                test_client_metadata,
+            )
             .await;
 
         assert!(test_update_ok.is_ok());
 
-        let test_updated_metadata_value = test_client_registry.read(&test_client_id).await?;
+        let test_updated_metadata_value = test_client_registry
+            .read(&test_client_information.client_id)
+            .await?;
 
         assert_eq!(test_updated_metadata_value, "some_new_test_client_metadata");
 
@@ -196,11 +215,13 @@ mod tests {
         assert!(test_remove_error.is_err());
 
         let test_client_metadata = String::from("some_test_client_metadata");
-        let test_valid_client_id = test_client_registry.add(test_client_metadata).await?;
+        let test_valid_client_information = test_client_registry.add(test_client_metadata).await?;
 
         assert_eq!(test_client_registry.registered.len(), 1);
 
-        let test_remove_ok = test_client_registry.remove(test_valid_client_id).await;
+        let test_remove_ok = test_client_registry
+            .remove(test_valid_client_information.client_id)
+            .await;
 
         assert!(test_remove_ok.is_ok());
         assert_eq!(test_client_registry.registered.len(), 0);

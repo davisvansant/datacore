@@ -3,6 +3,7 @@ use tokio::sync::oneshot;
 
 use crate::endpoint::client_registration::register::error::ClientRegistrationError;
 use crate::endpoint::client_registration::register::error::ClientRegistrationErrorCode;
+use crate::endpoint::client_registration::register::response::ClientInformation;
 
 pub type ReceiveRequest = Receiver<(Request, oneshot::Sender<Response>)>;
 
@@ -17,7 +18,7 @@ pub enum Request {
 
 #[derive(Debug)]
 pub enum Response {
-    ClientInformation(String),
+    ClientInformation(ClientInformation),
 }
 
 #[derive(Clone)]
@@ -35,7 +36,7 @@ impl ClientRegistryRequest {
     pub async fn register(
         &self,
         client_metadata: String,
-    ) -> Result<String, ClientRegistrationError> {
+    ) -> Result<ClientInformation, ClientRegistrationError> {
         let (send_response, receive_response) = oneshot::channel();
 
         let client_registration_error = ClientRegistrationError {
