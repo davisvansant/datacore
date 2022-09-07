@@ -67,36 +67,27 @@ impl AccessTokensRequest {
     ) -> Result<IntrospectionResponse, AccessTokenError> {
         let (send_response, receive_response) = oneshot::channel();
 
-        match self
+        let access_token_error = AccessTokenError {
+            error: AccessTokenErrorCode::InvalidRequest,
+            error_description: None,
+            error_uri: None,
+        };
+
+        if let Err(error) = self
             .channel
             .send((Request::Introspect(access_token), send_response))
             .await
         {
-            Ok(()) => match receive_response.await {
-                Ok(Response::IntrospectionResponse(introspection_response)) => {
-                    Ok(introspection_response)
-                }
-                _ => {
-                    let access_token_error = AccessTokenError {
-                        error: AccessTokenErrorCode::InvalidRequest,
-                        error_description: None,
-                        error_uri: None,
-                    };
+            println!("introspect channel -> {:?}", error);
 
-                    Err(access_token_error)
-                }
-            },
-            Err(error) => {
-                println!("introspection channel response -> {:?}", error);
+            return Err(access_token_error);
+        }
 
-                let access_token_error = AccessTokenError {
-                    error: AccessTokenErrorCode::InvalidRequest,
-                    error_description: None,
-                    error_uri: None,
-                };
-
-                Err(access_token_error)
+        match receive_response.await {
+            Ok(Response::IntrospectionResponse(introspection_response)) => {
+                Ok(introspection_response)
             }
+            _ => Err(access_token_error),
         }
     }
 }
