@@ -15,7 +15,7 @@ use request::IntrospectionRequest;
 use response::IntrospectionResponse;
 
 mod request;
-mod response;
+pub mod response;
 
 impl TokenIntrospection {
     pub async fn introspect(
@@ -27,24 +27,9 @@ impl TokenIntrospection {
         let request_body = request.into_body();
         let bytes = bytes(request_body).await?;
         let introspection_request = IntrospectionRequest::init(&bytes).await?;
-        let _ = access_tokens_request
+        let introspection_response = access_tokens_request
             .introspect(introspection_request.token)
-            .await;
-        let introspection_response = IntrospectionResponse {
-            active: true,
-            scope: None,
-            client_id: None,
-            username: None,
-            token_type: None,
-            exp: None,
-            iat: None,
-            nbf: None,
-            sub: None,
-            aud: None,
-            iss: None,
-            jti: None,
-        };
-
+            .await?;
         let json = json(introspection_response).await?;
         let response = response(json).await?;
 

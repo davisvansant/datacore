@@ -6,7 +6,7 @@ use axum::Server;
 
 use crate::state::access_tokens::channel::AccessTokensRequest;
 
-mod introspect;
+pub mod introspect;
 
 pub struct TokenIntrospection {
     socket_address: SocketAddr,

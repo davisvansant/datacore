@@ -1,6 +1,10 @@
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::oneshot;
 
+use crate::endpoint::authorization_server::token::error::AccessTokenError;
+use crate::endpoint::authorization_server::token::error::AccessTokenErrorCode;
+use crate::endpoint::token_introspection::introspect::response::IntrospectionResponse;
+
 pub type ReceiveRequest = Receiver<(Request, oneshot::Sender<Response>)>;
 
 #[derive(Debug)]
@@ -15,6 +19,7 @@ pub enum Request {
 pub enum Response {
     AccessToken(String),
     ActiveToken((String, String)),
+    IntrospectionResponse(IntrospectionResponse),
 }
 
 #[derive(Clone)]
@@ -59,19 +64,38 @@ impl AccessTokensRequest {
     pub async fn introspect(
         &self,
         access_token: String,
-    ) -> Result<(String, String), Box<dyn std::error::Error>> {
+    ) -> Result<IntrospectionResponse, AccessTokenError> {
         let (send_response, receive_response) = oneshot::channel();
 
-        self.channel
+        match self
+            .channel
             .send((Request::Introspect(access_token), send_response))
-            .await?;
+            .await
+        {
+            Ok(()) => match receive_response.await {
+                Ok(Response::IntrospectionResponse(introspection_response)) => {
+                    Ok(introspection_response)
+                }
+                _ => {
+                    let access_token_error = AccessTokenError {
+                        error: AccessTokenErrorCode::InvalidRequest,
+                        error_description: None,
+                        error_uri: None,
+                    };
 
-        match receive_response.await? {
-            Response::ActiveToken((access_token, client_id)) => Ok((access_token, client_id)),
-            _ => {
-                let error = String::from("unexpected response");
+                    Err(access_token_error)
+                }
+            },
+            Err(error) => {
+                println!("introspection channel response -> {:?}", error);
 
-                Err(Box::from(error))
+                let access_token_error = AccessTokenError {
+                    error: AccessTokenErrorCode::InvalidRequest,
+                    error_description: None,
+                    error_uri: None,
+                };
+
+                Err(access_token_error)
             }
         }
     }

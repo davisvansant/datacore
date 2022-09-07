@@ -2,6 +2,8 @@ use rand::distributions::{Alphanumeric, DistString};
 use rand::thread_rng;
 use std::collections::HashMap;
 
+use crate::endpoint::token_introspection::introspect::response::IntrospectionResponse;
+
 use channel::{AccessTokensRequest, ReceiveRequest, Request, Response};
 
 pub mod channel;
@@ -41,9 +43,9 @@ impl AccessTokens {
                     self.expire(&access_token).await?;
                 }
                 Request::Introspect(access_token) => {
-                    let client_id = self.introspect(&access_token).await?;
+                    let introspection_response = self.introspect(&access_token).await;
 
-                    let _ = response.send(Response::ActiveToken((access_token, client_id)));
+                    let _ = response.send(Response::IntrospectionResponse(introspection_response));
                 }
                 Request::Shutdown => self.receiver.close(),
             }
@@ -92,18 +94,36 @@ impl AccessTokens {
         }
     }
 
-    async fn introspect(
-        &mut self,
-        access_token: &str,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    async fn introspect(&self, access_token: &str) -> IntrospectionResponse {
         match self.issued.get(access_token) {
-            None => {
-                let error = String::from("invalid access token");
-
-                Err(Box::from(error))
-            }
-
-            Some(client_id) => Ok(client_id.to_owned()),
+            None => IntrospectionResponse {
+                active: false,
+                scope: None,
+                client_id: None,
+                username: None,
+                token_type: None,
+                exp: None,
+                iat: None,
+                nbf: None,
+                sub: None,
+                aud: None,
+                iss: None,
+                jti: None,
+            },
+            Some(client_id) => IntrospectionResponse {
+                active: true,
+                scope: None,
+                client_id: Some(client_id.to_string()),
+                username: None,
+                token_type: None,
+                exp: None,
+                iat: None,
+                nbf: None,
+                sub: None,
+                aud: None,
+                iss: None,
+                jti: None,
+            },
         }
     }
 }
@@ -168,17 +188,17 @@ mod tests {
 
         let test_client_id = String::from("some_test_client_id");
         let test_access_token = test_access_tokens.issue(test_client_id).await?;
-        let test_introspect_ok = test_access_tokens.introspect(&test_access_token).await;
+        let test_introspection_response_true =
+            test_access_tokens.introspect(&test_access_token).await;
 
-        assert!(test_introspect_ok.is_ok());
-        assert_eq!(test_introspect_ok.unwrap(), "some_test_client_id");
+        assert!(test_introspection_response_true.active);
 
         let test_invalid_access_token = "some_invalid_access_token";
-        let test_introspect_error = test_access_tokens
+        let test_introspection_response_false = test_access_tokens
             .introspect(test_invalid_access_token)
             .await;
 
-        assert!(test_introspect_error.is_err());
+        assert!(!test_introspection_response_false.active);
 
         Ok(())
     }
