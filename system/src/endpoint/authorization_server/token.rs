@@ -35,7 +35,7 @@ impl AuthorizationServer {
             ensure(&code, &id).await?;
             verify(&code).await?;
 
-            let access_token = access_tokens_request.issue(id).await.expect("access token");
+            let access_token = access_tokens_request.issue(id).await?;
             let request_redirect_uri = check_redirect_uri(request.uri()).await?;
             let access_token_response = AccessTokenResponse {
                 access_token,

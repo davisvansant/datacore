@@ -34,20 +34,28 @@ impl AccessTokensRequest {
         (AccessTokensRequest { channel: sender }, receiver)
     }
 
-    pub async fn issue(&self, client_id: String) -> Result<String, Box<dyn std::error::Error>> {
+    pub async fn issue(&self, client_id: String) -> Result<String, AccessTokenError> {
         let (send_response, receive_response) = oneshot::channel();
 
-        self.channel
+        let access_token_error = AccessTokenError {
+            error: AccessTokenErrorCode::InvalidRequest,
+            error_description: None,
+            error_uri: None,
+        };
+
+        if let Err(error) = self
+            .channel
             .send((Request::Issue(client_id), send_response))
-            .await?;
+            .await
+        {
+            println!("access tokens request -> {:?}", error);
 
-        match receive_response.await? {
-            Response::AccessToken(access_token) => Ok(access_token),
-            _ => {
-                let error = String::from("unexpected response");
+            return Err(access_token_error);
+        }
 
-                Err(Box::from(error))
-            }
+        match receive_response.await {
+            Ok(Response::AccessToken(access_token)) => Ok(access_token),
+            _ => Err(access_token_error),
         }
     }
 
