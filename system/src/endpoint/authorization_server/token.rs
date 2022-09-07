@@ -16,7 +16,7 @@ use crate::state::access_tokens::channel::AccessTokensRequest;
 
 pub mod error;
 mod request;
-mod response;
+pub mod response;
 
 impl AuthorizationServer {
     pub(crate) async fn token(
@@ -35,14 +35,8 @@ impl AuthorizationServer {
             ensure(&code, &id).await?;
             verify(&code).await?;
 
-            let access_token = access_tokens_request.issue(id).await?;
+            let access_token_response = access_tokens_request.issue(id).await?;
             let request_redirect_uri = check_redirect_uri(request.uri()).await?;
-            let access_token_response = AccessTokenResponse {
-                access_token,
-                token_type: AccessTokenType::Bearer,
-                expires_in: 3600,
-            };
-
             let json = serde_json::to_vec(&access_token_response).expect("json");
             let response = issue_token(json).await?;
 

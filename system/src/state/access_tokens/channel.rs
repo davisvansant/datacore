@@ -3,6 +3,7 @@ use tokio::sync::oneshot;
 
 use crate::endpoint::authorization_server::token::error::AccessTokenError;
 use crate::endpoint::authorization_server::token::error::AccessTokenErrorCode;
+use crate::endpoint::authorization_server::token::response::AccessTokenResponse;
 use crate::endpoint::token_introspection::introspect::response::IntrospectionResponse;
 
 pub type ReceiveRequest = Receiver<(Request, oneshot::Sender<Response>)>;
@@ -17,7 +18,7 @@ pub enum Request {
 
 #[derive(Debug)]
 pub enum Response {
-    AccessToken(String),
+    AccessTokenResponse(AccessTokenResponse),
     ActiveToken((String, String)),
     IntrospectionResponse(IntrospectionResponse),
 }
@@ -34,7 +35,7 @@ impl AccessTokensRequest {
         (AccessTokensRequest { channel: sender }, receiver)
     }
 
-    pub async fn issue(&self, client_id: String) -> Result<String, AccessTokenError> {
+    pub async fn issue(&self, client_id: String) -> Result<AccessTokenResponse, AccessTokenError> {
         let (send_response, receive_response) = oneshot::channel();
 
         let access_token_error = AccessTokenError {
@@ -54,7 +55,7 @@ impl AccessTokensRequest {
         }
 
         match receive_response.await {
-            Ok(Response::AccessToken(access_token)) => Ok(access_token),
+            Ok(Response::AccessTokenResponse(access_token_response)) => Ok(access_token_response),
             _ => Err(access_token_error),
         }
     }

@@ -2,6 +2,9 @@ use rand::distributions::{Alphanumeric, DistString};
 use rand::thread_rng;
 use std::collections::HashMap;
 
+use crate::endpoint::authorization_server::token::response::{
+    AccessTokenResponse, AccessTokenType,
+};
 use crate::endpoint::token_introspection::introspect::response::IntrospectionResponse;
 
 use channel::{AccessTokensRequest, ReceiveRequest, Request, Response};
@@ -35,9 +38,9 @@ impl AccessTokens {
         while let Some((request, response)) = self.receiver.recv().await {
             match request {
                 Request::Issue(client_id) => {
-                    let access_token = self.issue(client_id).await?;
+                    let access_token_response = self.issue(client_id).await?;
 
-                    let _ = response.send(Response::AccessToken(access_token));
+                    let _ = response.send(Response::AccessTokenResponse(access_token_response));
                 }
                 Request::Expire(access_token) => {
                     self.expire(&access_token).await?;
@@ -54,12 +57,19 @@ impl AccessTokens {
         Ok(())
     }
 
-    async fn issue(&mut self, client_id: String) -> Result<String, Box<dyn std::error::Error>> {
+    async fn issue(
+        &mut self,
+        client_id: String,
+    ) -> Result<AccessTokenResponse, Box<dyn std::error::Error>> {
         let access_token = generate().await;
-        let issued_access_token = access_token.to_owned();
+        let access_token_response = AccessTokenResponse {
+            access_token: access_token.to_owned(),
+            token_type: AccessTokenType::Bearer,
+            expires_in: 3600,
+        };
 
         match self.issued.insert(access_token, client_id) {
-            None => Ok(issued_access_token),
+            None => Ok(access_token_response),
             Some(associated_client_id) => {
                 let error = format!(
                     "issued token is already associated with a client {:?}",
@@ -167,11 +177,13 @@ mod tests {
         let (mut test_access_tokens, _) = AccessTokens::init().await;
 
         let test_client_id = String::from("some_test_client_id");
-        let test_access_token = test_access_tokens.issue(test_client_id).await?;
+        let test_access_token_response = test_access_tokens.issue(test_client_id).await?;
 
         assert_eq!(test_access_tokens.expired.len(), 0);
 
-        test_access_tokens.expire(&test_access_token).await?;
+        test_access_tokens
+            .expire(&test_access_token_response.access_token)
+            .await?;
 
         assert_eq!(test_access_tokens.expired.len(), 1);
         assert!(test_access_tokens
@@ -187,9 +199,10 @@ mod tests {
         let (mut test_access_tokens, _) = AccessTokens::init().await;
 
         let test_client_id = String::from("some_test_client_id");
-        let test_access_token = test_access_tokens.issue(test_client_id).await?;
-        let test_introspection_response_true =
-            test_access_tokens.introspect(&test_access_token).await;
+        let test_access_token_response = test_access_tokens.issue(test_client_id).await?;
+        let test_introspection_response_true = test_access_tokens
+            .introspect(&test_access_token_response.access_token)
+            .await;
 
         assert!(test_introspection_response_true.active);
 
