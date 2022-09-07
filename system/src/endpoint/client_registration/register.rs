@@ -4,6 +4,7 @@ use axum::http::request::Request;
 use axum::http::StatusCode;
 use axum::response::Response;
 use hyper::body::{to_bytes, Bytes};
+use serde_json::to_vec;
 
 use super::ClientRegistration;
 
@@ -37,7 +38,7 @@ impl ClientRegistration {
             .register(client_metadata.client_name)
             .await?;
 
-        let json = serde_json::to_vec(&client_information).expect("json");
+        let json = json(client_information).await?;
         let response = success(json).await?;
 
         Ok(response)
@@ -140,6 +141,22 @@ async fn client_metadata(bytes: &[u8]) -> Result<ClientMetadata, ClientRegistrat
     match serde_json::from_slice(bytes) {
         Ok(client_metadata) => Ok(client_metadata),
         Err(error) => {
+            let client_registration_error = ClientRegistrationError {
+                error: ClientRegistrationErrorCode::InvalidClientMetadata,
+                error_description: error.to_string(),
+            };
+
+            Err(client_registration_error)
+        }
+    }
+}
+
+async fn json(client_information: ClientInformation) -> Result<Vec<u8>, ClientRegistrationError> {
+    match to_vec(&client_information) {
+        Ok(json) => Ok(json),
+        Err(error) => {
+            println!("json serialization -> {:?}", error);
+
             let client_registration_error = ClientRegistrationError {
                 error: ClientRegistrationErrorCode::InvalidClientMetadata,
                 error_description: error.to_string(),
