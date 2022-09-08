@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-use uuid::fmt::Simple;
-use uuid::Uuid;
 
 use crate::endpoint::client_registration::register::response::ClientInformation;
 
@@ -53,22 +51,15 @@ impl ClientRegistry {
         &mut self,
         client_metadata: String,
     ) -> Result<ClientInformation, Box<dyn std::error::Error>> {
-        let client_id = issue_id().await;
+        let client_information = ClientInformation::build().await;
 
         if self
             .registered
-            .insert(client_id.to_string(), client_metadata)
+            .insert(client_information.client_id.to_owned(), client_metadata)
             .is_none()
         {
             println!("registered new client!");
         }
-
-        let client_information = ClientInformation {
-            client_id: client_id.to_string(),
-            client_secret: String::from("some_client_secret"),
-            client_id_issued_at: String::from("some_client_id_issued_at"),
-            client_secret_expires_at: String::from("some_client_secret_expires_at"),
-        };
 
         Ok(client_information)
     }
@@ -119,10 +110,6 @@ impl ClientRegistry {
             }
         }
     }
-}
-
-async fn issue_id() -> Simple {
-    Uuid::new_v4().simple()
 }
 
 #[cfg(test)]
@@ -225,19 +212,6 @@ mod tests {
 
         assert!(test_remove_ok.is_ok());
         assert_eq!(test_client_registry.registered.len(), 0);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn issue_id() -> Result<(), Box<dyn std::error::Error>> {
-        let test_client_id = super::issue_id().await;
-
-        assert_eq!(
-            test_client_id.as_uuid().get_version(),
-            Some(uuid::Version::Random),
-        );
-        assert_eq!(test_client_id.to_string().len(), 32);
 
         Ok(())
     }
