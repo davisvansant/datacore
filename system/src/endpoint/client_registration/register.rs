@@ -15,7 +15,7 @@ use response::ClientInformation;
 use crate::state::client_registry::channel::ClientRegistryRequest;
 
 pub mod error;
-mod request;
+pub mod request;
 pub mod response;
 
 impl ClientRegistration {
@@ -34,10 +34,7 @@ impl ClientRegistration {
         check_valid_software_statement(&client_metadata).await?;
         check_approved_software_statement(&client_metadata).await?;
 
-        let client_information = client_registry_request
-            .register(client_metadata.client_name)
-            .await?;
-
+        let client_information = client_registry_request.register(client_metadata).await?;
         let json = json(client_information).await?;
         let response = success(json).await?;
 

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::endpoint::client_registration::register::request::ClientMetadata;
 use crate::endpoint::client_registration::register::response::ClientInformation;
 
 use channel::{ClientRegistryRequest, ReceiveRequest, Request, Response};
@@ -8,7 +9,7 @@ pub mod channel;
 
 pub struct ClientRegistry {
     receiver: ReceiveRequest,
-    registered: HashMap<String, String>,
+    registered: HashMap<String, ClientMetadata>,
 }
 
 impl ClientRegistry {
@@ -49,7 +50,7 @@ impl ClientRegistry {
 
     async fn add(
         &mut self,
-        client_metadata: String,
+        client_metadata: ClientMetadata,
     ) -> Result<ClientInformation, Box<dyn std::error::Error>> {
         let client_information = ClientInformation::build().await;
 
@@ -64,21 +65,21 @@ impl ClientRegistry {
         Ok(client_information)
     }
 
-    async fn read(&mut self, client_id: &str) -> Result<String, Box<dyn std::error::Error>> {
+    async fn read(&self, client_id: &str) -> Result<ClientMetadata, Box<dyn std::error::Error>> {
         match self.registered.get(client_id) {
             None => {
                 let error = format!("could not find client id -> {:?}", client_id);
 
                 Err(Box::from(error))
             }
-            Some(client_id_value) => Ok(client_id_value.to_owned()),
+            Some(client_metadata) => Ok(client_metadata.to_owned()),
         }
     }
 
     async fn update(
         &mut self,
         client_id: String,
-        client_metadata: String,
+        client_metadata: ClientMetadata,
     ) -> Result<(), Box<dyn std::error::Error>> {
         match self.registered.contains_key(&client_id) {
             true => {
@@ -131,7 +132,30 @@ mod tests {
 
         assert_eq!(test_client_registry.registered.len(), 0);
 
-        let test_client_metadata = String::from("test_client_metadata");
+        let test_client_metadata = ClientMetadata {
+            redirect_uris: vec![
+                String::from("some_test_uri_one"),
+                String::from("some_test_uri_two"),
+            ],
+            token_endpoint_auth_method: String::from("some_test_token_endpoint_auth_method"),
+            grant_types: String::from("some_test_grant_type"),
+            response_types: vec![
+                String::from("some_test_response_type_one"),
+                String::from("some_test_response_type_two"),
+            ],
+            client_name: String::from("some_test_client_name"),
+            client_uri: String::from("some_test_client_uri"),
+            logo_uri: String::from("some_test_logo_uri"),
+            scope: String::from("some_test_scope"),
+            contacts: String::from("some_test_contacts"),
+            tos_uri: String::from("some_test_tos_uri"),
+            policy_uri: String::from("some_test_policy_uri"),
+            jwks_uri: String::from("some_test_jwks_uri"),
+            jwks: String::from("some_test_jwks"),
+            software_id: String::from("some_test_software_id"),
+            software_version: String::from("some_test_software_version"),
+            software_statement: None,
+        };
 
         test_client_registry.add(test_client_metadata).await?;
 
@@ -147,14 +171,36 @@ mod tests {
 
         assert!(test_value_error.is_err());
 
-        let test_client_metadata = String::from("test_client_metadata");
+        let test_client_metadata = ClientMetadata {
+            redirect_uris: vec![
+                String::from("some_test_uri_one"),
+                String::from("some_test_uri_two"),
+            ],
+            token_endpoint_auth_method: String::from("some_test_token_endpoint_auth_method"),
+            grant_types: String::from("some_test_grant_type"),
+            response_types: vec![
+                String::from("some_test_response_type_one"),
+                String::from("some_test_response_type_two"),
+            ],
+            client_name: String::from("some_test_client_name"),
+            client_uri: String::from("some_test_client_uri"),
+            logo_uri: String::from("some_test_logo_uri"),
+            scope: String::from("some_test_scope"),
+            contacts: String::from("some_test_contacts"),
+            tos_uri: String::from("some_test_tos_uri"),
+            policy_uri: String::from("some_test_policy_uri"),
+            jwks_uri: String::from("some_test_jwks_uri"),
+            jwks: String::from("some_test_jwks"),
+            software_id: String::from("some_test_software_id"),
+            software_version: String::from("some_test_software_version"),
+            software_statement: None,
+        };
         let test_client_information = test_client_registry.add(test_client_metadata).await?;
         let test_value_ok = test_client_registry
             .read(&test_client_information.client_id)
             .await;
 
         assert!(test_value_ok.is_ok());
-        assert_eq!(test_value_ok.unwrap(), "test_client_metadata");
 
         Ok(())
     }
@@ -163,22 +209,94 @@ mod tests {
     async fn update() -> Result<(), Box<dyn std::error::Error>> {
         let (mut test_client_registry, _) = ClientRegistry::init().await;
         let test_client_id = String::from("some_test_client_id");
-        let test_client_metadata = String::from("test_client_metadata");
+        let test_client_metadata = ClientMetadata {
+            redirect_uris: vec![
+                String::from("some_test_uri_one"),
+                String::from("some_test_uri_two"),
+            ],
+            token_endpoint_auth_method: String::from("some_test_token_endpoint_auth_method"),
+            grant_types: String::from("some_test_grant_type"),
+            response_types: vec![
+                String::from("some_test_response_type_one"),
+                String::from("some_test_response_type_two"),
+            ],
+            client_name: String::from("some_test_client_name"),
+            client_uri: String::from("some_test_client_uri"),
+            logo_uri: String::from("some_test_logo_uri"),
+            scope: String::from("some_test_scope"),
+            contacts: String::from("some_test_contacts"),
+            tos_uri: String::from("some_test_tos_uri"),
+            policy_uri: String::from("some_test_policy_uri"),
+            jwks_uri: String::from("some_test_jwks_uri"),
+            jwks: String::from("some_test_jwks"),
+            software_id: String::from("some_test_software_id"),
+            software_version: String::from("some_test_software_version"),
+            software_statement: None,
+        };
         let test_update_error = test_client_registry
             .update(test_client_id, test_client_metadata)
             .await;
 
         assert!(test_update_error.is_err());
 
-        let test_initial_client_metadata = String::from("test_initial_client_metadata");
+        let test_initial_client_metadata = ClientMetadata {
+            redirect_uris: vec![
+                String::from("some_test_uri_one"),
+                String::from("some_test_uri_two"),
+            ],
+            token_endpoint_auth_method: String::from("some_test_token_endpoint_auth_method"),
+            grant_types: String::from("some_test_grant_type"),
+            response_types: vec![
+                String::from("some_test_response_type_one"),
+                String::from("some_test_response_type_two"),
+            ],
+            client_name: String::from("some_test_client_name"),
+            client_uri: String::from("some_test_client_uri"),
+            logo_uri: String::from("some_test_logo_uri"),
+            scope: String::from("some_test_scope"),
+            contacts: String::from("some_test_contacts"),
+            tos_uri: String::from("some_test_tos_uri"),
+            policy_uri: String::from("some_test_policy_uri"),
+            jwks_uri: String::from("some_test_jwks_uri"),
+            jwks: String::from("some_test_jwks"),
+            software_id: String::from("some_test_software_id"),
+            software_version: String::from("some_test_software_version"),
+            software_statement: None,
+        };
+
         let test_client_information = test_client_registry
             .add(test_initial_client_metadata)
             .await?;
-        let test_client_metadata = String::from("some_new_test_client_metadata");
+
+        let test_updated_client_metadata = ClientMetadata {
+            redirect_uris: vec![
+                String::from("some_test_uri_one"),
+                String::from("some_test_uri_two"),
+            ],
+            token_endpoint_auth_method: String::from("some_test_token_endpoint_auth_method"),
+            grant_types: String::from("some_test_grant_type"),
+            response_types: vec![
+                String::from("some_test_response_type_one"),
+                String::from("some_test_response_type_two"),
+            ],
+            client_name: String::from("some_test_client_name"),
+            client_uri: String::from("some_test_client_uri"),
+            logo_uri: String::from("some_test_logo_uri"),
+            scope: String::from("some_test_scope"),
+            contacts: String::from("some_test_contacts"),
+            tos_uri: String::from("some_test_tos_uri"),
+            policy_uri: String::from("some_test_policy_uri"),
+            jwks_uri: String::from("some_test_jwks_uri"),
+            jwks: String::from("some_test_jwks"),
+            software_id: String::from("some_test_software_id"),
+            software_version: String::from("some_test_software_version"),
+            software_statement: Some(String::from("some_test_software_statement")),
+        };
+
         let test_update_ok = test_client_registry
             .update(
                 test_client_information.client_id.to_owned(),
-                test_client_metadata,
+                test_updated_client_metadata,
             )
             .await;
 
@@ -188,7 +306,7 @@ mod tests {
             .read(&test_client_information.client_id)
             .await?;
 
-        assert_eq!(test_updated_metadata_value, "some_new_test_client_metadata");
+        assert!(test_updated_metadata_value.software_statement.is_some());
 
         Ok(())
     }
@@ -201,7 +319,31 @@ mod tests {
 
         assert!(test_remove_error.is_err());
 
-        let test_client_metadata = String::from("some_test_client_metadata");
+        let test_client_metadata = ClientMetadata {
+            redirect_uris: vec![
+                String::from("some_test_uri_one"),
+                String::from("some_test_uri_two"),
+            ],
+            token_endpoint_auth_method: String::from("some_test_token_endpoint_auth_method"),
+            grant_types: String::from("some_test_grant_type"),
+            response_types: vec![
+                String::from("some_test_response_type_one"),
+                String::from("some_test_response_type_two"),
+            ],
+            client_name: String::from("some_test_client_name"),
+            client_uri: String::from("some_test_client_uri"),
+            logo_uri: String::from("some_test_logo_uri"),
+            scope: String::from("some_test_scope"),
+            contacts: String::from("some_test_contacts"),
+            tos_uri: String::from("some_test_tos_uri"),
+            policy_uri: String::from("some_test_policy_uri"),
+            jwks_uri: String::from("some_test_jwks_uri"),
+            jwks: String::from("some_test_jwks"),
+            software_id: String::from("some_test_software_id"),
+            software_version: String::from("some_test_software_version"),
+            software_statement: None,
+        };
+
         let test_valid_client_information = test_client_registry.add(test_client_metadata).await?;
 
         assert_eq!(test_client_registry.registered.len(), 1);
