@@ -17,3 +17,4 @@ uuid = { version = "1.1.2", default-features = false, features = [ "std", "v4"] 
 [dev-dependencies]
 http = "0.2.8"
 hyper = { version = "0.14.20", default-features = false, features = [ "client", "http1" ] }
+tokio = { version = "1.19.2", default-features = false, features = [ "test-util" ] }
