@@ -19,8 +19,7 @@ pub enum Request {
 #[derive(Debug)]
 pub enum Response {
     AccessTokenResponse(AccessTokenResponse),
-    ActiveToken((String, String)),
-    IntrospectionResponse(IntrospectionResponse),
+    IntrospectionResponse(Box<IntrospectionResponse>),
 }
 
 #[derive(Clone)]
@@ -94,7 +93,7 @@ impl AccessTokensRequest {
 
         match receive_response.await {
             Ok(Response::IntrospectionResponse(introspection_response)) => {
-                Ok(introspection_response)
+                Ok(*introspection_response)
             }
             _ => Err(access_token_error),
         }

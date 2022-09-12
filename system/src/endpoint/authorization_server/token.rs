@@ -11,7 +11,7 @@ use super::AuthorizationServer;
 
 use error::{AccessTokenError, AccessTokenErrorCode};
 use request::AccessTokenRequest;
-use response::{AccessTokenResponse, AccessTokenType};
+use response::AccessTokenResponse;
 
 use crate::state::access_tokens::channel::AccessTokensRequest;
 
@@ -280,6 +280,7 @@ mod tests {
     use axum::Server;
     use hyper::body::to_bytes;
     use hyper::{Body, Method};
+    use response::AccessTokenType;
     use std::net::SocketAddr;
     use std::str::FromStr;
 

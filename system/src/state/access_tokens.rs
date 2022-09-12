@@ -61,7 +61,9 @@ impl AccessTokens {
                 Request::Introspect(access_token) => {
                     let introspection_response = self.introspect(&access_token).await;
 
-                    let _ = response.send(Response::IntrospectionResponse(introspection_response));
+                    let _ = response.send(Response::IntrospectionResponse(Box::new(
+                        introspection_response,
+                    )));
                 }
                 Request::Shutdown => self.receiver.close(),
             }
