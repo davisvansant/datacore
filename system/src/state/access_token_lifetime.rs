@@ -91,3 +91,109 @@ impl AccessTokenLifetime {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::time::{pause, resume};
+
+    #[tokio::test]
+    async fn init() -> Result<(), Box<dyn std::error::Error>> {
+        let test_access_tokens_request = AccessTokensRequest::init().await;
+        let test_access_token_lifetime =
+            AccessTokenLifetime::init(test_access_tokens_request.0).await;
+
+        assert!(test_access_token_lifetime.0.timer_handles.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn start_timer() -> Result<(), Box<dyn std::error::Error>> {
+        let test_access_tokens_request = AccessTokensRequest::init().await;
+        let mut test_access_token_lifetime =
+            AccessTokenLifetime::init(test_access_tokens_request.0).await;
+
+        test_access_token_lifetime
+            .0
+            .start_timer(String::from("test_access_token"))
+            .await?;
+
+        assert_eq!(test_access_token_lifetime.0.timer_handles.len(), 1);
+
+        pause();
+        sleep(Duration::from_secs(4000)).await;
+        resume();
+
+        if let Some(test_timer_handle) = test_access_token_lifetime
+            .0
+            .timer_handles
+            .get("test_access_token")
+        {
+            assert!(test_timer_handle.is_finished());
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn abort_timer() -> Result<(), Box<dyn std::error::Error>> {
+        let test_access_tokens_request = AccessTokensRequest::init().await;
+        let mut test_access_token_lifetime =
+            AccessTokenLifetime::init(test_access_tokens_request.0).await;
+
+        test_access_token_lifetime
+            .0
+            .start_timer(String::from("test_access_token"))
+            .await?;
+
+        test_access_token_lifetime
+            .0
+            .start_timer(String::from("another_test_access_token"))
+            .await?;
+
+        assert_eq!(test_access_token_lifetime.0.timer_handles.len(), 2);
+
+        pause();
+        sleep(Duration::from_secs(1000)).await;
+
+        if let Some(test_timer_handle) = test_access_token_lifetime
+            .0
+            .timer_handles
+            .get("test_access_token")
+        {
+            assert!(!test_timer_handle.is_finished());
+        }
+
+        resume();
+
+        test_access_token_lifetime
+            .0
+            .abort_timer(String::from("test_access_token"))
+            .await?;
+
+        assert_eq!(test_access_token_lifetime.0.timer_handles.len(), 1);
+
+        pause();
+        sleep(Duration::from_secs(5000)).await;
+
+        if let Some(test_timer_handle) = test_access_token_lifetime
+            .0
+            .timer_handles
+            .get("another_test_access_token")
+        {
+            assert!(test_timer_handle.is_finished());
+        }
+
+        resume();
+
+        test_access_token_lifetime
+            .0
+            .abort_timer(String::from("another_test_access_token"))
+            .await?;
+
+        assert_eq!(test_access_token_lifetime.0.timer_handles.len(), 0);
+
+        Ok(())
+    }
+}
