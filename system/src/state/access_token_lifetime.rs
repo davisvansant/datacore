@@ -194,6 +194,13 @@ mod tests {
 
         assert_eq!(test_access_token_lifetime.0.timer_handles.len(), 0);
 
+        let test_abort_timer_error = test_access_token_lifetime
+            .0
+            .abort_timer(String::from("yet_another_test_access_token"))
+            .await;
+
+        assert!(test_abort_timer_error.is_err());
+
         Ok(())
     }
 }
