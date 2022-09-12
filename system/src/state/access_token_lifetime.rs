@@ -5,7 +5,7 @@ use tokio::time::{sleep, Duration};
 use crate::state::access_tokens::channel::AccessTokensRequest;
 use channel::{AccessTokenLifetimeRequest, ReceiveRequest, Request};
 
-mod channel;
+pub mod channel;
 
 pub struct AccessTokenLifetime {
     receiver: ReceiveRequest,

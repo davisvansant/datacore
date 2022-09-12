@@ -6,6 +6,8 @@ use crate::endpoint::authorization_server::token::response::{
     AccessTokenResponse, AccessTokenType,
 };
 use crate::endpoint::token_introspection::introspect::response::IntrospectionResponse;
+use crate::state::access_token_lifetime::channel::AccessTokenLifetimeRequest;
+use crate::state::access_token_lifetime::AccessTokenLifetime;
 
 use channel::{AccessTokensRequest, ReceiveRequest, Request, Response};
 
@@ -15,6 +17,7 @@ pub struct AccessTokens {
     receiver: ReceiveRequest,
     issued: HashMap<String, String>,
     expired: HashMap<String, String>,
+    access_token_lifetime_request: AccessTokenLifetimeRequest,
 }
 
 impl AccessTokens {
@@ -24,11 +27,21 @@ impl AccessTokens {
         let issued = HashMap::with_capacity(capacity);
         let expired = HashMap::with_capacity(capacity);
 
+        let (mut access_token_lifetime, access_token_lifetime_request) =
+            AccessTokenLifetime::init(send_request.to_owned()).await;
+
+        tokio::spawn(async move {
+            if let Err(error) = access_token_lifetime.run().await {
+                println!("access token lifetime -> {:?}", error);
+            }
+        });
+
         (
             AccessTokens {
                 receiver: receive_request,
                 issued,
                 expired,
+                access_token_lifetime_request,
             },
             send_request,
         )
@@ -68,6 +81,10 @@ impl AccessTokens {
             expires_in: 3600,
         };
 
+        self.access_token_lifetime_request
+            .start_timer(access_token.to_owned())
+            .await?;
+
         match self.issued.insert(access_token, client_id) {
             None => Ok(access_token_response),
             Some(associated_client_id) => {
@@ -89,8 +106,17 @@ impl AccessTokens {
                 Err(Box::from(error))
             }
             Some((expired_access_token, expired_client_id)) => {
-                match self.expired.insert(expired_access_token, expired_client_id) {
-                    None => Ok(()),
+                match self
+                    .expired
+                    .insert(expired_access_token.to_owned(), expired_client_id)
+                {
+                    None => {
+                        self.access_token_lifetime_request
+                            .abort_timer(expired_access_token)
+                            .await?;
+
+                        Ok(())
+                    }
                     Some(old_expired_client_id_value) => {
                         let error = format!(
                             "expired access token client id -> {:?}",
