@@ -1,10 +1,10 @@
 pub struct PublicKeyCredentialSource {
-    public_key_credential_type: String,
-    id: String,
-    private_key: String,
-    rpid: String,
-    user_handle: String,
-    other_ui: String,
+    pub public_key_credential_type: String,
+    pub id: String,
+    pub private_key: String,
+    pub rpid: String,
+    pub user_handle: String,
+    pub other_ui: String,
 }
 
 impl PublicKeyCredentialSource {
