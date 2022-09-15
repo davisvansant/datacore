@@ -1,5 +1,5 @@
 use crate::authenticator::attestation_object::AttestationObject;
-use crate::authenticator::operation::AuthenticatorMakeCrendential;
+use crate::authenticator::operation::{AuthenticatorGetAssertion, AuthenticatorMakeCrendential};
 use crate::error::AuthenticationError;
 
 pub struct Session {}
@@ -32,5 +32,25 @@ impl Session {
         let attestation_object = operation.create_attestation_object().await?;
 
         Ok(attestation_object)
+    }
+
+    pub async fn authenticator_get_assertion(
+        &self,
+        operation: AuthenticatorGetAssertion,
+    ) -> Result<(), AuthenticationError> {
+        operation.check_parameters().await?;
+
+        let credential_options = operation.credential_options().await?;
+
+        operation.collect_authorization_gesture().await?;
+
+        let processed_extensions = operation.process_extensions().await?;
+
+        operation.increment_signature_counter().await?;
+
+        let authenticator_data = operation.authenticator_data().await?;
+        let signature = operation.assertion_signature().await?;
+
+        Ok(())
     }
 }
