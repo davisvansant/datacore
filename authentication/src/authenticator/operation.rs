@@ -1,0 +1,3 @@
+pub use authenticator_make_credential::AuthenticatorMakeCrendential;
+
+mod authenticator_make_credential;
