@@ -1,5 +1,7 @@
+use crate::api::supporting_data_structures::PublicKeyCredentialType;
+
 pub struct PublicKeyCredentialSource {
-    pub public_key_credential_type: String,
+    pub r#type: PublicKeyCredentialType,
     pub id: String,
     pub private_key: String,
     pub rpid: String,
@@ -9,7 +11,7 @@ pub struct PublicKeyCredentialSource {
 
 impl PublicKeyCredentialSource {
     pub async fn generate() -> PublicKeyCredentialSource {
-        let public_key_credential_type = String::from("build an enum here");
+        let r#type = PublicKeyCredentialType::PublicKey;
         let id = String::from("some_id");
         let private_key = String::from("some_private_key");
         let rpid = String::from("some_rpid");
@@ -17,7 +19,7 @@ impl PublicKeyCredentialSource {
         let other_ui = String::from("some_other_ui");
 
         PublicKeyCredentialSource {
-            public_key_credential_type,
+            r#type,
             id,
             private_key,
             rpid,
