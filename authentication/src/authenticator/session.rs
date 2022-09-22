@@ -29,7 +29,9 @@ impl Session {
 
         let attested_credential_data = operation.attested_credential_data().await?;
         let authenticator_data = operation.authenticator_data().await?;
-        let attestation_object = operation.create_attestation_object().await?;
+        let attestation_object = operation
+            .create_attestation_object(attested_credential_data)
+            .await?;
 
         Ok(attestation_object)
     }
