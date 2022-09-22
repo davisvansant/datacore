@@ -1,5 +1,5 @@
 pub mod assertion_signature;
-pub mod attestation_object;
+pub mod attestation;
 pub mod credential_object;
 pub mod credentials;
 pub mod data;
