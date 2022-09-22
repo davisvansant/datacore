@@ -1,6 +1,6 @@
-use crate::authenticator::attestation_object::AttestationObject;
+use crate::authenticator::attestation::{AttestationObject, AttestationStatementFormat};
 use crate::authenticator::credential_object::CredentialObject;
-// use crate::authenticator::session::error::SessionError;
+use crate::authenticator::data::AuthenticatorData;
 use crate::error::AuthenticationError;
 
 pub struct AuthenticatorMakeCrendential {
@@ -87,7 +87,13 @@ impl AuthenticatorMakeCrendential {
         &self,
     ) -> Result<AttestationObject, AuthenticationError> {
         let _ = CredentialObject::generate().await;
-        let attestation_object = AttestationObject::generate().await;
+
+        let attestation_format = AttestationStatementFormat::Packed;
+        let authenticator_data = AuthenticatorData::generate().await;
+        let hash = Vec::with_capacity(0);
+
+        let attestation_object =
+            AttestationObject::generate(attestation_format, authenticator_data, hash).await;
 
         Ok(attestation_object)
     }
