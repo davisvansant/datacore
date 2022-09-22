@@ -35,6 +35,22 @@ pub struct AttestedCredentialData {
     credential_public_key: Vec<u8>,
 }
 
+impl AttestedCredentialData {
+    pub async fn generate() -> AttestedCredentialData {
+        let aaguid = Vec::with_capacity(0);
+        let credential_id_length = 0;
+        let credential_id = Vec::with_capacity(0);
+        let credential_public_key = Vec::with_capacity(0);
+
+        AttestedCredentialData {
+            aaguid,
+            credential_id_length,
+            credential_id,
+            credential_public_key,
+        }
+    }
+}
+
 pub enum AttestationType {
     BasicAttestation,
     SelfAttestation,
