@@ -1,9 +1,15 @@
 use crate::authenticator::attestation::AttestedCredentialData;
 
+pub const UP: usize = 0;
+pub const UV: usize = 2;
+pub const AT: usize = 6;
+pub const ED: usize = 7;
+pub type SignCount = u32;
+
 pub struct AuthenticatorData {
     pub rpidhash: String,
-    pub flags: String,
-    pub signcount: String,
+    pub flags: [u8; 8],
+    pub signcount: SignCount,
     pub attestedcredentialdata: AttestedCredentialData,
     pub extensions: String,
 }
@@ -11,9 +17,9 @@ pub struct AuthenticatorData {
 impl AuthenticatorData {
     pub async fn generate(attestedcredentialdata: AttestedCredentialData) -> AuthenticatorData {
         let rpidhash = String::from("some_rpid_hash");
-        let flags = String::from("some_flags");
-        let signcount = String::from("some_sign_count");
-        let extensions = String::from("some_exentions");
+        let flags = [0; 8];
+        let signcount = 0;
+        let extensions = String::from("some_extensions");
 
         AuthenticatorData {
             rpidhash,
@@ -22,5 +28,122 @@ impl AuthenticatorData {
             attestedcredentialdata,
             extensions,
         }
+    }
+
+    pub async fn set_user_present(&mut self) {
+        self.flags[UP] = 1
+    }
+
+    pub async fn set_user_not_present(&mut self) {
+        self.flags[UP] = 0
+    }
+
+    pub async fn set_user_verifed(&mut self) {
+        self.flags[UV] = 1
+    }
+
+    pub async fn set_user_not_verified(&mut self) {
+        self.flags[UV] = 0
+    }
+
+    pub async fn set_attested_credential_data_included(&mut self) {
+        self.flags[AT] = 1
+    }
+
+    pub async fn set_extension_data_included(&mut self) {
+        self.flags[ED] = 1
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn init() -> Result<(), Box<dyn std::error::Error>> {
+        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_authenticator_data =
+            AuthenticatorData::generate(test_attested_credential_data).await;
+
+        assert_eq!(test_authenticator_data.rpidhash, "some_rpid_hash");
+        assert_eq!(test_authenticator_data.flags.len(), 8);
+        assert_eq!(test_authenticator_data.signcount, 0);
+        assert_eq!(test_authenticator_data.extensions, "some_extensions");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn flags_user_present() -> Result<(), Box<dyn std::error::Error>> {
+        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let mut test_authenticator_data =
+            AuthenticatorData::generate(test_attested_credential_data).await;
+
+        assert_eq!(UP, 0);
+        assert_eq!(test_authenticator_data.flags[UP], 0);
+
+        test_authenticator_data.set_user_present().await;
+
+        assert_eq!(test_authenticator_data.flags[UP], 1);
+
+        test_authenticator_data.set_user_not_present().await;
+
+        assert_eq!(test_authenticator_data.flags[UP], 0);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn flags_user_verified() -> Result<(), Box<dyn std::error::Error>> {
+        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let mut test_authenticator_data =
+            AuthenticatorData::generate(test_attested_credential_data).await;
+
+        assert_eq!(UV, 2);
+        assert_eq!(test_authenticator_data.flags[UV], 0);
+
+        test_authenticator_data.set_user_verifed().await;
+
+        assert_eq!(test_authenticator_data.flags[UV], 1);
+
+        test_authenticator_data.set_user_not_verified().await;
+
+        assert_eq!(test_authenticator_data.flags[UV], 0);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn flags_attested_credential_data() -> Result<(), Box<dyn std::error::Error>> {
+        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let mut test_authenticator_data =
+            AuthenticatorData::generate(test_attested_credential_data).await;
+
+        assert_eq!(AT, 6);
+        assert_eq!(test_authenticator_data.flags[AT], 0);
+
+        test_authenticator_data
+            .set_attested_credential_data_included()
+            .await;
+
+        assert_eq!(test_authenticator_data.flags[AT], 1);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn flags_extension_data() -> Result<(), Box<dyn std::error::Error>> {
+        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let mut test_authenticator_data =
+            AuthenticatorData::generate(test_attested_credential_data).await;
+
+        assert_eq!(ED, 7);
+        assert_eq!(test_authenticator_data.flags[ED], 0);
+
+        test_authenticator_data.set_extension_data_included().await;
+
+        assert_eq!(test_authenticator_data.flags[ED], 1);
+
+        Ok(())
     }
 }
