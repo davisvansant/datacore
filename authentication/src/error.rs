@@ -8,4 +8,5 @@ pub enum AuthenticationErrorType {
     InvalidStateError,
     NotAllowedError,
     ConstraintError,
+    OperationError,
 }
