@@ -1,4 +1,4 @@
-use crate::api::extensions_inputs_and_outputs::AuthenticationExensionsClientInputs;
+use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientInputs;
 use crate::api::supporting_data_structures::PublicKeyCredentialDescriptor;
 
 pub struct PublicKeyCredentialRequestOptions {
@@ -7,5 +7,5 @@ pub struct PublicKeyCredentialRequestOptions {
     rp_id: String,
     allow_credentials: Vec<PublicKeyCredentialDescriptor>,
     user_verification: String,
-    extensions: Option<AuthenticationExensionsClientInputs>,
+    extensions: Option<AuthenticationExtensionsClientInputs>,
 }
