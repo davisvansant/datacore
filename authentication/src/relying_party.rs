@@ -1,1 +1,52 @@
+use crate::api::supporting_data_structures::TokenBinding;
+use crate::error::AuthenticationError;
+use crate::relying_party::operation::{Authenticate, Register};
+
+pub mod operation;
 pub mod registration;
+
+pub struct RelyingParty {
+    identifier: String,
+}
+
+impl RelyingParty {
+    pub async fn init() -> RelyingParty {
+        let identifier = String::from("some_identifier");
+
+        RelyingParty { identifier }
+    }
+
+    pub async fn register_new_credential(
+        &self,
+        operation: Register,
+    ) -> Result<(), AuthenticationError> {
+        let options = operation.public_key_credential_creation_options().await?;
+        let credential = operation.call_credentials_create(&options).await?;
+        let response = operation
+            .authenticator_attestation_response(&credential)
+            .await?;
+        let client_extension_results = operation.client_extension_results(&credential).await?;
+        let json_text = operation.json(response).await?;
+        let client_data = operation.client_data(json_text).await?;
+
+        let connection_token_binding = TokenBinding::generate().await;
+
+        operation.verify_type(&client_data).await?;
+        operation.verify_challenge(&client_data, &options).await?;
+        operation
+            .verify_origin(&client_data, &self.identifier)
+            .await?;
+        operation
+            .verify_token_binding(&client_data, &connection_token_binding)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn verify_authentication_assertion(
+        &self,
+        operation: Authenticate,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+}
