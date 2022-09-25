@@ -5,6 +5,7 @@ use crate::api::credential_creation_options::PublicKeyCredentialCreationOptions;
 use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientOutputs;
 use crate::api::public_key_credential::PublicKeyCredential;
 use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
+use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 
 pub struct Register {}
@@ -115,6 +116,50 @@ impl Register {
                     error: AuthenticationErrorType::OperationError,
                 }),
             }
+        } else {
+            Ok(())
+        }
+    }
+
+    pub async fn verify_user_present(
+        &self,
+        authenticator_data: &AuthenticatorData,
+    ) -> Result<(), AuthenticationError> {
+        match authenticator_data.flags[UP] == 1 {
+            true => Ok(()),
+            false => Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            }),
+        }
+    }
+
+    pub async fn verify_user_verification(
+        &self,
+        authenticator_data: &AuthenticatorData,
+    ) -> Result<(), AuthenticationError> {
+        match authenticator_data.flags[UV] == 1 {
+            true => Ok(()),
+            false => Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            }),
+        }
+    }
+
+    pub async fn verify_algorithm(
+        &self,
+        authenticator_data: &AuthenticatorData,
+        options: &PublicKeyCredentialCreationOptions,
+    ) -> Result<(), AuthenticationError> {
+        todo!()
+    }
+
+    pub async fn verify_extension_outputs(
+        &self,
+        client_extension_results: &AuthenticationExtensionsClientOutputs,
+        authenticator_data: &AuthenticatorData,
+    ) -> Result<(), AuthenticationError> {
+        if authenticator_data.flags[ED] == 1 {
+            todo!()
         } else {
             Ok(())
         }
