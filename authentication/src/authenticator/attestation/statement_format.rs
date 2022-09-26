@@ -1,8 +1,33 @@
 use crate::authenticator::attestation::statement_format::packed::PackedAttestationStatementSyntax;
 
-pub type AttestationStatementFormatIdentifier = String;
+use crate::error::{AuthenticationError, AuthenticationErrorType};
 
 pub mod packed;
+
+pub struct AttestationStatementFormatIdentifier(String);
+
+impl AttestationStatementFormatIdentifier {
+    pub async fn attestation_statement_format(
+        &self,
+    ) -> Result<AttestationStatementFormat, AuthenticationError> {
+        let attestation_statement_format = match self.0.as_str() {
+            "packed" => AttestationStatementFormat::Packed,
+            "tpm" => AttestationStatementFormat::Tpm,
+            "android-key" => AttestationStatementFormat::AndroidKey,
+            "android-safetynet" => AttestationStatementFormat::AndroidSafetyNet,
+            "fido-uf2" => AttestationStatementFormat::FidoUf2,
+            "none" => AttestationStatementFormat::None,
+            "apple" => AttestationStatementFormat::AppleAnonymous,
+            _ => {
+                return Err(AuthenticationError {
+                    error: AuthenticationErrorType::OperationError,
+                })
+            }
+        };
+
+        Ok(attestation_statement_format)
+    }
+}
 
 pub enum AttestationStatementFormat {
     Packed,
@@ -17,13 +42,27 @@ pub enum AttestationStatementFormat {
 impl AttestationStatementFormat {
     pub async fn identifier(&self) -> AttestationStatementFormatIdentifier {
         match self {
-            AttestationStatementFormat::Packed => String::from("packed"),
-            AttestationStatementFormat::Tpm => String::from("tpm"),
-            AttestationStatementFormat::AndroidKey => String::from("android-key"),
-            AttestationStatementFormat::AndroidSafetyNet => String::from("android-safetynet"),
-            AttestationStatementFormat::FidoUf2 => String::from("fido-u2f"),
-            AttestationStatementFormat::None => String::from("none"),
-            AttestationStatementFormat::AppleAnonymous => String::from("apple"),
+            AttestationStatementFormat::Packed => {
+                AttestationStatementFormatIdentifier(String::from("packed"))
+            }
+            AttestationStatementFormat::Tpm => {
+                AttestationStatementFormatIdentifier(String::from("tpm"))
+            }
+            AttestationStatementFormat::AndroidKey => {
+                AttestationStatementFormatIdentifier(String::from("android-key"))
+            }
+            AttestationStatementFormat::AndroidSafetyNet => {
+                AttestationStatementFormatIdentifier(String::from("android-safetynet"))
+            }
+            AttestationStatementFormat::FidoUf2 => {
+                AttestationStatementFormatIdentifier(String::from("fido-u2f"))
+            }
+            AttestationStatementFormat::None => {
+                AttestationStatementFormatIdentifier(String::from("none"))
+            }
+            AttestationStatementFormat::AppleAnonymous => {
+                AttestationStatementFormatIdentifier(String::from("apple"))
+            }
         }
     }
 
