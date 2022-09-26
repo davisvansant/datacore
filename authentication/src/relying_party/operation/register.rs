@@ -6,7 +6,7 @@ use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientOut
 use crate::api::public_key_credential::PublicKeyCredential;
 use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::{
-    AttestationStatementFormat, AttestationStatementFormatIdentifier,
+    AttestationStatement, AttestationStatementFormat, AttestationStatementFormatIdentifier,
 };
 use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
 use crate::error::{AuthenticationError, AuthenticationErrorType};
@@ -175,5 +175,19 @@ impl Register {
         let attestation_statement_format = fmt.attestation_statement_format().await?;
 
         Ok(attestation_statement_format)
+    }
+
+    pub async fn verify_attestation_statement(
+        &self,
+        attestation_statement_format: &AttestationStatementFormat,
+        attestation_statement: &AttestationStatement,
+        authenticator_data: &AuthenticatorData,
+        hash: &[u8],
+    ) -> Result<(), AuthenticationError> {
+        attestation_statement_format
+            .verification_procedure(attestation_statement, authenticator_data, hash)
+            .await?;
+
+        Ok(())
     }
 }

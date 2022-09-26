@@ -1,4 +1,7 @@
 use crate::api::supporting_data_structures::COSEAlgorithmIdentifier;
+use crate::authenticator::attestation::AttestationStatement;
+use crate::authenticator::data::AuthenticatorData;
+use crate::error::AuthenticationError;
 
 pub struct PackedAttestationStatementSyntax {
     alg: COSEAlgorithmIdentifier,
@@ -16,5 +19,13 @@ impl PackedAttestationStatementSyntax {
         x5c.push(attestnCert);
 
         PackedAttestationStatementSyntax { alg, sig, x5c }
+    }
+
+    pub async fn verification_procedure(
+        attestation_statement: &AttestationStatement,
+        authenticator_data: &AuthenticatorData,
+        hash: &[u8],
+    ) -> Result<(), AuthenticationError> {
+        Ok(())
     }
 }

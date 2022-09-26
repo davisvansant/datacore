@@ -1,4 +1,5 @@
 use crate::authenticator::attestation::statement_format::packed::PackedAttestationStatementSyntax;
+use crate::authenticator::data::AuthenticatorData;
 
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 
@@ -80,6 +81,27 @@ impl AttestationStatementFormat {
             AttestationStatementFormat::None => unimplemented!(),
             AttestationStatementFormat::AppleAnonymous => unimplemented!(),
         }
+    }
+
+    pub async fn verification_procedure(
+        &self,
+        attestation_statement: &AttestationStatement,
+        authenticator_data: &AuthenticatorData,
+        client_data_hash: &[u8],
+    ) -> Result<(), AuthenticationError> {
+        match self {
+            AttestationStatementFormat::Packed => {
+                PackedAttestationStatementSyntax::verification_procedure(
+                    attestation_statement,
+                    authenticator_data,
+                    client_data_hash,
+                )
+                .await?
+            }
+            _ => unimplemented!(),
+        }
+
+        Ok(())
     }
 }
 
