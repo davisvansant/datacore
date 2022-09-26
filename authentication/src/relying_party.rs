@@ -2,6 +2,8 @@ use crate::api::supporting_data_structures::TokenBinding;
 use crate::error::AuthenticationError;
 use crate::relying_party::operation::{Authenticate, Register};
 
+use crate::authenticator::attestation::AttestationStatementFormat;
+
 pub mod operation;
 pub mod registration;
 
@@ -38,6 +40,12 @@ impl RelyingParty {
             .await?;
         operation
             .verify_token_binding(&client_data, &connection_token_binding)
+            .await?;
+
+        let fmt = AttestationStatementFormat::Packed.identifier().await;
+
+        operation
+            .determine_attestation_statement_format(&fmt)
             .await?;
 
         Ok(())
