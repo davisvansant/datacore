@@ -11,6 +11,8 @@ use crate::authenticator::attestation::{
 use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 
+use std::collections::HashMap;
+
 pub struct Register {}
 
 impl Register {
@@ -187,6 +189,44 @@ impl Register {
         attestation_statement_format
             .verification_procedure(attestation_statement, authenticator_data, hash)
             .await?;
+
+        Ok(())
+    }
+
+    pub async fn check_credential_id(
+        &self,
+        authenticator_data: &AuthenticatorData,
+    ) -> Result<(), AuthenticationError> {
+        match authenticator_data.attestedcredentialdata.credential_id == b"some_credential_id" {
+            true => Ok(()),
+            false => Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            }),
+        }
+    }
+
+    pub async fn register(
+        &self,
+        options: PublicKeyCredentialCreationOptions,
+        authenticator_data: AuthenticatorData,
+    ) -> Result<(), AuthenticationError> {
+        let mut some_credentials_map = HashMap::with_capacity(1);
+
+        struct Account {
+            key: Vec<u8>,
+            counter: u32,
+            transports: Vec<String>,
+        }
+
+        let account = Account {
+            key: authenticator_data
+                .attestedcredentialdata
+                .credential_public_key,
+            counter: authenticator_data.signcount,
+            transports: Vec::with_capacity(0),
+        };
+
+        some_credentials_map.insert(options.user, account);
 
         Ok(())
     }
