@@ -29,10 +29,10 @@ impl AttestationObject {
 }
 
 pub struct AttestedCredentialData {
-    aaguid: Vec<u8>,
-    credential_id_length: u16,
-    credential_id: Vec<u8>,
-    credential_public_key: Vec<u8>,
+    pub aaguid: Vec<u8>,
+    pub credential_id_length: u16,
+    pub credential_id: Vec<u8>,
+    pub credential_public_key: Vec<u8>,
 }
 
 impl AttestedCredentialData {
