@@ -58,6 +58,7 @@ pub struct PublicKeyCredentialRpEntity {
     id: String,
 }
 
+#[derive(Eq, Hash, PartialEq)]
 pub struct PublicKeyCredentialUserEntity {
     id: Vec<u8>,
     display_name: String,
