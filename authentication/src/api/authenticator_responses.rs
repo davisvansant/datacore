@@ -1,3 +1,9 @@
+use crate::authenticator::data::AuthenticatorData;
+
+pub type ClientDataJSON = Vec<u8>;
+pub type Signature = Vec<u8>;
+pub type UserHandle = Vec<u8>;
+
 pub enum AuthenticatorResponse {
     AuthenticatorAttestationResponse(AuthenticatorAttestationResponse),
     AuthenticatorAssertionResponse(AuthenticatorAssertionResponse),
@@ -5,7 +11,7 @@ pub enum AuthenticatorResponse {
 
 #[derive(Clone)]
 pub struct AuthenticatorAttestationResponse {
-    pub client_data_json: Vec<u8>,
+    pub client_data_json: ClientDataJSON,
     pub attestation_object: Vec<u8>,
 }
 
@@ -23,7 +29,8 @@ impl AuthenticatorAttestationResponse {
 
 #[derive(Clone)]
 pub struct AuthenticatorAssertionResponse {
-    pub authenticator_data: Vec<u8>,
-    pub signature: Vec<u8>,
-    pub user_handle: Vec<u8>,
+    pub client_data_json: ClientDataJSON,
+    pub authenticator_data: AuthenticatorData,
+    pub signature: Signature,
+    pub user_handle: UserHandle,
 }
