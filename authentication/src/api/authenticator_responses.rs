@@ -21,8 +21,9 @@ impl AuthenticatorAttestationResponse {
     }
 }
 
+#[derive(Clone)]
 pub struct AuthenticatorAssertionResponse {
-    authenticator_data: Vec<u8>,
-    signature: Vec<u8>,
-    user_handle: Vec<u8>,
+    pub authenticator_data: Vec<u8>,
+    pub signature: Vec<u8>,
+    pub user_handle: Vec<u8>,
 }
