@@ -1,7 +1,11 @@
 use crate::api::assertion_generation_options::PublicKeyCredentialRequestOptions;
-use crate::api::authenticator_responses::{AuthenticatorAssertionResponse, AuthenticatorResponse};
+use crate::api::authenticator_responses::{
+    AuthenticatorAssertionResponse, AuthenticatorResponse, ClientDataJSON, Signature,
+};
 use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientOutputs;
 use crate::api::public_key_credential::PublicKeyCredential;
+use crate::api::supporting_data_structures::CollectedClientData;
+use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 
 use std::collections::HashMap;
@@ -112,5 +116,25 @@ impl AuthenticationCeremony {
                 error: AuthenticationErrorType::OperationError,
             }),
         }
+    }
+
+    pub async fn response_values(
+        &self,
+        response: AuthenticatorAssertionResponse,
+    ) -> Result<(ClientDataJSON, AuthenticatorData, Signature), AuthenticationError> {
+        let client_data = response.client_data_json;
+        let authenticator_data = response.authenticator_data;
+        let signature = response.signature;
+
+        Ok((client_data, authenticator_data, signature))
+    }
+
+    pub async fn client_data(
+        &self,
+        client_data_json: ClientDataJSON,
+    ) -> Result<CollectedClientData, AuthenticationError> {
+        let collected_client_data = CollectedClientData::generate().await;
+
+        Ok(collected_client_data)
     }
 }

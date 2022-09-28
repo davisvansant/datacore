@@ -71,6 +71,9 @@ impl RelyingParty {
             .await?;
 
         let credential_public_key = operation.credential_public_key(&credential).await?;
+        let (client_data_json, authenticator_data, signature) =
+            operation.response_values(response).await?;
+        let client_data = operation.client_data(client_data_json).await?;
 
         Ok(())
     }
