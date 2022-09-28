@@ -5,10 +5,10 @@ use crate::api::authenticator_responses::{
 use crate::api::credential_creation_options::PublicKeyCredentialCreationOptions;
 
 pub struct PublicKeyCredential {
-    id: String,
-    raw_id: Vec<u8>,
+    pub id: String,
+    pub raw_id: Vec<u8>,
     pub response: AuthenticatorResponse,
-    r#type: String,
+    pub r#type: String,
 }
 
 impl PublicKeyCredential {
