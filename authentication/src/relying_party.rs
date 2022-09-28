@@ -1,6 +1,6 @@
 use crate::api::supporting_data_structures::TokenBinding;
 use crate::error::AuthenticationError;
-use crate::relying_party::operation::{Authenticate, Register};
+use crate::relying_party::operation::{AuthenticationCeremony, Register};
 
 use crate::authenticator::attestation::AttestationStatementFormat;
 
@@ -53,8 +53,25 @@ impl RelyingParty {
 
     pub async fn verify_authentication_assertion(
         &self,
-        operation: Authenticate,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+        operation: AuthenticationCeremony,
+    ) -> Result<(), AuthenticationError> {
+        let options = operation.public_key_credential_request_options().await?;
+        let credential = operation.call_credentials_get(&options).await?;
+        let response = operation
+            .authenticator_assertion_response(&credential)
+            .await?;
+        let client_extension_results = operation.client_extension_results(&credential).await?;
+
+        operation
+            .verify_credential_id(&options, &credential)
+            .await?;
+
+        operation
+            .identify_user_and_verify(&credential, &response)
+            .await?;
+
+        let credential_public_key = operation.credential_public_key(&credential).await?;
+
         Ok(())
     }
 }
