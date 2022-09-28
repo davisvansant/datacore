@@ -6,6 +6,7 @@ pub const AT: usize = 6;
 pub const ED: usize = 7;
 pub type SignCount = u32;
 
+#[derive(Clone)]
 pub struct AuthenticatorData {
     pub rpidhash: String,
     pub flags: [u8; 8],
