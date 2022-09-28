@@ -28,6 +28,7 @@ impl AttestationObject {
     }
 }
 
+#[derive(Clone)]
 pub struct AttestedCredentialData {
     pub aaguid: Vec<u8>,
     pub credential_id_length: u16,
