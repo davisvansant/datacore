@@ -4,8 +4,8 @@ use crate::api::authenticator_responses::{
 };
 use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientOutputs;
 use crate::api::public_key_credential::PublicKeyCredential;
-use crate::api::supporting_data_structures::CollectedClientData;
-use crate::authenticator::data::AuthenticatorData;
+use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
+use crate::authenticator::data::{AuthenticatorData, UP, UV};
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 
 use std::collections::HashMap;
@@ -136,5 +136,114 @@ impl AuthenticationCeremony {
         let collected_client_data = CollectedClientData::generate().await;
 
         Ok(collected_client_data)
+    }
+
+    pub async fn verify_client_data_type(
+        &self,
+        client_data: &CollectedClientData,
+    ) -> Result<(), AuthenticationError> {
+        match client_data.r#type == "webauthn.get" {
+            true => Ok(()),
+            false => Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            }),
+        }
+    }
+
+    pub async fn verify_client_data_challenge(
+        &self,
+        client_data: &CollectedClientData,
+        options: &PublicKeyCredentialRequestOptions,
+    ) -> Result<(), AuthenticationError> {
+        match client_data.challenge == options.challenge {
+            true => Ok(()),
+            false => Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            }),
+        }
+    }
+
+    pub async fn verify_client_data_origin(
+        &self,
+        client_data: &CollectedClientData,
+        rp_origin: &str,
+    ) -> Result<(), AuthenticationError> {
+        match client_data.origin == rp_origin {
+            true => Ok(()),
+            false => Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            }),
+        }
+    }
+
+    pub async fn verify_client_data_token_binding(
+        &self,
+        client_data: &CollectedClientData,
+        connection_token_binding: &TokenBinding,
+    ) -> Result<(), AuthenticationError> {
+        if let Some(client_data_token_binding) = &client_data.token_binding {
+            match client_data_token_binding == connection_token_binding {
+                true => Ok(()),
+                false => Err(AuthenticationError {
+                    error: AuthenticationErrorType::OperationError,
+                }),
+            }
+        } else {
+            Ok(())
+        }
+    }
+
+    pub async fn verify_rp_id_hash(
+        &self,
+        authenticator_data: &AuthenticatorData,
+        rp_origin: &str,
+    ) -> Result<(), AuthenticationError> {
+        match authenticator_data.rpidhash == rp_origin {
+            true => Ok(()),
+            false => Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            }),
+        }
+    }
+
+    pub async fn verify_user_present(
+        &self,
+        authenticator_data: &AuthenticatorData,
+    ) -> Result<(), AuthenticationError> {
+        match authenticator_data.flags[UP] == 1 {
+            true => Ok(()),
+            false => Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            }),
+        }
+    }
+
+    pub async fn verify_user_verification(
+        &self,
+        authenticator_data: &AuthenticatorData,
+    ) -> Result<(), AuthenticationError> {
+        match authenticator_data.flags[UV] == 1 {
+            true => Ok(()),
+            false => Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            }),
+        }
+    }
+
+    pub async fn hash(
+        &self,
+        _client_data: &CollectedClientData,
+    ) -> Result<Vec<u8>, AuthenticationError> {
+        Ok(Vec::with_capacity(0))
+    }
+
+    pub async fn verifiy_signature(
+        &self,
+        credential_public_key: Vec<u8>,
+        signature: Signature,
+        authenticator_data: AuthenticatorData,
+        hash: Vec<u8>,
+    ) -> Result<(), AuthenticationError> {
+        Ok(())
     }
 }

@@ -75,6 +75,32 @@ impl RelyingParty {
             operation.response_values(response).await?;
         let client_data = operation.client_data(client_data_json).await?;
 
+        let token_binding = TokenBinding::generate().await;
+
+        operation.verify_client_data_type(&client_data).await?;
+        operation
+            .verify_client_data_challenge(&client_data, &options)
+            .await?;
+        operation
+            .verify_client_data_origin(&client_data, &self.identifier)
+            .await?;
+        operation
+            .verify_client_data_token_binding(&client_data, &token_binding)
+            .await?;
+        operation
+            .verify_rp_id_hash(&authenticator_data, &self.identifier)
+            .await?;
+        operation.verify_user_present(&authenticator_data).await?;
+        operation
+            .verify_user_verification(&authenticator_data)
+            .await?;
+
+        let hash = operation.hash(&client_data).await?;
+
+        operation
+            .verifiy_signature(credential_public_key, signature, authenticator_data, hash)
+            .await?;
+
         Ok(())
     }
 }
