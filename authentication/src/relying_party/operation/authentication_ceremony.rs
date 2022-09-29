@@ -239,11 +239,54 @@ impl AuthenticationCeremony {
 
     pub async fn verifiy_signature(
         &self,
-        credential_public_key: Vec<u8>,
-        signature: Signature,
-        authenticator_data: AuthenticatorData,
-        hash: Vec<u8>,
+        credential_public_key: &[u8],
+        signature: &Signature,
+        authenticator_data: &AuthenticatorData,
+        hash: &[u8],
     ) -> Result<(), AuthenticationError> {
         Ok(())
+    }
+
+    pub async fn stored_sign_count(
+        &self,
+        credential: &PublicKeyCredential,
+        authenticator_data: &AuthenticatorData,
+    ) -> Result<(), AuthenticationError> {
+        let mut some_credentials_map = HashMap::with_capacity(1);
+
+        struct Account {
+            key: Vec<u8>,
+            counter: u32,
+            transports: Vec<String>,
+        }
+
+        let id = String::from("some_id");
+
+        let account = Account {
+            key: Vec::with_capacity(0),
+            counter: 0,
+            transports: Vec::with_capacity(0),
+        };
+
+        some_credentials_map.insert(id, account);
+
+        if let Some(account) = some_credentials_map.get_mut(&credential.id) {
+            let stored_sign_count = account.counter;
+
+            match authenticator_data.signcount <= stored_sign_count {
+                true => Err(AuthenticationError {
+                    error: AuthenticationErrorType::OperationError,
+                }),
+                false => {
+                    account.counter = authenticator_data.signcount;
+
+                    Ok(())
+                }
+            }
+        } else {
+            Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            })
+        }
     }
 }

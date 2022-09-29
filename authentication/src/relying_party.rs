@@ -98,7 +98,16 @@ impl RelyingParty {
         let hash = operation.hash(&client_data).await?;
 
         operation
-            .verifiy_signature(credential_public_key, signature, authenticator_data, hash)
+            .verifiy_signature(
+                &credential_public_key,
+                &signature,
+                &authenticator_data,
+                &hash,
+            )
+            .await?;
+
+        operation
+            .stored_sign_count(&credential, &authenticator_data)
             .await?;
 
         Ok(())
