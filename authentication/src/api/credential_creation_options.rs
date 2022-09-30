@@ -1,3 +1,5 @@
+use uuid::{Bytes, Uuid};
+
 use crate::api::credential_generation_parameters::PublicKeyCredentialParameters;
 use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientInputs;
 use crate::api::supporting_data_structures::PublicKeyCredentialDescriptor;
@@ -15,13 +17,11 @@ pub struct PublicKeyCredentialCreationOptions {
 }
 
 impl PublicKeyCredentialCreationOptions {
-    pub async fn generate() -> PublicKeyCredentialCreationOptions {
+    pub async fn generate(
+        user: PublicKeyCredentialUserEntity,
+    ) -> PublicKeyCredentialCreationOptions {
         let rp = PublicKeyCredentialRpEntity {
             id: String::from("some_rp_entity"),
-        };
-        let user = PublicKeyCredentialUserEntity {
-            id: Vec::with_capacity(0),
-            display_name: String::from("some_display_name"),
         };
         let challenge = Vec::with_capacity(0);
         let public_key_credential_parameters = Vec::with_capacity(0);
@@ -60,8 +60,21 @@ pub struct PublicKeyCredentialRpEntity {
 
 #[derive(Eq, Hash, PartialEq)]
 pub struct PublicKeyCredentialUserEntity {
-    id: Vec<u8>,
+    name: String,
+    id: Bytes,
     display_name: String,
+}
+
+impl PublicKeyCredentialUserEntity {
+    pub async fn generate(name: String, display_name: String) -> PublicKeyCredentialUserEntity {
+        let id = Uuid::new_v4().into_bytes();
+
+        PublicKeyCredentialUserEntity {
+            name,
+            id,
+            display_name,
+        }
+    }
 }
 
 pub struct AuthenticatorSelectionCriteria {
@@ -87,4 +100,26 @@ pub enum AttestationConveyancePreference {
     Indirect,
     Direct,
     Enterprise,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn public_key_credential_user_entity() -> Result<(), Box<dyn std::error::Error>> {
+        let test_name = String::from("some_name");
+        let test_display_name = String::from("some_display_name");
+        let test_public_key_credential_user_entity =
+            PublicKeyCredentialUserEntity::generate(test_name, test_display_name).await;
+
+        assert_eq!(test_public_key_credential_user_entity.name, "some_name");
+        assert_eq!(test_public_key_credential_user_entity.id.len(), 16);
+        assert_eq!(
+            test_public_key_credential_user_entity.display_name,
+            "some_display_name",
+        );
+
+        Ok(())
+    }
 }
