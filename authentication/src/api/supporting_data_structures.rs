@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
 
+use crate::api::credential_creation_options::Challenge;
+
 #[derive(Serialize, Deserialize)]
 pub struct CollectedClientData {
     pub r#type: String,
-    pub challenge: Vec<u8>,
+    pub challenge: Challenge,
     pub origin: String,
     #[serde(rename = "crossOrigin")]
     pub cross_origin: bool,
@@ -14,7 +16,7 @@ pub struct CollectedClientData {
 impl CollectedClientData {
     pub async fn generate() -> CollectedClientData {
         let r#type = String::from("some_type");
-        let challenge = Vec::with_capacity(0);
+        let challenge = Challenge::generate().await;
         let origin = String::from("some_origin");
         let cross_origin = false;
         let token_binding = Some(TokenBinding::generate().await);
@@ -84,7 +86,7 @@ mod tests {
         let test_collected_client_data_json = b"
         { 
             \"type\": \"webauthn.create\",
-            \"challenge\": [],
+            \"challenge\": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             \"origin\": \"some_test_origin\",
             \"crossOrigin\": true
         }";
@@ -93,7 +95,7 @@ mod tests {
             serde_json::from_slice(test_collected_client_data_json)?;
 
         assert_eq!(test_collected_client_data.r#type, "webauthn.create");
-        assert_eq!(test_collected_client_data.challenge.len(), 0);
+        assert_eq!(test_collected_client_data.challenge.0.len(), 16);
         assert_eq!(test_collected_client_data.origin, "some_test_origin");
         assert!(test_collected_client_data.cross_origin);
 
