@@ -8,13 +8,13 @@ edition = "2021"
 [dependencies]
 axum = { version = "0.5.12", default-features = false, features = [ "http1", "query" ] }
 hyper = { version = "0.14.20", default-features = false }
-tokio = { version = "1.19.2", default-features = false, features = [ "macros", "rt-multi-thread", "sync" ] }
+tokio = { workspace = true, features = [ "sync"] }
 rand = { version = "0.8.5", default-features = false, features = [ "std", "std_rng" ] }
 serde = { version = "1.0.139", default-features = false, features = [ "derive" ] }
 serde_json = { version = "1.0.82", default-features = false, features = [ "std" ] }
-uuid = { version = "1.1.2", default-features = false, features = [ "std", "v4"] }
+uuid = { workspace = true }
 
 [dev-dependencies]
 http = "0.2.8"
 hyper = { version = "0.14.20", default-features = false, features = [ "client", "http1" ] }
-tokio = { version = "1.19.2", default-features = false, features = [ "test-util" ] }
+tokio = { workspace = true, features = [ "test-util" ] }

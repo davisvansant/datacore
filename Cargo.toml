@@ -4,3 +4,7 @@ members = [
     "authentication",
     "system",
 ]
+
+[workspace.dependencies]
+tokio = { version = "1.21.1", default-features = false, features = [ "macros", "rt-multi-thread" ] }
+uuid = { version = "1.1.2", default-features = false, features = [ "std", "v4"] }
