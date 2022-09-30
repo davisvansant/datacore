@@ -71,9 +71,12 @@ impl Register {
         &self,
         json: Vec<u8>,
     ) -> Result<CollectedClientData, AuthenticationError> {
-        let client_data = CollectedClientData::generate().await;
-
-        Ok(client_data)
+        match serde_json::from_slice(&json) {
+            Ok(client_data) => Ok(client_data),
+            Err(_) => Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            }),
+        }
     }
 
     pub async fn verify_type(
