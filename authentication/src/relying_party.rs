@@ -5,7 +5,6 @@ use crate::relying_party::operation::{AuthenticationCeremony, Register};
 use crate::authenticator::attestation::AttestationStatementFormat;
 
 pub mod operation;
-pub mod registration;
 
 pub struct RelyingParty {
     identifier: String,
