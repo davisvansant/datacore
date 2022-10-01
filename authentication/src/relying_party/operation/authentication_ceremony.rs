@@ -7,6 +7,7 @@ use crate::api::public_key_credential::PublicKeyCredential;
 use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::data::{AuthenticatorData, UP, UV};
 use crate::error::{AuthenticationError, AuthenticationErrorType};
+use crate::security::sha2::generate_hash;
 
 use std::collections::HashMap;
 
@@ -196,9 +197,11 @@ impl AuthenticationCeremony {
     pub async fn verify_rp_id_hash(
         &self,
         authenticator_data: &AuthenticatorData,
-        rp_origin: &str,
+        rp_id: &str,
     ) -> Result<(), AuthenticationError> {
-        match authenticator_data.rpidhash == rp_origin {
+        let rp_id_hash = generate_hash(rp_id.as_bytes()).await;
+
+        match authenticator_data.rp_id_hash == rp_id_hash {
             true => Ok(()),
             false => Err(AuthenticationError {
                 error: AuthenticationErrorType::OperationError,

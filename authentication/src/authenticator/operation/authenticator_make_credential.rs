@@ -96,7 +96,8 @@ impl AuthenticatorMakeCrendential {
         let _ = CredentialObject::generate().await;
 
         let attestation_format = AttestationStatementFormat::Packed;
-        let authenticator_data = AuthenticatorData::generate(attested_credential_data).await;
+        let authenticator_data =
+            AuthenticatorData::generate(&self.rp_entity, attested_credential_data).await;
         let hash = Vec::with_capacity(0);
 
         let attestation_object =
