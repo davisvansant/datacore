@@ -5,10 +5,11 @@ use crate::authenticator::data::AuthenticatorData;
 
 mod statement_format;
 
+#[derive(Clone)]
 pub struct AttestationObject {
-    authData: AuthenticatorData,
-    fmt: AttestationStatementFormatIdentifier,
-    attStmt: AttestationStatement,
+    pub authData: AuthenticatorData,
+    pub fmt: AttestationStatementFormatIdentifier,
+    pub attStmt: AttestationStatement,
 }
 
 impl AttestationObject {

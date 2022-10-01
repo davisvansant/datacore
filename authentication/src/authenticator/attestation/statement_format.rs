@@ -5,6 +5,7 @@ use crate::error::{AuthenticationError, AuthenticationErrorType};
 
 pub mod packed;
 
+#[derive(Clone)]
 pub struct AttestationStatementFormatIdentifier(String);
 
 impl AttestationStatementFormatIdentifier {
@@ -105,6 +106,7 @@ impl AttestationStatementFormat {
     }
 }
 
+#[derive(Clone)]
 pub enum AttestationStatement {
     Packed(PackedAttestationStatementSyntax),
 }

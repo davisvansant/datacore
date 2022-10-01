@@ -3,6 +3,7 @@ use crate::authenticator::attestation::AttestationStatement;
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::AuthenticationError;
 
+#[derive(Clone)]
 pub struct PackedAttestationStatementSyntax {
     alg: COSEAlgorithmIdentifier,
     sig: Vec<u8>,
