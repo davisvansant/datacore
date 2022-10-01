@@ -9,8 +9,10 @@ edition = "2021"
 rand.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2 = { version = "0.10.6", default-features = false, features = [ "std" ] }
 tokio.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+hex-literal = "0.3.4"
 tokio = { workspace = true, features = [ "test-util" ] }
