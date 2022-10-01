@@ -27,7 +27,7 @@ impl RelyingParty {
             .authenticator_attestation_response(&credential)
             .await?;
         let client_extension_results = operation.client_extension_results(&credential).await?;
-        let json_text = operation.json(response).await?;
+        let json_text = operation.json(&response).await?;
         let client_data = operation.client_data(json_text).await?;
 
         let connection_token_binding = TokenBinding::generate().await;
@@ -39,6 +39,13 @@ impl RelyingParty {
             .await?;
         operation
             .verify_token_binding(&client_data, &connection_token_binding)
+            .await?;
+
+        let (fmt, authenticator_data, attestation_statement) =
+            operation.perform_decoding(response).await?;
+
+        operation
+            .verify_rp_id_hash(&authenticator_data, &self.identifier)
             .await?;
 
         let fmt = AttestationStatementFormat::Packed.identifier().await;

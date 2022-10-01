@@ -12,6 +12,7 @@ use crate::authenticator::attestation::{
 };
 use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
 use crate::error::{AuthenticationError, AuthenticationErrorType};
+use crate::security::sha2::generate_hash;
 
 use std::collections::HashMap;
 
@@ -62,9 +63,9 @@ impl Register {
 
     pub async fn json(
         &self,
-        response: AuthenticatorAttestationResponse,
+        response: &AuthenticatorAttestationResponse,
     ) -> Result<Vec<u8>, AuthenticationError> {
-        Ok(response.client_data_json)
+        Ok(response.client_data_json.to_owned())
     }
 
     pub async fn client_data(
@@ -131,6 +132,51 @@ impl Register {
             }
         } else {
             Ok(())
+        }
+    }
+
+    pub async fn perform_decoding(
+        &self,
+        authenticator_attestation_response: AuthenticatorAttestationResponse,
+    ) -> Result<
+        (
+            AttestationStatementFormat,
+            AuthenticatorData,
+            AttestationStatement,
+        ),
+        AuthenticationError,
+    > {
+        let attestation_statement_format_id =
+            authenticator_attestation_response.attestation_object.fmt;
+        let attestation_statement_format = attestation_statement_format_id
+            .attestation_statement_format()
+            .await?;
+        let authenticator_data = authenticator_attestation_response
+            .attestation_object
+            .authData;
+        let attestation_statement = authenticator_attestation_response
+            .attestation_object
+            .attStmt;
+
+        Ok((
+            attestation_statement_format,
+            authenticator_data,
+            attestation_statement,
+        ))
+    }
+
+    pub async fn verify_rp_id_hash(
+        &self,
+        authenticator_data: &AuthenticatorData,
+        rp_id: &str,
+    ) -> Result<(), AuthenticationError> {
+        let rp_id_hash = generate_hash(rp_id.as_bytes()).await;
+
+        match authenticator_data.rp_id_hash == rp_id_hash {
+            true => Ok(()),
+            false => Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            }),
         }
     }
 
