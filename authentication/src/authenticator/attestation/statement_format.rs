@@ -1,11 +1,13 @@
-use crate::authenticator::attestation::statement_format::packed::PackedAttestationStatementSyntax;
+use serde::{Deserialize, Serialize};
+
+pub use crate::authenticator::attestation::statement_format::packed::PackedAttestationStatementSyntax;
 use crate::authenticator::data::AuthenticatorData;
 
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 
-pub mod packed;
+mod packed;
 
-#[derive(Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub struct AttestationStatementFormatIdentifier(String);
 
 impl AttestationStatementFormatIdentifier {
@@ -31,6 +33,7 @@ impl AttestationStatementFormatIdentifier {
     }
 }
 
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
 pub enum AttestationStatementFormat {
     Packed,
     Tpm,
@@ -106,7 +109,7 @@ impl AttestationStatementFormat {
     }
 }
 
-#[derive(Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub enum AttestationStatement {
     Packed(PackedAttestationStatementSyntax),
 }

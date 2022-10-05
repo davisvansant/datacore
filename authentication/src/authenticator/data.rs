@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::authenticator::attestation::AttestedCredentialData;
 use crate::security::sha2::generate_hash;
 
@@ -8,7 +10,7 @@ pub const ED: usize = 7;
 pub type RpIdHash = Vec<u8>;
 pub type SignCount = u32;
 
-#[derive(Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub struct AuthenticatorData {
     pub rp_id_hash: RpIdHash,
     pub flags: [u8; 8],

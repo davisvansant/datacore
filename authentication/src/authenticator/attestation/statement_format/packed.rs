@@ -1,13 +1,15 @@
+use serde::{Deserialize, Serialize};
+
 use crate::api::supporting_data_structures::COSEAlgorithmIdentifier;
 use crate::authenticator::attestation::AttestationStatement;
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::AuthenticationError;
 
-#[derive(Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub struct PackedAttestationStatementSyntax {
-    alg: COSEAlgorithmIdentifier,
-    sig: Vec<u8>,
-    x5c: Vec<Vec<u8>>,
+    pub alg: COSEAlgorithmIdentifier,
+    pub sig: Vec<u8>,
+    pub x5c: Vec<Vec<u8>>,
 }
 
 impl PackedAttestationStatementSyntax {
