@@ -41,6 +41,7 @@ impl RelyingParty {
             .verify_token_binding(&client_data, &connection_token_binding)
             .await?;
 
+        let hash = operation.hash(&response).await?;
         let (fmt, authenticator_data, attestation_statement) =
             operation.perform_decoding(response).await?;
 

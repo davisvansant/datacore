@@ -150,6 +150,15 @@ impl Register {
         }
     }
 
+    pub async fn hash(
+        &self,
+        response: &AuthenticatorAttestationResponse,
+    ) -> Result<Vec<u8>, AuthenticationError> {
+        let hash = generate_hash(&response.client_data_json).await;
+
+        Ok(hash)
+    }
+
     pub async fn perform_decoding(
         &self,
         authenticator_attestation_response: AuthenticatorAttestationResponse,
@@ -644,6 +653,19 @@ mod tests {
             .await;
 
         assert!(test_verify_token_binding_ok.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn hash() -> Result<(), Box<dyn std::error::Error>> {
+        let test_registration = Register {};
+        let test_response = AuthenticatorAttestationResponse {
+            client_data_json: b"some_test_data_to_hash".to_vec(),
+            attestation_object: Vec::with_capacity(0),
+        };
+
+        assert!(test_registration.hash(&test_response).await.is_ok());
 
         Ok(())
     }
