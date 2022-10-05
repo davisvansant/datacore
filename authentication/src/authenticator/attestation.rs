@@ -1,11 +1,14 @@
+use serde::{Deserialize, Serialize};
+
 pub use crate::authenticator::attestation::statement_format::{
     AttestationStatement, AttestationStatementFormat, AttestationStatementFormatIdentifier,
+    PackedAttestationStatementSyntax,
 };
 use crate::authenticator::data::AuthenticatorData;
 
 mod statement_format;
 
-#[derive(Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub struct AttestationObject {
     pub authData: AuthenticatorData,
     pub fmt: AttestationStatementFormatIdentifier,
@@ -29,7 +32,7 @@ impl AttestationObject {
     }
 }
 
-#[derive(Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub struct AttestedCredentialData {
     pub aaguid: Vec<u8>,
     pub credential_id_length: u16,
