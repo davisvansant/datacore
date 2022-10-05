@@ -33,8 +33,8 @@ impl CollectedClientData {
 
 #[derive(Deserialize, PartialEq, Serialize)]
 pub struct TokenBinding {
-    status: TokenBindingStatus,
-    id: String,
+    pub status: TokenBindingStatus,
+    pub id: String,
 }
 
 impl TokenBinding {
