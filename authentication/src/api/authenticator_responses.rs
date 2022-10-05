@@ -1,6 +1,3 @@
-use crate::authenticator::attestation::AttestationObject;
-use crate::authenticator::data::AuthenticatorData;
-
 pub type ClientDataJSON = Vec<u8>;
 pub type Signature = Vec<u8>;
 pub type UserHandle = Vec<u8>;
@@ -13,15 +10,14 @@ pub enum AuthenticatorResponse {
 #[derive(Clone)]
 pub struct AuthenticatorAttestationResponse {
     pub client_data_json: ClientDataJSON,
-    pub attestation_object: AttestationObject,
+    pub attestation_object: Vec<u8>,
 }
 
 impl AuthenticatorAttestationResponse {
     pub async fn generate(
-        attestation_object: AttestationObject,
+        client_data_json: ClientDataJSON,
+        attestation_object: Vec<u8>,
     ) -> AuthenticatorAttestationResponse {
-        let client_data_json = Vec::with_capacity(0);
-
         AuthenticatorAttestationResponse {
             client_data_json,
             attestation_object,
@@ -32,7 +28,32 @@ impl AuthenticatorAttestationResponse {
 #[derive(Clone)]
 pub struct AuthenticatorAssertionResponse {
     pub client_data_json: ClientDataJSON,
-    pub authenticator_data: AuthenticatorData,
+    pub authenticator_data: Vec<u8>,
     pub signature: Signature,
     pub user_handle: UserHandle,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn authenticator_attestation_response() -> Result<(), Box<dyn std::error::Error>> {
+        let test_collected_client_data_json = b"
+        { 
+            \"type\": \"webauthn.create\",
+            \"challenge\": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            \"origin\": \"some_test_origin\",
+            \"crossOrigin\": true
+        }";
+        let test_attestation_object = Vec::with_capacity(0);
+
+        AuthenticatorAttestationResponse::generate(
+            test_collected_client_data_json.to_vec(),
+            test_attestation_object,
+        )
+        .await;
+
+        Ok(())
+    }
 }
