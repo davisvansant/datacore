@@ -5,6 +5,7 @@ use crate::api::authenticator_responses::{
 use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientOutputs;
 use crate::api::public_key_credential::PublicKeyCredential;
 use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
+use crate::authenticator::attestation::AttestedCredentialData;
 use crate::authenticator::data::{AuthenticatorData, UP, UV};
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::security::sha2::generate_hash;
@@ -27,7 +28,21 @@ impl AuthenticationCeremony {
         &self,
         options: &PublicKeyCredentialRequestOptions,
     ) -> Result<PublicKeyCredential, AuthenticationError> {
-        let credential = PublicKeyCredential::generate().await;
+        let r#type = String::from("public-key");
+        let id = String::from("some_key_id");
+        let raw_id = Vec::with_capacity(0);
+        let client_data_json = Vec::with_capacity(0);
+        let authenticator_data = Vec::with_capacity(0);
+        let signature = Vec::with_capacity(0);
+        let user_handle = Vec::with_capacity(0);
+        let response =
+            AuthenticatorResponse::AuthenticatorAssertionResponse(AuthenticatorAssertionResponse {
+                client_data_json,
+                authenticator_data,
+                signature,
+                user_handle,
+            });
+        let credential = PublicKeyCredential::generate(r#type, id, raw_id, response).await;
 
         Ok(credential)
     }
@@ -124,7 +139,9 @@ impl AuthenticationCeremony {
         response: AuthenticatorAssertionResponse,
     ) -> Result<(ClientDataJSON, AuthenticatorData, Signature), AuthenticationError> {
         let client_data = response.client_data_json;
-        let authenticator_data = response.authenticator_data;
+        let rp_id = "some_rp_id";
+        let attested_credential_data = AttestedCredentialData::generate().await;
+        let authenticator_data = AuthenticatorData::generate(rp_id, attested_credential_data).await;
         let signature = response.signature;
 
         Ok((client_data, authenticator_data, signature))
