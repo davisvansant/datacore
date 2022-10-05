@@ -64,18 +64,18 @@ impl Challenge {
 }
 
 pub struct PublicKeyCredentialEntity {
-    name: String,
+    pub name: String,
 }
 
 pub struct PublicKeyCredentialRpEntity {
-    id: String,
+    pub id: String,
 }
 
 #[derive(Eq, Hash, PartialEq)]
 pub struct PublicKeyCredentialUserEntity {
-    name: String,
-    id: Bytes,
-    display_name: String,
+    pub name: String,
+    pub id: Bytes,
+    pub display_name: String,
 }
 
 impl PublicKeyCredentialUserEntity {
@@ -91,10 +91,10 @@ impl PublicKeyCredentialUserEntity {
 }
 
 pub struct AuthenticatorSelectionCriteria {
-    authenticator_attachment: String,
-    resident_key: String,
-    require_resident_key: bool,
-    user_verification: String,
+    pub authenticator_attachment: String,
+    pub resident_key: String,
+    pub require_resident_key: bool,
+    pub user_verification: String,
 }
 
 pub enum AuthenticatorAttachment {
