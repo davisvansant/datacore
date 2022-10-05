@@ -28,7 +28,7 @@ impl RelyingParty {
             .await?;
         let client_extension_results = operation.client_extension_results(&credential).await?;
         let json_text = operation.json(&response).await?;
-        let client_data = operation.client_data(json_text).await?;
+        let client_data = operation.client_data(&json_text).await?;
 
         let connection_token_binding = TokenBinding::generate().await;
 

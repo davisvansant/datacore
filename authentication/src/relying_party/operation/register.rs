@@ -85,9 +85,9 @@ impl Register {
 
     pub async fn client_data(
         &self,
-        json: Vec<u8>,
+        json: &[u8],
     ) -> Result<CollectedClientData, AuthenticationError> {
-        match serde_json::from_slice(&json) {
+        match serde_json::from_slice(json) {
             Ok(client_data) => Ok(client_data),
             Err(_) => Err(AuthenticationError {
                 error: AuthenticationErrorType::OperationError,
@@ -312,8 +312,170 @@ impl Register {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::authenticator_responses::AuthenticatorAssertionResponse;
     use crate::authenticator::attestation::PackedAttestationStatementSyntax;
     use ciborium::cbor;
+
+    #[tokio::test]
+    async fn public_key_credential_creation_options() -> Result<(), Box<dyn std::error::Error>> {
+        let test_registration = Register {};
+        let test_public_key_credential_creation_options = test_registration
+            .public_key_credential_creation_options()
+            .await?;
+
+        assert_eq!(
+            test_public_key_credential_creation_options.rp.id,
+            "some_rp_entity",
+        );
+        assert_eq!(
+            test_public_key_credential_creation_options.user.name,
+            "some_user",
+        );
+        assert_eq!(
+            test_public_key_credential_creation_options
+                .public_key_credential_parameters
+                .len(),
+            0,
+        );
+        assert_eq!(test_public_key_credential_creation_options.timeout, 0);
+        assert_eq!(
+            test_public_key_credential_creation_options
+                .exclude_credentials
+                .len(),
+            0,
+        );
+        assert_eq!(
+            test_public_key_credential_creation_options
+                .authenticator_selection
+                .authenticator_attachment,
+            "some_attachment",
+        );
+        assert!(test_public_key_credential_creation_options
+            .attestation
+            .is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn call_credentials_create() -> Result<(), Box<dyn std::error::Error>> {
+        let test_registration = Register {};
+        let test_public_key_credential_creation_options = test_registration
+            .public_key_credential_creation_options()
+            .await?;
+        let test_public_key_credential = test_registration
+            .call_credentials_create(&test_public_key_credential_creation_options)
+            .await?;
+
+        assert_eq!(test_public_key_credential.r#type, "public-key");
+        assert_eq!(test_public_key_credential.id, "some_credential_id");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn authenticator_attestation_response() -> Result<(), Box<dyn std::error::Error>> {
+        let test_registration = Register {};
+        let test_public_key_credential_assertion = PublicKeyCredential {
+            id: String::from("test_id"),
+            raw_id: Vec::with_capacity(0),
+            response: AuthenticatorResponse::AuthenticatorAssertionResponse(
+                AuthenticatorAssertionResponse {
+                    client_data_json: Vec::with_capacity(0),
+                    authenticator_data: Vec::with_capacity(0),
+                    signature: Vec::with_capacity(0),
+                    user_handle: Vec::with_capacity(0),
+                },
+            ),
+            r#type: String::from("test_type"),
+        };
+        let test_authenticator_attestation_response_err = test_registration
+            .authenticator_attestation_response(&test_public_key_credential_assertion)
+            .await;
+
+        assert!(test_authenticator_attestation_response_err.is_err());
+
+        let test_public_key_credential_attestation = PublicKeyCredential {
+            id: String::from("test_id"),
+            raw_id: Vec::with_capacity(0),
+            response: AuthenticatorResponse::AuthenticatorAttestationResponse(
+                AuthenticatorAttestationResponse {
+                    client_data_json: Vec::with_capacity(0),
+                    attestation_object: Vec::with_capacity(0),
+                },
+            ),
+            r#type: String::from("test_type"),
+        };
+        let test_authenticator_attestation_response_ok = test_registration
+            .authenticator_attestation_response(&test_public_key_credential_attestation)
+            .await;
+
+        assert!(test_authenticator_attestation_response_ok.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn client_extension_results() -> Result<(), Box<dyn std::error::Error>> {
+        let test_registration = Register {};
+        let test_public_key_credential_creation_options = test_registration
+            .public_key_credential_creation_options()
+            .await?;
+        let test_public_key_credential = test_registration
+            .call_credentials_create(&test_public_key_credential_creation_options)
+            .await?;
+
+        assert!(test_registration
+            .client_extension_results(&test_public_key_credential)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn json() -> Result<(), Box<dyn std::error::Error>> {
+        let test_registration = Register {};
+        let test_response = AuthenticatorAttestationResponse {
+            client_data_json: Vec::with_capacity(0),
+            attestation_object: Vec::with_capacity(0),
+        };
+
+        let test_json = test_registration.json(&test_response).await?;
+
+        assert!(test_json.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn client_data() -> Result<(), Box<dyn std::error::Error>> {
+        let test_registration = Register {};
+        let test_invalid_json = b"
+        { 
+            \"crossorigin\": true,
+            \"type\": \"webauthn.create\",
+            \"origin\": \"some_test_origin\",
+            \"challenge\": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,]
+        }";
+
+        let test_client_data_error = test_registration.client_data(test_invalid_json).await;
+
+        assert!(test_client_data_error.is_err());
+
+        let test_valid_json = b"
+        { 
+            \"crossOrigin\": true,
+            \"type\": \"webauthn.create\",
+            \"origin\": \"some_test_origin\",
+            \"challenge\": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        }";
+        let test_client_data_ok = test_registration.client_data(test_valid_json).await;
+
+        assert!(test_client_data_ok.is_ok());
+
+        Ok(())
+    }
 
     #[tokio::test]
     async fn perform_decoding() -> Result<(), Box<dyn std::error::Error>> {
