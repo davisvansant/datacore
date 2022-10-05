@@ -313,6 +313,8 @@ impl Register {
 mod tests {
     use super::*;
     use crate::api::authenticator_responses::AuthenticatorAssertionResponse;
+    use crate::api::credential_creation_options::Challenge;
+    use crate::api::supporting_data_structures::TokenBindingStatus;
     use crate::authenticator::attestation::PackedAttestationStatementSyntax;
     use ciborium::cbor;
 
@@ -473,6 +475,175 @@ mod tests {
         let test_client_data_ok = test_registration.client_data(test_valid_json).await;
 
         assert!(test_client_data_ok.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn verify_type() -> Result<(), Box<dyn std::error::Error>> {
+        let test_registration = Register {};
+        let test_invalid_client_data_type = CollectedClientData {
+            r#type: String::from("webauthn.not_create"),
+            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            origin: String::from("some_test_origin"),
+            cross_origin: false,
+            token_binding: None,
+        };
+
+        let test_verify_type_error = test_registration
+            .verify_type(&test_invalid_client_data_type)
+            .await;
+
+        assert!(test_verify_type_error.is_err());
+
+        let test_valid_client_data_type = CollectedClientData {
+            r#type: String::from("webauthn.create"),
+            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            origin: String::from("some_test_origin"),
+            cross_origin: false,
+            token_binding: None,
+        };
+
+        let test_verify_type_ok = test_registration
+            .verify_type(&test_valid_client_data_type)
+            .await;
+
+        assert!(test_verify_type_ok.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn verify_challenge() -> Result<(), Box<dyn std::error::Error>> {
+        let test_registration = Register {};
+        let test_public_key_credential_creation_options = test_registration
+            .public_key_credential_creation_options()
+            .await?;
+
+        let test_invalid_client_data_challenge = CollectedClientData {
+            r#type: String::from("webauthn.create"),
+            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            origin: String::from("some_test_origin"),
+            cross_origin: false,
+            token_binding: None,
+        };
+
+        let test_verify_challenge_error = test_registration
+            .verify_challenge(
+                &test_invalid_client_data_challenge,
+                &test_public_key_credential_creation_options,
+            )
+            .await;
+
+        assert!(test_verify_challenge_error.is_err());
+
+        let test_valid_client_data_challenge = CollectedClientData {
+            r#type: String::from("webauthn.create"),
+            challenge: test_public_key_credential_creation_options
+                .challenge
+                .to_owned(),
+            origin: String::from("some_test_origin"),
+            cross_origin: false,
+            token_binding: None,
+        };
+
+        let test_verify_challenge_ok = test_registration
+            .verify_challenge(
+                &test_valid_client_data_challenge,
+                &test_public_key_credential_creation_options,
+            )
+            .await;
+
+        assert!(test_verify_challenge_ok.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn verify_origin() -> Result<(), Box<dyn std::error::Error>> {
+        let test_registration = Register {};
+        let test_invalid_client_data_origin = CollectedClientData {
+            r#type: String::from("webauthn.create"),
+            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            origin: String::from("some_test_origin"),
+            cross_origin: false,
+            token_binding: None,
+        };
+
+        let test_verify_origin_error = test_registration
+            .verify_origin(&test_invalid_client_data_origin, "some_test_rp_origin")
+            .await;
+
+        assert!(test_verify_origin_error.is_err());
+
+        let test_valid_client_data_origin = CollectedClientData {
+            r#type: String::from("webauthn.create"),
+            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            origin: String::from("some_test_origin"),
+            cross_origin: false,
+            token_binding: None,
+        };
+
+        let test_verify_origin_ok = test_registration
+            .verify_origin(&test_valid_client_data_origin, "some_test_origin")
+            .await;
+
+        assert!(test_verify_origin_ok.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn verify_token_binding() -> Result<(), Box<dyn std::error::Error>> {
+        let test_registration = Register {};
+        let test_token_binding = TokenBinding {
+            status: TokenBindingStatus::Present,
+            id: String::from("some_token_binding_id"),
+        };
+        let test_client_data_token_binding_none = CollectedClientData {
+            r#type: String::from("webauthn.create"),
+            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            origin: String::from("some_test_origin"),
+            cross_origin: false,
+            token_binding: None,
+        };
+        let test_verify_token_binding_none = test_registration
+            .verify_token_binding(&test_client_data_token_binding_none, &test_token_binding)
+            .await;
+
+        assert!(test_verify_token_binding_none.is_ok());
+
+        let test_invalid_client_data_token_binding = CollectedClientData {
+            r#type: String::from("webauthn.create"),
+            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            origin: String::from("some_test_origin"),
+            cross_origin: false,
+            token_binding: Some(TokenBinding {
+                status: TokenBindingStatus::Supported,
+                id: String::from("some_token_binding_id"),
+            }),
+        };
+        let test_verify_token_binding_error = test_registration
+            .verify_token_binding(&test_invalid_client_data_token_binding, &test_token_binding)
+            .await;
+
+        assert!(test_verify_token_binding_error.is_err());
+
+        let test_valid_client_data_token_binding = CollectedClientData {
+            r#type: String::from("webauthn.create"),
+            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            origin: String::from("some_test_origin"),
+            cross_origin: false,
+            token_binding: Some(TokenBinding {
+                status: TokenBindingStatus::Present,
+                id: String::from("some_token_binding_id"),
+            }),
+        };
+        let test_verify_token_binding_ok = test_registration
+            .verify_token_binding(&test_valid_client_data_token_binding, &test_token_binding)
+            .await;
+
+        assert!(test_verify_token_binding_ok.is_ok());
 
         Ok(())
     }
