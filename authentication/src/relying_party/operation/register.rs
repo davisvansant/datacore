@@ -1,3 +1,5 @@
+use ciborium::de::from_reader;
+
 use crate::api::authenticator_responses::{
     AuthenticatorAttestationResponse, AuthenticatorResponse,
 };
@@ -8,7 +10,8 @@ use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientOut
 use crate::api::public_key_credential::PublicKeyCredential;
 use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::{
-    AttestationStatement, AttestationStatementFormat, AttestationStatementFormatIdentifier,
+    AttestationObject, AttestationStatement, AttestationStatementFormat,
+    AttestationStatementFormatIdentifier, AttestedCredentialData,
 };
 use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
 use crate::error::{AuthenticationError, AuthenticationErrorType};
@@ -33,9 +36,21 @@ impl Register {
 
     pub async fn call_credentials_create(
         &self,
-        options: &PublicKeyCredentialCreationOptions,
+        _options: &PublicKeyCredentialCreationOptions,
     ) -> Result<PublicKeyCredential, AuthenticationError> {
-        let credential = PublicKeyCredential::generate().await;
+        let r#type = String::from("public-key");
+        let id = String::from("some_credential_id");
+        let raw_id = Vec::with_capacity(0);
+        let client_data_json = Vec::with_capacity(0);
+        let attestation_object = Vec::with_capacity(0);
+        let response = AuthenticatorResponse::AuthenticatorAttestationResponse(
+            AuthenticatorAttestationResponse {
+                client_data_json,
+                attestation_object,
+            },
+        );
+        let r#type = String::from("public-key");
+        let credential = PublicKeyCredential::generate(r#type, id, raw_id, response).await;
 
         Ok(credential)
     }
@@ -146,17 +161,25 @@ impl Register {
         ),
         AuthenticationError,
     > {
-        let attestation_statement_format_id =
-            authenticator_attestation_response.attestation_object.fmt;
-        let attestation_statement_format = attestation_statement_format_id
+        let attestation_object: AttestationObject = match from_reader(
+            authenticator_attestation_response
+                .attestation_object
+                .as_slice(),
+        ) {
+            Ok(attestation_object) => attestation_object,
+            Err(_) => {
+                return Err(AuthenticationError {
+                    error: AuthenticationErrorType::OperationError,
+                })
+            }
+        };
+
+        let attestation_statement_format = attestation_object
+            .fmt
             .attestation_statement_format()
             .await?;
-        let authenticator_data = authenticator_attestation_response
-            .attestation_object
-            .authData;
-        let attestation_statement = authenticator_attestation_response
-            .attestation_object
-            .attStmt;
+        let authenticator_data = attestation_object.authData;
+        let attestation_statement = attestation_object.attStmt;
 
         Ok((
             attestation_statement_format,
@@ -281,6 +304,55 @@ impl Register {
         };
 
         some_credentials_map.insert(options.user, account);
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::authenticator::attestation::PackedAttestationStatementSyntax;
+    use ciborium::cbor;
+
+    #[tokio::test]
+    async fn perform_decoding() -> Result<(), Box<dyn std::error::Error>> {
+        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_authenticator_data =
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+        let test_attestation_statement =
+            AttestationStatement::Packed(PackedAttestationStatementSyntax::build().await);
+
+        let test_client_data_json = Vec::with_capacity(0);
+        let test_attestation_object_cbor = cbor!({
+            "authData" => test_authenticator_data,
+            "fmt" => "packed",
+            "attStmt" => test_attestation_statement,
+        })?;
+
+        let mut test_attestation_object = Vec::with_capacity(0);
+        ciborium::ser::into_writer(&test_attestation_object_cbor, &mut test_attestation_object)?;
+
+        let test_authenticator_attestation_response = AuthenticatorAttestationResponse {
+            client_data_json: test_client_data_json,
+            attestation_object: test_attestation_object,
+        };
+
+        let test_registration = Register {};
+        let test_perform_decoding = test_registration
+            .perform_decoding(test_authenticator_attestation_response)
+            .await
+            .unwrap();
+
+        assert_eq!(test_perform_decoding.0, AttestationStatementFormat::Packed);
+        assert_eq!(test_perform_decoding.1.flags[UP], 0);
+        assert_eq!(test_perform_decoding.1.signcount, 0);
+
+        match test_perform_decoding.2 {
+            AttestationStatement::Packed(test_packed_attestation_statement) => {
+                assert_eq!(test_packed_attestation_statement.alg, 3);
+            }
+        }
 
         Ok(())
     }
