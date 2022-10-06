@@ -6,6 +6,7 @@ pub use crate::authenticator::attestation::statement_format::{
 };
 use crate::authenticator::data::AuthenticatorData;
 
+mod cose_key_format;
 mod statement_format;
 
 #[derive(Deserialize, Clone, Serialize)]
