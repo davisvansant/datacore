@@ -1,4 +1,4 @@
 pub struct PublicKeyCredentialParameters {
-    r#type: String,
-    algorithm: i32,
+    pub r#type: String,
+    pub algorithm: i32,
 }
