@@ -69,7 +69,7 @@ pub enum AuthenticatorTransport {
     Internal,
 }
 
-pub type COSEAlgorithmIdentifier = u32;
+pub type COSEAlgorithmIdentifier = i32;
 
 pub enum UserVerificationRequirement {
     Required,
