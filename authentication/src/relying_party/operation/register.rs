@@ -11,7 +11,7 @@ use crate::api::public_key_credential::PublicKeyCredential;
 use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::{
     AttestationObject, AttestationStatement, AttestationStatementFormat,
-    AttestationStatementFormatIdentifier, AttestedCredentialData,
+    AttestationStatementFormatIdentifier, AttestedCredentialData, COSEKey,
 };
 use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
 use crate::error::{AuthenticationError, AuthenticationErrorType};
@@ -241,7 +241,30 @@ impl Register {
         authenticator_data: &AuthenticatorData,
         options: &PublicKeyCredentialCreationOptions,
     ) -> Result<(), AuthenticationError> {
-        Ok(())
+        let mut algorithm_match = Vec::with_capacity(1);
+
+        for public_key_credential_parameters in &options.public_key_credential_parameters {
+            match authenticator_data
+                .attestedcredentialdata
+                .credential_public_key
+                .alg
+                == public_key_credential_parameters.algorithm
+            {
+                true => {
+                    algorithm_match.push(1);
+
+                    break;
+                }
+                false => continue,
+            }
+        }
+
+        match algorithm_match.len() >= 1 {
+            true => Ok(()),
+            false => Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            }),
+        }
     }
 
     pub async fn verify_extension_outputs(
@@ -299,7 +322,8 @@ impl Register {
         let mut some_credentials_map = HashMap::with_capacity(1);
 
         struct Account {
-            key: Vec<u8>,
+            // key: Vec<u8>,
+            key: COSEKey,
             counter: u32,
             transports: Vec<String>,
         }
@@ -323,6 +347,7 @@ mod tests {
     use super::*;
     use crate::api::authenticator_responses::AuthenticatorAssertionResponse;
     use crate::api::credential_creation_options::Challenge;
+    use crate::api::credential_generation_parameters::PublicKeyCredentialParameters;
     use crate::api::supporting_data_structures::TokenBindingStatus;
     use crate::authenticator::attestation::PackedAttestationStatementSyntax;
     use ciborium::cbor;
@@ -778,12 +803,27 @@ mod tests {
     #[tokio::test]
     async fn verify_algorithm() -> Result<(), Box<dyn std::error::Error>> {
         let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let mut test_authenticator_data =
+        let test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_registration = Register {};
-        let test_public_key_credential_creation_options = test_registration
+        let mut test_public_key_credential_creation_options = test_registration
             .public_key_credential_creation_options()
             .await?;
+
+        assert!(test_registration
+            .verify_algorithm(
+                &test_authenticator_data,
+                &test_public_key_credential_creation_options
+            )
+            .await
+            .is_err());
+
+        test_public_key_credential_creation_options
+            .public_key_credential_parameters
+            .push(PublicKeyCredentialParameters {
+                r#type: String::from("some_type"),
+                algorithm: -8,
+            });
 
         assert!(test_registration
             .verify_algorithm(
