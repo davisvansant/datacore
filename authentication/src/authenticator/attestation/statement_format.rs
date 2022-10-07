@@ -8,7 +8,7 @@ use crate::error::{AuthenticationError, AuthenticationErrorType};
 mod packed;
 
 #[derive(Deserialize, Clone, Serialize)]
-pub struct AttestationStatementFormatIdentifier(String);
+pub struct AttestationStatementFormatIdentifier(pub String);
 
 impl AttestationStatementFormatIdentifier {
     pub async fn attestation_statement_format(
