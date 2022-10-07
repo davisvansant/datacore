@@ -835,4 +835,25 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn determine_attestation_statement_format() -> Result<(), Box<dyn std::error::Error>> {
+        let test_registration = Register {};
+
+        assert!(test_registration
+            .determine_attestation_statement_format(&AttestationStatementFormatIdentifier(
+                String::from("something_else")
+            ))
+            .await
+            .is_err());
+
+        assert!(test_registration
+            .determine_attestation_statement_format(&AttestationStatementFormatIdentifier(
+                String::from("packed")
+            ))
+            .await
+            .is_ok());
+
+        Ok(())
+    }
 }
