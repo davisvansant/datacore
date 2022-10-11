@@ -23,8 +23,16 @@ impl AttestationObject {
         authData: AuthenticatorData,
         hash: Vec<u8>,
     ) -> AttestationObject {
-        let fmt = attestation_format.identifier().await;
-        let attStmt = attestation_format.syntax().await;
+        let (fmt, attStmt) = match attestation_format {
+            AttestationStatementFormat::Packed => {
+                let fmt = attestation_format.identifier().await;
+                let attStmt = AttestationStatement::Packed(
+                    PackedAttestationStatementSyntax::generate().await,
+                );
+
+                (fmt, attStmt)
+            }
+        };
 
         AttestationObject {
             fmt,
