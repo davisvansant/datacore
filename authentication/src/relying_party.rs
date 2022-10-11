@@ -49,8 +49,6 @@ impl RelyingParty {
             .verify_rp_id_hash(&authenticator_data, &self.identifier)
             .await?;
 
-        let fmt = AttestationStatementFormat::Packed.identifier().await;
-
         operation
             .determine_attestation_statement_format(&fmt)
             .await?;

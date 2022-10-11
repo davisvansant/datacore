@@ -12,6 +12,7 @@ use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::{
     AttestationObject, AttestationStatement, AttestationStatementFormat,
     AttestationStatementFormatIdentifier, AttestedCredentialData, COSEKey,
+    PackedAttestationStatementSyntax,
 };
 use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
 use crate::error::{AuthenticationError, AuthenticationErrorType};
@@ -164,7 +165,7 @@ impl Register {
         authenticator_attestation_response: AuthenticatorAttestationResponse,
     ) -> Result<
         (
-            AttestationStatementFormat,
+            AttestationStatementFormatIdentifier,
             AuthenticatorData,
             AttestationStatement,
         ),
@@ -183,15 +184,12 @@ impl Register {
             }
         };
 
-        let attestation_statement_format = attestation_object
-            .fmt
-            .attestation_statement_format()
-            .await?;
+        let attestation_statement_format_identifier = attestation_object.fmt;
         let authenticator_data = attestation_object.authData;
         let attestation_statement = attestation_object.attStmt;
 
         Ok((
-            attestation_statement_format,
+            attestation_statement_format_identifier,
             authenticator_data,
             attestation_statement,
         ))
@@ -283,7 +281,8 @@ impl Register {
         &self,
         fmt: &AttestationStatementFormatIdentifier,
     ) -> Result<AttestationStatementFormat, AuthenticationError> {
-        let attestation_statement_format = fmt.attestation_statement_format().await?;
+        // let attestation_statement_format = fmt.attestation_statement_format().await?;
+        let attestation_statement_format = fmt.try_into()?;
 
         Ok(attestation_statement_format)
     }
@@ -295,9 +294,12 @@ impl Register {
         authenticator_data: &AuthenticatorData,
         hash: &[u8],
     ) -> Result<(), AuthenticationError> {
-        attestation_statement_format
-            .verification_procedure(attestation_statement, authenticator_data, hash)
-            .await?;
+        match attestation_statement {
+            AttestationStatement::Packed(packed) => {
+                PackedAttestationStatementSyntax::verification_procedure(authenticator_data, hash)
+                    .await?;
+            }
+        }
 
         Ok(())
     }
@@ -322,7 +324,6 @@ impl Register {
         let mut some_credentials_map = HashMap::with_capacity(1);
 
         struct Account {
-            // key: Vec<u8>,
             key: COSEKey,
             counter: u32,
             transports: Vec<String>,
@@ -701,7 +702,7 @@ mod tests {
         let test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_attestation_statement =
-            AttestationStatement::Packed(PackedAttestationStatementSyntax::build().await);
+            AttestationStatement::Packed(PackedAttestationStatementSyntax::generate().await);
 
         let test_client_data_json = Vec::with_capacity(0);
         let test_attestation_object_cbor = cbor!({
@@ -724,7 +725,10 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(test_perform_decoding.0, AttestationStatementFormat::Packed);
+        assert_eq!(
+            AttestationStatementFormat::try_from(&test_perform_decoding.0)?,
+            AttestationStatementFormat::Packed,
+        );
         assert_eq!(test_perform_decoding.1.flags[UP], 0);
         assert_eq!(test_perform_decoding.1.signcount, 0);
 
@@ -841,16 +845,12 @@ mod tests {
         let test_registration = Register {};
 
         assert!(test_registration
-            .determine_attestation_statement_format(&AttestationStatementFormatIdentifier(
-                String::from("something_else")
-            ))
+            .determine_attestation_statement_format(&String::from("something_else"))
             .await
             .is_err());
 
         assert!(test_registration
-            .determine_attestation_statement_format(&AttestationStatementFormatIdentifier(
-                String::from("packed")
-            ))
+            .determine_attestation_statement_format(&String::from("packed"))
             .await
             .is_ok());
 
