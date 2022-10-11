@@ -1,9 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 use crate::api::supporting_data_structures::COSEAlgorithmIdentifier;
-use crate::authenticator::attestation::AttestationStatement;
+use crate::authenticator::attestation::{AttestationStatement, AttestationType};
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::AuthenticationError;
+
+pub struct PackedVerificationProcedureOutput {
+    pub attestation_type: AttestationType,
+    pub x5c: Option<Vec<Vec<u8>>>,
+}
 
 #[derive(Deserialize, Clone, Serialize)]
 pub struct PackedAttestationStatementSyntax {
@@ -31,8 +36,11 @@ impl PackedAttestationStatementSyntax {
     pub async fn verification_procedure(
         authenticator_data: &AuthenticatorData,
         hash: &[u8],
-    ) -> Result<(), AuthenticationError> {
-        Ok(())
+    ) -> Result<PackedVerificationProcedureOutput, AuthenticationError> {
+        Ok(PackedVerificationProcedureOutput {
+            attestation_type: AttestationType::SelfAttestation,
+            x5c: None,
+        })
     }
 }
 

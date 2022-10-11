@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-pub use crate::authenticator::attestation::statement_format::packed::PackedAttestationStatementSyntax;
+pub use crate::authenticator::attestation::statement_format::packed::{
+    PackedAttestationStatementSyntax, PackedVerificationProcedureOutput,
+};
 use crate::authenticator::data::AuthenticatorData;
 
 use crate::error::{AuthenticationError, AuthenticationErrorType};

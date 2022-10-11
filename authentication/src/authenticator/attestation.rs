@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 pub use crate::authenticator::attestation::cose_key_format::{COSEAlgorithm, COSEKey};
 pub use crate::authenticator::attestation::statement_format::{
     AttestationStatement, AttestationStatementFormat, AttestationStatementFormatIdentifier,
-    PackedAttestationStatementSyntax,
+    PackedAttestationStatementSyntax, PackedVerificationProcedureOutput,
 };
 use crate::authenticator::data::AuthenticatorData;
 
