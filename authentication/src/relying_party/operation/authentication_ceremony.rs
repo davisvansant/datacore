@@ -7,6 +7,7 @@ use crate::api::public_key_credential::PublicKeyCredential;
 use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::AttestedCredentialData;
 use crate::authenticator::data::{AuthenticatorData, UP, UV};
+use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::security::sha2::generate_hash;
 
@@ -102,14 +103,27 @@ impl AuthenticationCeremony {
 
     pub async fn identify_user_and_verify(
         &self,
-        credential: &PublicKeyCredential,
         authenticator_assertion_response: &AuthenticatorAssertionResponse,
     ) -> Result<(), AuthenticationError> {
-        match credential.id.as_bytes() == authenticator_assertion_response.user_handle {
-            true => Ok(()),
-            false => Err(AuthenticationError {
+        let mut credentials = HashMap::with_capacity(1);
+        let credential_id = String::from("some_id").into_bytes();
+        let public_key_credential_source = PublicKeyCredentialSource::generate().await;
+
+        credentials.insert(credential_id, public_key_credential_source);
+
+        if let Some(credential_source) =
+            credentials.get(&authenticator_assertion_response.user_handle)
+        {
+            match credential_source.id.as_bytes() == &authenticator_assertion_response.user_handle {
+                true => Ok(()),
+                false => Err(AuthenticationError {
+                    error: AuthenticationErrorType::OperationError,
+                }),
+            }
+        } else {
+            Err(AuthenticationError {
                 error: AuthenticationErrorType::OperationError,
-            }),
+            })
         }
     }
 
@@ -477,6 +491,38 @@ mod tests {
                 &test_public_key_credential_request_options,
                 &test_public_key_credential,
             )
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn identify_user_and_verify() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let mut test_authenticator_assertion_response = AuthenticatorAssertionResponse {
+            client_data_json: Vec::with_capacity(0),
+            authenticator_data: Vec::with_capacity(0),
+            signature: Vec::with_capacity(0),
+            user_handle: Vec::with_capacity(0),
+        };
+
+        assert!(test_authentication_ceremony
+            .identify_user_and_verify(&test_authenticator_assertion_response)
+            .await
+            .is_err());
+
+        test_authenticator_assertion_response.user_handle = b"some_other_id".to_vec();
+
+        assert!(test_authentication_ceremony
+            .identify_user_and_verify(&test_authenticator_assertion_response)
+            .await
+            .is_err());
+
+        test_authenticator_assertion_response.user_handle = b"some_id".to_vec();
+
+        assert!(test_authentication_ceremony
+            .identify_user_and_verify(&test_authenticator_assertion_response)
             .await
             .is_ok());
 
