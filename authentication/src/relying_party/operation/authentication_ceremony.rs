@@ -528,4 +528,29 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn credential_public_key() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let test_public_key_credential_request_options = test_authentication_ceremony
+            .public_key_credential_request_options()
+            .await?;
+        let mut test_public_key_credential = test_authentication_ceremony
+            .call_credentials_get(&test_public_key_credential_request_options)
+            .await?;
+
+        assert!(test_authentication_ceremony
+            .credential_public_key(&test_public_key_credential)
+            .await
+            .is_err());
+
+        test_public_key_credential.id = String::from("some_id");
+
+        assert!(test_authentication_ceremony
+            .credential_public_key(&test_public_key_credential)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
 }
