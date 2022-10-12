@@ -76,19 +76,28 @@ impl AuthenticationCeremony {
         credential: &PublicKeyCredential,
     ) -> Result<(), AuthenticationError> {
         if !options.allow_credentials.is_empty() {
+            let mut identified_credential = Vec::with_capacity(1);
+
             for acceptable_credential in &options.allow_credentials {
                 match acceptable_credential.id == credential.id.as_bytes() {
-                    true => continue,
-                    false => {
-                        return Err(AuthenticationError {
-                            error: AuthenticationErrorType::OperationError,
-                        });
-                    }
-                };
-            }
-        }
+                    true => {
+                        identified_credential.push(1);
 
-        Ok(())
+                        break;
+                    }
+                    false => continue,
+                }
+            }
+
+            match !identified_credential.is_empty() {
+                true => Ok(()),
+                false => Err(AuthenticationError {
+                    error: AuthenticationErrorType::OperationError,
+                }),
+            }
+        } else {
+            Ok(())
+        }
     }
 
     pub async fn identify_user_and_verify(
@@ -315,6 +324,7 @@ impl AuthenticationCeremony {
 mod tests {
     use super::*;
     use crate::api::authenticator_responses::AuthenticatorAttestationResponse;
+    use crate::api::supporting_data_structures::PublicKeyCredentialDescriptor;
 
     #[tokio::test]
     async fn public_key_credential_request_options() -> Result<(), Box<dyn std::error::Error>> {
@@ -381,6 +391,94 @@ mod tests {
             .authenticator_assertion_response(&test_public_key_credential_attestation)
             .await
             .is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn client_extension_results() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let test_public_key_credential = PublicKeyCredential {
+            id: String::from("test_id"),
+            raw_id: Vec::with_capacity(0),
+            response: AuthenticatorResponse::AuthenticatorAssertionResponse(
+                AuthenticatorAssertionResponse {
+                    client_data_json: Vec::with_capacity(0),
+                    authenticator_data: Vec::with_capacity(0),
+                    signature: Vec::with_capacity(0),
+                    user_handle: Vec::with_capacity(0),
+                },
+            ),
+            r#type: String::from("test_type"),
+        };
+
+        assert!(test_authentication_ceremony
+            .client_extension_results(&test_public_key_credential)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn verify_credential_id() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let mut test_public_key_credential_request_options = test_authentication_ceremony
+            .public_key_credential_request_options()
+            .await?;
+        let test_public_key_credential = PublicKeyCredential {
+            id: String::from("test_id"),
+            raw_id: Vec::with_capacity(0),
+            response: AuthenticatorResponse::AuthenticatorAssertionResponse(
+                AuthenticatorAssertionResponse {
+                    client_data_json: Vec::with_capacity(0),
+                    authenticator_data: Vec::with_capacity(0),
+                    signature: Vec::with_capacity(0),
+                    user_handle: Vec::with_capacity(0),
+                },
+            ),
+            r#type: String::from("test_type"),
+        };
+
+        assert!(test_authentication_ceremony
+            .verify_credential_id(
+                &test_public_key_credential_request_options,
+                &test_public_key_credential,
+            )
+            .await
+            .is_ok());
+
+        test_public_key_credential_request_options
+            .allow_credentials
+            .push(PublicKeyCredentialDescriptor {
+                r#type: String::from("public-key"),
+                id: Vec::from(String::from("some_other_test_id")),
+                transports: Some(vec![String::from("internal")]),
+            });
+
+        assert!(test_authentication_ceremony
+            .verify_credential_id(
+                &test_public_key_credential_request_options,
+                &test_public_key_credential,
+            )
+            .await
+            .is_err());
+
+        test_public_key_credential_request_options
+            .allow_credentials
+            .push(PublicKeyCredentialDescriptor {
+                r#type: String::from("public-key"),
+                id: Vec::from(String::from("test_id")),
+                transports: Some(vec![String::from("internal")]),
+            });
+
+        assert!(test_authentication_ceremony
+            .verify_credential_id(
+                &test_public_key_credential_request_options,
+                &test_public_key_credential,
+            )
+            .await
+            .is_ok());
 
         Ok(())
     }
