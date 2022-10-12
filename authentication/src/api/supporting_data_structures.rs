@@ -57,9 +57,9 @@ pub enum PublicKeyCredentialType {
 }
 
 pub struct PublicKeyCredentialDescriptor {
-    public_key_credential_type: String,
+    pub r#type: String,
     pub id: Vec<u8>,
-    transports: Option<Vec<String>>,
+    pub transports: Option<Vec<String>>,
 }
 
 pub enum AuthenticatorTransport {
