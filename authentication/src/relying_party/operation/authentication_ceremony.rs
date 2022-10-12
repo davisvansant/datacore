@@ -553,4 +553,25 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn response_values() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let test_public_key_credential_request_options = test_authentication_ceremony
+            .public_key_credential_request_options()
+            .await?;
+        let test_public_key_credential = test_authentication_ceremony
+            .call_credentials_get(&test_public_key_credential_request_options)
+            .await?;
+        let test_authenticator_assertion_response = test_authentication_ceremony
+            .authenticator_assertion_response(&test_public_key_credential)
+            .await?;
+
+        assert!(test_authentication_ceremony
+            .response_values(test_authenticator_assertion_response)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
 }
