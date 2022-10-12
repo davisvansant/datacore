@@ -310,3 +310,78 @@ impl AuthenticationCeremony {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::authenticator_responses::AuthenticatorAttestationResponse;
+
+    #[tokio::test]
+    async fn public_key_credential_request_options() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+
+        assert!(test_authentication_ceremony
+            .public_key_credential_request_options()
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn call_credentials_get() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let test_public_key_credential_request_options = test_authentication_ceremony
+            .public_key_credential_request_options()
+            .await?;
+
+        assert!(test_authentication_ceremony
+            .call_credentials_get(&test_public_key_credential_request_options)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn authenticator_assertion_response() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let test_public_key_credential_assertion = PublicKeyCredential {
+            id: String::from("test_id"),
+            raw_id: Vec::with_capacity(0),
+            response: AuthenticatorResponse::AuthenticatorAssertionResponse(
+                AuthenticatorAssertionResponse {
+                    client_data_json: Vec::with_capacity(0),
+                    authenticator_data: Vec::with_capacity(0),
+                    signature: Vec::with_capacity(0),
+                    user_handle: Vec::with_capacity(0),
+                },
+            ),
+            r#type: String::from("test_type"),
+        };
+
+        assert!(test_authentication_ceremony
+            .authenticator_assertion_response(&test_public_key_credential_assertion)
+            .await
+            .is_ok());
+
+        let test_public_key_credential_attestation = PublicKeyCredential {
+            id: String::from("test_id"),
+            raw_id: Vec::with_capacity(0),
+            response: AuthenticatorResponse::AuthenticatorAttestationResponse(
+                AuthenticatorAttestationResponse {
+                    client_data_json: Vec::with_capacity(0),
+                    attestation_object: Vec::with_capacity(0),
+                },
+            ),
+            r#type: String::from("test_type"),
+        };
+
+        assert!(test_authentication_ceremony
+            .authenticator_assertion_response(&test_public_key_credential_attestation)
+            .await
+            .is_err());
+
+        Ok(())
+    }
+}
