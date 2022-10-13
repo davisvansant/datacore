@@ -1,3 +1,5 @@
+use serde_json::from_slice;
+
 use crate::api::assertion_generation_options::PublicKeyCredentialRequestOptions;
 use crate::api::authenticator_responses::{
     AuthenticatorAssertionResponse, AuthenticatorResponse, ClientDataJSON, Signature,
@@ -174,9 +176,12 @@ impl AuthenticationCeremony {
         &self,
         client_data_json: ClientDataJSON,
     ) -> Result<CollectedClientData, AuthenticationError> {
-        let collected_client_data = CollectedClientData::generate().await;
-
-        Ok(collected_client_data)
+        match from_slice(&client_data_json) {
+            Ok(collected_client_data) => Ok(collected_client_data),
+            Err(_) => Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            }),
+        }
     }
 
     pub async fn verify_client_data_type(
@@ -338,7 +343,10 @@ impl AuthenticationCeremony {
 mod tests {
     use super::*;
     use crate::api::authenticator_responses::AuthenticatorAttestationResponse;
-    use crate::api::supporting_data_structures::PublicKeyCredentialDescriptor;
+    use crate::api::credential_creation_options::Challenge;
+    use crate::api::supporting_data_structures::{
+        PublicKeyCredentialDescriptor, TokenBinding, TokenBindingStatus,
+    };
 
     #[tokio::test]
     async fn public_key_credential_request_options() -> Result<(), Box<dyn std::error::Error>> {
@@ -571,6 +579,174 @@ mod tests {
             .response_values(test_authenticator_assertion_response)
             .await
             .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn client_data() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+
+        let test_invalid_json = b"
+        { 
+            \"typ\": \"webauthn.get\",
+            \"challenge\": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            \"origin\": \"some_test_origin\",
+            \"cross_rigin\": false
+        }";
+
+        assert!(test_authentication_ceremony
+            .client_data(test_invalid_json.to_vec())
+            .await
+            .is_err());
+
+        let test_valid_json = b"
+        { 
+            \"type\": \"webauthn.get\",
+            \"challenge\": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            \"origin\": \"some_test_origin\",
+            \"crossOrigin\": true
+        }";
+
+        assert!(test_authentication_ceremony
+            .client_data(test_valid_json.to_vec())
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn verify_client_data_type() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let test_invalid_client_data_type = CollectedClientData {
+            r#type: String::from("webauthn.create"),
+            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            origin: String::from("some_test_origin"),
+            cross_origin: false,
+            token_binding: None,
+        };
+        let test_valid_client_data_type = CollectedClientData {
+            r#type: String::from("webauthn.get"),
+            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            origin: String::from("some_test_origin"),
+            cross_origin: false,
+            token_binding: None,
+        };
+
+        assert!(test_authentication_ceremony
+            .verify_client_data_type(&test_invalid_client_data_type)
+            .await
+            .is_err());
+
+        assert!(test_authentication_ceremony
+            .verify_client_data_type(&test_valid_client_data_type)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn verify_client_data_challenge() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let test_public_key_credential_request_options = test_authentication_ceremony
+            .public_key_credential_request_options()
+            .await?;
+        let mut test_client_data = CollectedClientData {
+            r#type: String::from("webauthn.get"),
+            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            origin: String::from("some_test_origin"),
+            cross_origin: false,
+            token_binding: None,
+        };
+
+        assert!(test_authentication_ceremony
+            .verify_client_data_challenge(
+                &test_client_data,
+                &test_public_key_credential_request_options,
+            )
+            .await
+            .is_err());
+
+        test_client_data.challenge = test_public_key_credential_request_options
+            .challenge
+            .to_owned();
+
+        assert!(test_authentication_ceremony
+            .verify_client_data_challenge(
+                &test_client_data,
+                &test_public_key_credential_request_options,
+            )
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn verify_client_data_origin() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let test_client_data = CollectedClientData {
+            r#type: String::from("webauthn.get"),
+            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            origin: String::from("some_test_origin"),
+            cross_origin: false,
+            token_binding: None,
+        };
+
+        assert!(test_authentication_ceremony
+            .verify_client_data_origin(&test_client_data, "not_some_test_origin")
+            .await
+            .is_err());
+
+        assert!(test_authentication_ceremony
+            .verify_client_data_origin(&test_client_data, "some_test_origin")
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn verify_client_data_token_binding() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let mut test_client_data = CollectedClientData {
+            r#type: String::from("webauthn.get"),
+            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            origin: String::from("some_test_origin"),
+            cross_origin: false,
+            token_binding: None,
+        };
+        let test_token_binding = TokenBinding {
+            status: TokenBindingStatus::Present,
+            id: String::from("some_token_binding_id"),
+        };
+
+        assert!(test_authentication_ceremony
+            .verify_client_data_token_binding(&test_client_data, &test_token_binding)
+            .await
+            .is_ok());
+
+        test_client_data.token_binding = Some(TokenBinding {
+            status: TokenBindingStatus::Supported,
+            id: String::from("some_token_binding_id"),
+        });
+
+        assert!(test_authentication_ceremony
+            .verify_client_data_token_binding(&test_client_data, &test_token_binding)
+            .await
+            .is_err());
+
+        test_client_data.token_binding = Some(TokenBinding {
+            status: TokenBindingStatus::Present,
+            id: String::from("some_other_token_binding_id"),
+        });
+
+        assert!(test_authentication_ceremony
+            .verify_client_data_token_binding(&test_client_data, &test_token_binding)
+            .await
+            .is_err());
 
         Ok(())
     }
