@@ -750,4 +750,67 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn verify_rp_id_hash() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_authenticator_data =
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+
+        assert!(test_authentication_ceremony
+            .verify_rp_id_hash(&test_authenticator_data, "test_other_rp_id")
+            .await
+            .is_err());
+        assert!(test_authentication_ceremony
+            .verify_rp_id_hash(&test_authenticator_data, "test_rp_id")
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn verify_user_present() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let mut test_authenticator_data =
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+
+        assert!(test_authentication_ceremony
+            .verify_user_present(&test_authenticator_data)
+            .await
+            .is_err());
+
+        test_authenticator_data.set_user_present().await;
+
+        assert!(test_authentication_ceremony
+            .verify_user_present(&test_authenticator_data)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn verify_user_verification() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let mut test_authenticator_data =
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+
+        assert!(test_authentication_ceremony
+            .verify_user_verification(&test_authenticator_data)
+            .await
+            .is_err());
+
+        test_authenticator_data.set_user_verifed().await;
+
+        assert!(test_authentication_ceremony
+            .verify_user_verification(&test_authenticator_data)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
 }
