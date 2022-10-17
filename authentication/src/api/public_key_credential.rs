@@ -1,7 +1,5 @@
 use crate::api::assertion_generation_options::PublicKeyCredentialRequestOptions;
-use crate::api::authenticator_responses::{
-    AuthenticatorAttestationResponse, AuthenticatorResponse,
-};
+use crate::api::authenticator_responses::AuthenticatorResponse;
 use crate::api::credential_creation_options::PublicKeyCredentialCreationOptions;
 
 pub struct PublicKeyCredential {

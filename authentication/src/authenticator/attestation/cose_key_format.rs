@@ -17,7 +17,7 @@ impl COSEKey {
 
         match algorithm {
             COSEAlgorithm::EdDSA => COSEKey {
-                kty: KeyType::OKP,
+                kty: KeyType::Okp,
                 kid: String::from("some_key_id"),
                 alg: COSEAlgorithm::EdDSA.identifier().await,
                 key_ops: {
@@ -35,12 +35,12 @@ impl COSEKey {
 
 #[derive(Deserialize, Clone, Serialize)]
 pub enum KeyType {
-    OKP = 1,
-    EC2 = 2,
+    Okp = 1,
+    Ec2 = 2,
     Symmetric = 4,
 }
 
-#[derive(Deserialize, Clone, PartialEq, Serialize)]
+#[derive(Deserialize, Clone, Eq, PartialEq, Serialize)]
 pub enum COSEAlgorithm {
     EdDSA,
     ES256,

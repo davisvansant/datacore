@@ -1,4 +1,4 @@
-pub mod assertion_signature;
+// pub mod assertion_signature;
 pub mod attestation;
 pub mod credential_object;
 pub mod credentials;

@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 pub use crate::authenticator::attestation::statement_format::packed::{
     PackedAttestationStatementSyntax, PackedVerificationProcedureOutput,
 };
-use crate::authenticator::data::AuthenticatorData;
 
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 
@@ -18,7 +17,7 @@ pub enum AttestationStatement {
     Packed(PackedAttestationStatementSyntax),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum AttestationStatementFormat {
     Packed,
 }

@@ -2,8 +2,6 @@ use crate::api::supporting_data_structures::TokenBinding;
 use crate::error::AuthenticationError;
 use crate::relying_party::operation::{AuthenticationCeremony, Register};
 
-use crate::authenticator::attestation::AttestationStatementFormat;
-
 pub mod operation;
 
 pub struct RelyingParty {

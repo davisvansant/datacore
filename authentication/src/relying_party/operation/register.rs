@@ -11,7 +11,7 @@ use crate::api::public_key_credential::PublicKeyCredential;
 use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::{
     AttestationObject, AttestationStatement, AttestationStatementFormat,
-    AttestationStatementFormatIdentifier, AttestationType, AttestedCredentialData, COSEKey,
+    AttestationStatementFormatIdentifier, AttestationType, COSEKey,
     PackedAttestationStatementSyntax, PackedVerificationProcedureOutput,
 };
 use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
@@ -50,7 +50,6 @@ impl Register {
                 attestation_object,
             },
         );
-        let r#type = String::from("public-key");
         let credential = PublicKeyCredential::generate(r#type, id, raw_id, response).await;
 
         Ok(credential)
@@ -184,9 +183,9 @@ impl Register {
             }
         };
 
-        let attestation_statement_format_identifier = attestation_object.fmt;
-        let authenticator_data = attestation_object.authData;
-        let attestation_statement = attestation_object.attStmt;
+        let attestation_statement_format_identifier = attestation_object.format;
+        let authenticator_data = attestation_object.authenticator_data;
+        let attestation_statement = attestation_object.attestation_statement;
 
         Ok((
             attestation_statement_format_identifier,
@@ -257,7 +256,7 @@ impl Register {
             }
         }
 
-        match algorithm_match.len() >= 1 {
+        match !algorithm_match.is_empty() {
             true => Ok(()),
             false => Err(AuthenticationError {
                 error: AuthenticationErrorType::OperationError,
@@ -281,7 +280,6 @@ impl Register {
         &self,
         fmt: &AttestationStatementFormatIdentifier,
     ) -> Result<AttestationStatementFormat, AuthenticationError> {
-        // let attestation_statement_format = fmt.attestation_statement_format().await?;
         let attestation_statement_format = fmt.try_into()?;
 
         Ok(attestation_statement_format)
@@ -366,7 +364,9 @@ mod tests {
     use crate::api::credential_creation_options::Challenge;
     use crate::api::credential_generation_parameters::PublicKeyCredentialParameters;
     use crate::api::supporting_data_structures::TokenBindingStatus;
-    use crate::authenticator::attestation::PackedAttestationStatementSyntax;
+    use crate::authenticator::attestation::{
+        AttestedCredentialData, PackedAttestationStatementSyntax,
+    };
     use ciborium::cbor;
 
     #[tokio::test]

@@ -31,7 +31,7 @@ impl CollectedClientData {
     }
 }
 
-#[derive(Deserialize, PartialEq, Serialize)]
+#[derive(Deserialize, Eq, PartialEq, Serialize)]
 pub struct TokenBinding {
     pub status: TokenBindingStatus,
     pub id: String,
@@ -46,7 +46,7 @@ impl TokenBinding {
     }
 }
 
-#[derive(Deserialize, PartialEq, Serialize)]
+#[derive(Deserialize, Eq, PartialEq, Serialize)]
 pub enum TokenBindingStatus {
     Present,
     Supported,

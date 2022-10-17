@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::api::supporting_data_structures::COSEAlgorithmIdentifier;
-use crate::authenticator::attestation::{AttestationStatement, AttestationType};
+use crate::authenticator::attestation::AttestationType;
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::AuthenticationError;
 
@@ -22,9 +22,9 @@ impl PackedAttestationStatementSyntax {
         let alg = 3;
         let sig = [0; 32];
         let mut x5c = Vec::with_capacity(0);
-        let attestnCert = Vec::with_capacity(0);
+        let attestation_cert = Vec::with_capacity(0);
 
-        x5c.push(attestnCert);
+        x5c.push(attestation_cert);
 
         PackedAttestationStatementSyntax {
             alg,

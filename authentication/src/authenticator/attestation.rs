@@ -12,32 +12,35 @@ mod statement_format;
 
 #[derive(Deserialize, Clone, Serialize)]
 pub struct AttestationObject {
-    pub authData: AuthenticatorData,
-    pub fmt: AttestationStatementFormatIdentifier,
-    pub attStmt: AttestationStatement,
+    #[serde(rename = "authData")]
+    pub authenticator_data: AuthenticatorData,
+    #[serde(rename = "fmt")]
+    pub format: AttestationStatementFormatIdentifier,
+    #[serde(rename = "attStmt")]
+    pub attestation_statement: AttestationStatement,
 }
 
 impl AttestationObject {
     pub async fn generate(
         attestation_format: AttestationStatementFormat,
-        authData: AuthenticatorData,
+        authenticator_data: AuthenticatorData,
         hash: Vec<u8>,
     ) -> AttestationObject {
-        let (fmt, attStmt) = match attestation_format {
+        let (format, attestation_statement) = match attestation_format {
             AttestationStatementFormat::Packed => {
-                let fmt = attestation_format.identifier().await;
-                let attStmt = AttestationStatement::Packed(
+                let format = attestation_format.identifier().await;
+                let attestation_statement = AttestationStatement::Packed(
                     PackedAttestationStatementSyntax::generate().await,
                 );
 
-                (fmt, attStmt)
+                (format, attestation_statement)
             }
         };
 
         AttestationObject {
-            fmt,
-            attStmt,
-            authData,
+            format,
+            attestation_statement,
+            authenticator_data,
         }
     }
 }

@@ -52,7 +52,7 @@ impl PublicKeyCredentialCreationOptions {
     }
 }
 
-#[derive(Clone, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Challenge(pub [u8; 16]);
 
 impl Challenge {

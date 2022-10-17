@@ -11,7 +11,7 @@ pub async fn generate_hash(message: &[u8]) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // use super::*;
 
     #[tokio::test]
     async fn generate_hash() -> Result<(), Box<dyn std::error::Error>> {

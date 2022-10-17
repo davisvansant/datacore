@@ -116,7 +116,7 @@ impl AuthenticationCeremony {
         if let Some(credential_source) =
             credentials.get(&authenticator_assertion_response.user_handle)
         {
-            match credential_source.id.as_bytes() == &authenticator_assertion_response.user_handle {
+            match credential_source.id.as_bytes() == authenticator_assertion_response.user_handle {
                 true => Ok(()),
                 false => Err(AuthenticationError {
                     error: AuthenticationErrorType::OperationError,
@@ -176,7 +176,7 @@ impl AuthenticationCeremony {
         &self,
         client_data_json: &ClientDataJSON,
     ) -> Result<CollectedClientData, AuthenticationError> {
-        match from_slice(&client_data_json) {
+        match from_slice(client_data_json) {
             Ok(collected_client_data) => Ok(collected_client_data),
             Err(_) => Err(AuthenticationError {
                 error: AuthenticationErrorType::OperationError,
