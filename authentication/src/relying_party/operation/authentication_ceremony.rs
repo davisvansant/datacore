@@ -174,7 +174,7 @@ impl AuthenticationCeremony {
 
     pub async fn client_data(
         &self,
-        client_data_json: ClientDataJSON,
+        client_data_json: &ClientDataJSON,
     ) -> Result<CollectedClientData, AuthenticationError> {
         match from_slice(&client_data_json) {
             Ok(collected_client_data) => Ok(collected_client_data),
@@ -280,9 +280,11 @@ impl AuthenticationCeremony {
 
     pub async fn hash(
         &self,
-        _client_data: &CollectedClientData,
+        client_data_json: &ClientDataJSON,
     ) -> Result<Vec<u8>, AuthenticationError> {
-        Ok(Vec::with_capacity(0))
+        let client_data_hash = generate_hash(client_data_json).await;
+
+        Ok(client_data_hash)
     }
 
     pub async fn verifiy_signature(
@@ -596,7 +598,7 @@ mod tests {
         }";
 
         assert!(test_authentication_ceremony
-            .client_data(test_invalid_json.to_vec())
+            .client_data(&test_invalid_json.to_vec())
             .await
             .is_err());
 
@@ -609,7 +611,7 @@ mod tests {
         }";
 
         assert!(test_authentication_ceremony
-            .client_data(test_valid_json.to_vec())
+            .client_data(&test_valid_json.to_vec())
             .await
             .is_ok());
 
@@ -808,6 +810,25 @@ mod tests {
 
         assert!(test_authentication_ceremony
             .verify_user_verification(&test_authenticator_data)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn hash() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let test_collected_client_data = b"
+        { 
+            \"type\": \"webauthn.get\",
+            \"challenge\": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            \"origin\": \"some_test_origin\",
+            \"crossOrigin\": true
+        }";
+
+        assert!(test_authentication_ceremony
+            .hash(&test_collected_client_data.to_vec())
             .await
             .is_ok());
 

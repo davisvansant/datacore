@@ -76,7 +76,7 @@ impl RelyingParty {
         let credential_public_key = operation.credential_public_key(&credential).await?;
         let (client_data_json, authenticator_data, signature) =
             operation.response_values(response).await?;
-        let client_data = operation.client_data(client_data_json).await?;
+        let client_data = operation.client_data(&client_data_json).await?;
 
         let token_binding = TokenBinding::generate().await;
 
@@ -98,7 +98,7 @@ impl RelyingParty {
             .verify_user_verification(&authenticator_data)
             .await?;
 
-        let hash = operation.hash(&client_data).await?;
+        let hash = operation.hash(&client_data_json).await?;
 
         operation
             .verifiy_signature(
