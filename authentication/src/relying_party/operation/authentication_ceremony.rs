@@ -8,7 +8,7 @@ use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientOut
 use crate::api::public_key_credential::PublicKeyCredential;
 use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::AttestedCredentialData;
-use crate::authenticator::data::{AuthenticatorData, UP, UV};
+use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
 use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::security::sha2::generate_hash;
@@ -275,6 +275,18 @@ impl AuthenticationCeremony {
             false => Err(AuthenticationError {
                 error: AuthenticationErrorType::OperationError,
             }),
+        }
+    }
+
+    pub async fn verify_client_extension_results(
+        &self,
+        client_extension_results: &AuthenticationExtensionsClientOutputs,
+        authenticator_data: &AuthenticatorData,
+    ) -> Result<(), AuthenticationError> {
+        if authenticator_data.flags[ED] == 1 {
+            todo!();
+        } else {
+            Ok(())
         }
     }
 

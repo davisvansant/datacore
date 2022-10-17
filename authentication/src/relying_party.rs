@@ -122,6 +122,9 @@ impl RelyingParty {
         operation
             .verify_user_verification(&authenticator_data)
             .await?;
+        operation
+            .verify_client_extension_results(&client_extension_results, &authenticator_data)
+            .await?;
 
         let hash = operation.hash(&client_data_json).await?;
 
