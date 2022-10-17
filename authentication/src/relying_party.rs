@@ -46,10 +46,37 @@ impl RelyingParty {
         operation
             .verify_rp_id_hash(&authenticator_data, &self.identifier)
             .await?;
-
+        operation.verify_user_present(&authenticator_data).await?;
+        operation
+            .verify_user_verification(&authenticator_data)
+            .await?;
+        operation
+            .verify_algorithm(&authenticator_data, &options)
+            .await?;
+        operation
+            .verify_extension_outputs(&client_extension_results, &authenticator_data)
+            .await?;
         operation
             .determine_attestation_statement_format(&fmt)
             .await?;
+
+        let attestation_statement_format = operation
+            .determine_attestation_statement_format(&fmt)
+            .await?;
+        let attestation_statement_output = operation
+            .verify_attestation_statement(
+                &attestation_statement_format,
+                &attestation_statement,
+                &authenticator_data,
+                &hash,
+            )
+            .await?;
+
+        operation
+            .assess_attestation_trustworthiness(attestation_statement_output)
+            .await?;
+        operation.check_credential_id(&authenticator_data).await?;
+        operation.register(options, authenticator_data).await?;
 
         Ok(())
     }
