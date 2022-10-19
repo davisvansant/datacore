@@ -11,8 +11,8 @@ use crate::api::public_key_credential::PublicKeyCredential;
 use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::{
     AttestationObject, AttestationStatement, AttestationStatementFormat,
-    AttestationStatementFormatIdentifier, AttestationType, COSEKey,
-    PackedAttestationStatementSyntax, PackedVerificationProcedureOutput,
+    AttestationStatementFormatIdentifier, AttestationType, AttestationVerificationProcedureOutput,
+    COSEKey, PackedAttestationStatementSyntax,
 };
 use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
 use crate::error::{AuthenticationError, AuthenticationErrorType};
@@ -291,23 +291,17 @@ impl Register {
         attestation_statement: &AttestationStatement,
         authenticator_data: &AuthenticatorData,
         hash: &[u8],
-    ) -> Result<PackedVerificationProcedureOutput, AuthenticationError> {
-        match attestation_statement {
-            AttestationStatement::Packed(packed) => {
-                let packed_output = PackedAttestationStatementSyntax::verification_procedure(
-                    authenticator_data,
-                    hash,
-                )
-                .await?;
+    ) -> Result<AttestationVerificationProcedureOutput, AuthenticationError> {
+        let output = attestation_statement_format
+            .verification_procedure(attestation_statement, authenticator_data, hash)
+            .await?;
 
-                Ok(packed_output)
-            }
-        }
+        Ok(output)
     }
 
     pub async fn assess_attestation_trustworthiness(
         &self,
-        verification_output: PackedVerificationProcedureOutput,
+        verification_output: AttestationVerificationProcedureOutput,
     ) -> Result<(), AuthenticationError> {
         match verification_output.attestation_type {
             AttestationType::None => {}
@@ -899,20 +893,14 @@ mod tests {
 
     #[tokio::test]
     async fn assess_attestation_trustworthiness() -> Result<(), Box<dyn std::error::Error>> {
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
-        let test_hash = Vec::with_capacity(0);
-        let test_attestatiation_verification_output =
-            PackedAttestationStatementSyntax::verification_procedure(
-                &test_authenticator_data,
-                &test_hash,
-            )
-            .await?;
         let test_registration = Register {};
+        let test_attestation_verification_output = AttestationVerificationProcedureOutput {
+            attestation_type: AttestationType::SelfAttestation,
+            x5c: None,
+        };
 
         assert!(test_registration
-            .assess_attestation_trustworthiness(test_attestatiation_verification_output)
+            .assess_attestation_trustworthiness(test_attestation_verification_output)
             .await
             .is_ok());
 
