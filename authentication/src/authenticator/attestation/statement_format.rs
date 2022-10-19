@@ -34,6 +34,22 @@ impl AttestationStatementFormat {
         }
     }
 
+    pub async fn signing_procedure(
+        &self,
+        authenticator_data: &AuthenticatorData,
+        hash: &[u8],
+    ) -> AttestationStatement {
+        match self {
+            AttestationStatementFormat::Packed => {
+                AttestationStatement::Packed(PackedAttestationStatementSyntax {
+                    alg: -8,
+                    sig: [0; 32],
+                    x5c: None,
+                })
+            }
+        }
+    }
+
     pub async fn verification_procedure(
         &self,
         attestation_statement: &AttestationStatement,
