@@ -12,7 +12,7 @@ use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::{
     AttestationObject, AttestationStatement, AttestationStatementFormat,
     AttestationStatementFormatIdentifier, AttestationType, AttestationVerificationProcedureOutput,
-    COSEKey, PackedAttestationStatementSyntax,
+    COSEKey,
 };
 use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
 use crate::error::{AuthenticationError, AuthenticationErrorType};
