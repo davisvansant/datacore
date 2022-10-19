@@ -129,7 +129,7 @@ impl RelyingParty {
         let hash = operation.hash(&client_data_json).await?;
 
         operation
-            .verifiy_signature(
+            .verify_signature(
                 &credential_public_key,
                 &signature,
                 &authenticator_data,

@@ -7,7 +7,7 @@ use crate::api::authenticator_responses::{
 use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientOutputs;
 use crate::api::public_key_credential::PublicKeyCredential;
 use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
-use crate::authenticator::attestation::AttestedCredentialData;
+use crate::authenticator::attestation::{AttestedCredentialData, COSEAlgorithm, COSEKey};
 use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
 use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
@@ -132,11 +132,12 @@ impl AuthenticationCeremony {
     pub async fn credential_public_key(
         &self,
         credential: &PublicKeyCredential,
-    ) -> Result<Vec<u8>, AuthenticationError> {
+    ) -> Result<COSEKey, AuthenticationError> {
         let mut some_credentials_map = HashMap::with_capacity(1);
 
         struct Account {
-            key: Vec<u8>,
+            // key: Vec<u8>,
+            key: COSEKey,
             counter: u32,
             transports: Vec<String>,
         }
@@ -144,7 +145,7 @@ impl AuthenticationCeremony {
         let id = String::from("some_id");
 
         let account = Account {
-            key: Vec::with_capacity(0),
+            key: COSEKey::generate(COSEAlgorithm::EdDSA).await,
             counter: 0,
             transports: Vec::with_capacity(0),
         };
@@ -299,13 +300,20 @@ impl AuthenticationCeremony {
         Ok(client_data_hash)
     }
 
-    pub async fn verifiy_signature(
+    pub async fn verify_signature(
         &self,
-        credential_public_key: &[u8],
+        credential_public_key: &COSEKey,
         signature: &Signature,
         authenticator_data: &AuthenticatorData,
         hash: &[u8],
     ) -> Result<(), AuthenticationError> {
+        let concatenation: Vec<[u8; 0]> = Vec::with_capacity(0);
+
+        match credential_public_key.alg {
+            -8 => println!("run EdDSA signature verification"),
+            _ => unimplemented!(),
+        }
+
         Ok(())
     }
 
@@ -841,6 +849,29 @@ mod tests {
 
         assert!(test_authentication_ceremony
             .hash(&test_collected_client_data.to_vec())
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn verify_signature() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let test_credential_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_signature = Vec::with_capacity(0);
+        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_authenticator_data =
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+        let test_hash = Vec::with_capacity(0);
+
+        assert!(test_authentication_ceremony
+            .verify_signature(
+                &test_credential_public_key,
+                &test_signature,
+                &test_authenticator_data,
+                &test_hash,
+            )
             .await
             .is_ok());
 
