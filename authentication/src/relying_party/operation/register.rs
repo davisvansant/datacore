@@ -12,7 +12,7 @@ use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::{
     AttestationObject, AttestationStatement, AttestationStatementFormat,
     AttestationStatementFormatIdentifier, AttestationType, AttestationVerificationProcedureOutput,
-    COSEKey,
+    COSEKey, PackedAttestationStatementSyntax,
 };
 use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
 use crate::error::{AuthenticationError, AuthenticationErrorType};
@@ -292,11 +292,18 @@ impl Register {
         authenticator_data: &AuthenticatorData,
         hash: &[u8],
     ) -> Result<AttestationVerificationProcedureOutput, AuthenticationError> {
-        let output = attestation_statement_format
-            .verification_procedure(attestation_statement, authenticator_data, hash)
-            .await?;
+        match attestation_statement_format {
+            AttestationStatementFormat::Packed => {
+                let output = PackedAttestationStatementSyntax::verification_procedure(
+                    attestation_statement.packed().await,
+                    authenticator_data,
+                    hash,
+                )
+                .await?;
 
-        Ok(output)
+                Ok(output)
+            }
+        }
     }
 
     pub async fn assess_attestation_trustworthiness(
@@ -744,7 +751,7 @@ mod tests {
 
         match test_perform_decoding.2 {
             AttestationStatement::Packed(test_packed_attestation_statement) => {
-                assert_eq!(test_packed_attestation_statement.alg, 3);
+                assert_eq!(test_packed_attestation_statement.alg, -8);
             }
         }
 
@@ -887,6 +894,40 @@ mod tests {
             )
             .await
             .is_ok());
+
+        let test_packed_attestation_statement_syntax_none =
+            AttestationStatement::Packed(PackedAttestationStatementSyntax {
+                alg: -8,
+                sig: [0; 32],
+                x5c: None,
+            });
+
+        assert!(test_registration
+            .verify_attestation_statement(
+                &test_attestation_statement_format,
+                &test_packed_attestation_statement_syntax_none,
+                &test_authenticator_data,
+                &test_hash,
+            )
+            .await
+            .is_ok());
+
+        let test_packed_attestation_statement_syntax_none_alg =
+            AttestationStatement::Packed(PackedAttestationStatementSyntax {
+                alg: -7,
+                sig: [0; 32],
+                x5c: None,
+            });
+
+        assert!(test_registration
+            .verify_attestation_statement(
+                &test_attestation_statement_format,
+                &test_packed_attestation_statement_syntax_none_alg,
+                &test_authenticator_data,
+                &test_hash,
+            )
+            .await
+            .is_err());
 
         Ok(())
     }
