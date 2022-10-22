@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::api::supporting_data_structures::COSEAlgorithmIdentifier;
+use crate::authenticator::attestation::{AttestationType, AttestationVerificationProcedureOutput};
+use crate::authenticator::data::AuthenticatorData;
+use crate::error::{AuthenticationError, AuthenticationErrorType};
 
 #[derive(Deserialize, Clone, Serialize)]
 pub struct PackedAttestationStatementSyntax {
@@ -11,7 +14,7 @@ pub struct PackedAttestationStatementSyntax {
 
 impl PackedAttestationStatementSyntax {
     pub async fn generate() -> PackedAttestationStatementSyntax {
-        let alg = 3;
+        let alg = -8;
         let sig = [0; 32];
         let mut x5c = Vec::with_capacity(0);
         let attestation_cert = Vec::with_capacity(0);
@@ -24,11 +27,83 @@ impl PackedAttestationStatementSyntax {
             x5c: Some(x5c),
         }
     }
+
+    pub async fn signing_procedure(
+        authenticator_data: &AuthenticatorData,
+        client_data_hash: Vec<u8>,
+    ) -> PackedAttestationStatementSyntax {
+        let mut attest = Vec::with_capacity(500);
+        let serialized_authenticator_data =
+            bincode::serialize(authenticator_data).expect("serialized_data");
+
+        for element in serialized_authenticator_data {
+            attest.push(element);
+        }
+        for element in client_data_hash {
+            attest.push(element);
+        }
+
+        attest.shrink_to_fit();
+
+        println!("{:?}", attest);
+
+        let alg = authenticator_data
+            .attestedcredentialdata
+            .credential_public_key
+            .alg;
+        let sig = [0; 32];
+
+        PackedAttestationStatementSyntax {
+            alg,
+            sig,
+            x5c: None,
+        }
+    }
+
+    pub async fn verification_procedure(
+        attestation_statement: &PackedAttestationStatementSyntax,
+        authenticator_data: &AuthenticatorData,
+        client_data_hash: &[u8],
+    ) -> Result<AttestationVerificationProcedureOutput, AuthenticationError> {
+        match attestation_statement.x5c.is_some() {
+            true => {
+                println!("run basic/attca attestation procedures...");
+
+                Ok(AttestationVerificationProcedureOutput {
+                    attestation_type: AttestationType::BasicAttestation,
+                    x5c: Some(vec![Vec::with_capacity(0)]),
+                })
+            }
+            false => {
+                match attestation_statement.alg
+                    == authenticator_data
+                        .attestedcredentialdata
+                        .credential_public_key
+                        .alg
+                {
+                    true => {
+                        println!("do alg specific verification");
+
+                        // syntax.verification_procedure().await?;
+
+                        Ok(AttestationVerificationProcedureOutput {
+                            attestation_type: AttestationType::SelfAttestation,
+                            x5c: None,
+                        })
+                    }
+                    false => Err(AuthenticationError {
+                        error: AuthenticationErrorType::OperationError,
+                    }),
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::authenticator::attestation::AttestedCredentialData;
     use ciborium::cbor;
 
     #[tokio::test]
@@ -67,6 +142,26 @@ mod tests {
         assert_eq!(test_deserialized_cbor_some.alg, -8);
         assert_eq!(test_deserialized_cbor_some.sig.len(), 32);
         assert_eq!(test_deserialized_cbor_some.x5c.unwrap().len(), 1);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn signing_procedure() -> Result<(), Box<dyn std::error::Error>> {
+        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_authenticator_data =
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+        let test_hash = b"test_client_data".to_vec();
+
+        let test_output = PackedAttestationStatementSyntax::signing_procedure(
+            &test_authenticator_data,
+            test_hash,
+        )
+        .await;
+
+        assert_eq!(test_output.alg, -8);
+        assert_eq!(test_output.sig.len(), 32);
+        assert!(test_output.x5c.is_none());
 
         Ok(())
     }
