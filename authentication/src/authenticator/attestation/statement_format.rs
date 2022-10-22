@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::authenticator::attestation::statement_format::packed::PackedAttestationStatementSyntax;
 use crate::authenticator::attestation::AttestationType;
-use crate::authenticator::data::AuthenticatorData;
+// use crate::authenticator::data::AuthenticatorData;
 
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 
@@ -22,6 +22,14 @@ pub enum AttestationStatement {
     Packed(PackedAttestationStatementSyntax),
 }
 
+impl AttestationStatement {
+    pub async fn packed(&self) -> &PackedAttestationStatementSyntax {
+        match self {
+            AttestationStatement::Packed(syntax) => syntax,
+        }
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum AttestationStatementFormat {
     Packed,
@@ -31,36 +39,6 @@ impl AttestationStatementFormat {
     pub async fn identifier(&self) -> AttestationStatementFormatIdentifier {
         match self {
             AttestationStatementFormat::Packed => String::from("packed"),
-        }
-    }
-
-    pub async fn signing_procedure(
-        &self,
-        authenticator_data: &AuthenticatorData,
-        hash: &[u8],
-    ) -> AttestationStatement {
-        match self {
-            AttestationStatementFormat::Packed => {
-                AttestationStatement::Packed(PackedAttestationStatementSyntax {
-                    alg: -8,
-                    sig: [0; 32],
-                    x5c: None,
-                })
-            }
-        }
-    }
-
-    pub async fn verification_procedure(
-        &self,
-        attestation_statement: &AttestationStatement,
-        authenticator_data: &AuthenticatorData,
-        client_data_hash: &[u8],
-    ) -> Result<AttestationVerificationProcedureOutput, AuthenticationError> {
-        match self {
-            AttestationStatementFormat::Packed => Ok(AttestationVerificationProcedureOutput {
-                attestation_type: AttestationType::SelfAttestation,
-                x5c: None,
-            }),
         }
     }
 }

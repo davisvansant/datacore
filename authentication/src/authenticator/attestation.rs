@@ -27,9 +27,12 @@ impl AttestationObject {
         hash: Vec<u8>,
     ) -> AttestationObject {
         let format = attestation_format.identifier().await;
-        let attestation_statement = attestation_format
-            .signing_procedure(&authenticator_data, &hash)
-            .await;
+        let attestation_statement = match attestation_format {
+            AttestationStatementFormat::Packed => AttestationStatement::Packed(
+                PackedAttestationStatementSyntax::signing_procedure(&authenticator_data, hash)
+                    .await,
+            ),
+        };
 
         AttestationObject {
             format,
