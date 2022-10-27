@@ -10,7 +10,7 @@ pub const ED: usize = 7;
 pub type RpIdHash = Vec<u8>;
 pub type SignCount = u32;
 
-#[derive(Deserialize, Clone, Serialize)]
+#[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct AuthenticatorData {
     pub rp_id_hash: RpIdHash,
     pub flags: [u8; 8],
