@@ -118,12 +118,15 @@ mod tests {
 
         assert_eq!(test_assertion_cbor, test_cose_key_cbor);
 
+        let test_deserialized_cose_key: OctetKeyPair =
+            ciborium::de::from_reader(&mut test_assertion_cbor.as_slice())?;
+
         match test_cose_key {
             COSEKey::OctetKeyPair(test_okp) => {
-                assert_eq!(test_okp.kty, COSEKeyType::Okp);
-                assert_eq!(test_okp.alg, COSEAlgorithm::EdDSA);
-                assert_eq!(test_okp.crv, COSEEllipticCurve::Ed25519);
-                assert_eq!(test_okp.x, Some([1; 32]));
+                assert_eq!(test_okp.kty, test_deserialized_cose_key.kty);
+                assert_eq!(test_okp.alg, test_deserialized_cose_key.alg);
+                assert_eq!(test_okp.crv, test_deserialized_cose_key.crv);
+                assert_eq!(test_okp.x, test_deserialized_cose_key.x);
             }
         }
 
