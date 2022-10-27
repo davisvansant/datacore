@@ -50,7 +50,8 @@ impl PackedAttestationStatementSyntax {
         let alg = authenticator_data
             .attestedcredentialdata
             .credential_public_key
-            .alg;
+            .algorithm()
+            .await;
         let sig = [0; 32];
 
         PackedAttestationStatementSyntax {
@@ -79,7 +80,8 @@ impl PackedAttestationStatementSyntax {
                     == authenticator_data
                         .attestedcredentialdata
                         .credential_public_key
-                        .alg
+                        .algorithm()
+                        .await
                 {
                     true => {
                         println!("do alg specific verification");
@@ -152,7 +154,6 @@ mod tests {
         let test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_hash = b"test_client_data".to_vec();
-
         let test_output = PackedAttestationStatementSyntax::signing_procedure(
             &test_authenticator_data,
             test_hash,

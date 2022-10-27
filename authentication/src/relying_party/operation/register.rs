@@ -244,7 +244,8 @@ impl Register {
             match authenticator_data
                 .attestedcredentialdata
                 .credential_public_key
-                .alg
+                .algorithm()
+                .await
                 == public_key_credential_parameters.algorithm
             {
                 true => {

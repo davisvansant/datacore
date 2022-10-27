@@ -309,10 +309,10 @@ impl AuthenticationCeremony {
     ) -> Result<(), AuthenticationError> {
         let concatenation: Vec<[u8; 0]> = Vec::with_capacity(0);
 
-        match credential_public_key.alg {
-            -8 => println!("run EdDSA signature verification"),
-            _ => unimplemented!(),
-        }
+        // match credential_public_key.alg {
+        //     -8 => println!("run EdDSA signature verification"),
+        //     _ => unimplemented!(),
+        // }
 
         Ok(())
     }
