@@ -2,47 +2,45 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::supporting_data_structures::COSEAlgorithmIdentifier;
 
-#[derive(Deserialize, Clone, Serialize)]
-pub struct COSEKey {
-    pub kty: KeyType,
-    pub kid: String,
-    pub alg: COSEAlgorithmIdentifier,
-    pub key_ops: Vec<KeyOperation>,
-    pub base_iv: Option<String>,
+#[derive(Debug, Deserialize, Clone, Serialize)]
+#[serde(untagged)]
+pub enum COSEKey {
+    OctetKeyPair(OctetKeyPair),
 }
 
 impl COSEKey {
     pub async fn generate(algorithm: COSEAlgorithm) -> COSEKey {
-        let mut key_ops = Vec::with_capacity(10);
-
         match algorithm {
-            COSEAlgorithm::EdDSA => COSEKey {
-                kty: KeyType::Okp,
-                kid: String::from("some_key_id"),
-                alg: COSEAlgorithm::EdDSA.identifier().await,
-                key_ops: {
-                    key_ops.push(KeyOperation::Sign);
-                    key_ops.push(KeyOperation::Verify);
-
-                    key_ops
-                },
-                base_iv: None,
-            },
+            COSEAlgorithm::EdDSA => COSEKey::OctetKeyPair(OctetKeyPair {
+                kty: COSEKeyType::Okp,
+                alg: COSEAlgorithm::EdDSA,
+                key_ops: None,
+                crv: COSEEllipticCurve::Ed25519,
+                x: Some([1; 32]),
+                d: None,
+            }),
             COSEAlgorithm::ES256 => unimplemented!(),
+        }
+    }
+
+    pub async fn algorithm(&self) -> COSEAlgorithmIdentifier {
+        match self {
+            COSEKey::OctetKeyPair(parameters) => parameters.alg.identifier().await,
         }
     }
 }
 
-#[derive(Deserialize, Clone, Serialize)]
-pub enum KeyType {
-    Okp = 1,
-    Ec2 = 2,
-    Symmetric = 4,
+#[derive(Debug, Deserialize, Clone, PartialEq, Serialize)]
+pub enum COSEEllipticCurve {
+    #[serde(rename = "6")]
+    Ed25519,
 }
 
-#[derive(Deserialize, Clone, Eq, PartialEq, Serialize)]
+#[derive(Debug, Deserialize, Clone, Eq, PartialEq, Serialize)]
 pub enum COSEAlgorithm {
+    #[serde(rename = "-8")]
     EdDSA,
+    #[serde(rename = "-7")]
     ES256,
 }
 
@@ -55,28 +53,80 @@ impl COSEAlgorithm {
     }
 }
 
-#[derive(Deserialize, Clone, Serialize)]
-pub enum EllipticCurve {
-    Ed25519 = 6,
-}
-
-#[derive(Deserialize, Clone, Serialize)]
-pub enum KeyOperation {
-    Sign = 1,
-    Verify = 2,
-    Encrypt = 3,
-    Decrypt = 4,
-    WrapKey = 5,
-    UnwrapKey = 6,
-    DeriveKey = 7,
-    DeriveBits = 8,
-    MACCreate = 9,
-    MACVerify = 10,
-}
-
-#[derive(Deserialize, Clone, Serialize)]
+#[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct OctetKeyPair {
-    crv: EllipticCurve,
-    x: [u8; 32],
-    d: [u8; 32],
+    #[serde(rename = "1")]
+    pub kty: COSEKeyType,
+    #[serde(rename = "3")]
+    pub alg: COSEAlgorithm,
+    #[serde(rename = "4")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_ops: Option<Vec<COSEKeyOperation>>,
+    #[serde(rename = "-1")]
+    crv: COSEEllipticCurve,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "-2")]
+    x: Option<[u8; 32]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "-4")]
+    d: Option<[u8; 32]>,
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq, Serialize)]
+pub enum COSEKeyType {
+    #[serde(rename = "1")]
+    Okp,
+    Ec2,
+    Symmetric,
+}
+
+#[derive(Debug, Deserialize, Clone, Serialize)]
+pub enum COSEKeyOperation {
+    #[serde(rename = "1")]
+    Sign,
+    #[serde(rename = "2")]
+    Verify,
+    Encrypt,
+    Decrypt,
+    WrapKey,
+    UnwrapKey,
+    DeriveKey,
+    DeriveBits,
+    MACCreate,
+    MACVerify,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ciborium::cbor;
+
+    #[tokio::test]
+    async fn octet_key_pair() -> Result<(), Box<dyn std::error::Error>> {
+        let test_cose_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_cose_key_cbor_value = cbor!({
+            "1" => "1",
+            "3" => "-8",
+            "-1" => "6",
+            "-2" => [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        })?;
+        let mut test_cose_key_cbor = Vec::with_capacity(300);
+        let mut test_assertion_cbor = Vec::with_capacity(300);
+
+        ciborium::ser::into_writer(&test_cose_key, &mut test_cose_key_cbor)?;
+        ciborium::ser::into_writer(&test_cose_key_cbor_value, &mut test_assertion_cbor)?;
+
+        assert_eq!(test_assertion_cbor, test_cose_key_cbor);
+
+        match test_cose_key {
+            COSEKey::OctetKeyPair(test_okp) => {
+                assert_eq!(test_okp.kty, COSEKeyType::Okp);
+                assert_eq!(test_okp.alg, COSEAlgorithm::EdDSA);
+                assert_eq!(test_okp.crv, COSEEllipticCurve::Ed25519);
+                assert_eq!(test_okp.x, Some([1; 32]));
+            }
+        }
+
+        Ok(())
+    }
 }
