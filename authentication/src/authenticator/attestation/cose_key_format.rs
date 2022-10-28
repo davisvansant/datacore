@@ -1,3 +1,6 @@
+use ed25519_dalek::Keypair;
+use rand_chacha::rand_core::SeedableRng;
+use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::api::supporting_data_structures::COSEAlgorithmIdentifier;
@@ -11,14 +14,19 @@ pub enum COSEKey {
 impl COSEKey {
     pub async fn generate(algorithm: COSEAlgorithm) -> COSEKey {
         match algorithm {
-            COSEAlgorithm::EdDSA => COSEKey::OctetKeyPair(OctetKeyPair {
-                kty: COSEKeyType::Okp,
-                alg: COSEAlgorithm::EdDSA,
-                key_ops: None,
-                crv: COSEEllipticCurve::Ed25519,
-                x: Some([1; 32]),
-                d: None,
-            }),
+            COSEAlgorithm::EdDSA => {
+                let mut csprng = ChaCha20Rng::from_entropy();
+                let keypair = Keypair::generate(&mut csprng);
+
+                COSEKey::OctetKeyPair(OctetKeyPair {
+                    kty: COSEKeyType::Okp,
+                    alg: COSEAlgorithm::EdDSA,
+                    key_ops: None,
+                    crv: COSEEllipticCurve::Ed25519,
+                    x: Some(keypair.public.to_bytes()),
+                    d: None,
+                })
+            }
             COSEAlgorithm::ES256 => unimplemented!(),
         }
     }
@@ -103,13 +111,25 @@ mod tests {
 
     #[tokio::test]
     async fn octet_key_pair() -> Result<(), Box<dyn std::error::Error>> {
-        let test_cose_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let mut test_csprng = ChaCha20Rng::from_entropy();
+        let test_keypair = Keypair::generate(&mut test_csprng);
+
+        let test_cose_key = COSEKey::OctetKeyPair(OctetKeyPair {
+            kty: COSEKeyType::Okp,
+            alg: COSEAlgorithm::EdDSA,
+            key_ops: None,
+            crv: COSEEllipticCurve::Ed25519,
+            x: Some(test_keypair.public.to_bytes()),
+            d: None,
+        });
+
         let test_cose_key_cbor_value = cbor!({
             "1" => "1",
             "3" => "-8",
             "-1" => "6",
-            "-2" => [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            "-2" => test_keypair.public.to_bytes(),
         })?;
+
         let mut test_cose_key_cbor = Vec::with_capacity(300);
         let mut test_assertion_cbor = Vec::with_capacity(300);
 
