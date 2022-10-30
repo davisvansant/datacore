@@ -1,4 +1,4 @@
-use ed25519_dalek::Keypair;
+use ed25519_dalek::{ExpandedSecretKey, Keypair};
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
@@ -12,20 +12,23 @@ pub enum COSEKey {
 }
 
 impl COSEKey {
-    pub async fn generate(algorithm: COSEAlgorithm) -> COSEKey {
+    pub async fn generate(algorithm: COSEAlgorithm) -> (COSEKey, ExpandedSecretKey) {
         match algorithm {
             COSEAlgorithm::EdDSA => {
                 let mut csprng = ChaCha20Rng::from_entropy();
                 let keypair = Keypair::generate(&mut csprng);
 
-                COSEKey::OctetKeyPair(OctetKeyPair {
-                    kty: COSEKeyType::Okp,
-                    alg: COSEAlgorithm::EdDSA,
-                    key_ops: None,
-                    crv: COSEEllipticCurve::Ed25519,
-                    x: Some(keypair.public.to_bytes()),
-                    d: None,
-                })
+                (
+                    COSEKey::OctetKeyPair(OctetKeyPair {
+                        kty: COSEKeyType::Okp,
+                        alg: COSEAlgorithm::EdDSA,
+                        key_ops: None,
+                        crv: COSEEllipticCurve::Ed25519,
+                        x: Some(keypair.public.to_bytes()),
+                        d: None,
+                    }),
+                    ExpandedSecretKey::from(&keypair.secret),
+                )
             }
             COSEAlgorithm::ES256 => unimplemented!(),
         }
@@ -34,6 +37,15 @@ impl COSEKey {
     pub async fn algorithm(&self) -> COSEAlgorithmIdentifier {
         match self {
             COSEKey::OctetKeyPair(parameters) => parameters.alg.identifier().await,
+        }
+    }
+
+    pub async fn public_key(&self) -> [u8; 32] {
+        match self {
+            COSEKey::OctetKeyPair(parameters) => match parameters.x {
+                Some(x) => x,
+                None => panic!("add better error handling here"),
+            },
         }
     }
 }
