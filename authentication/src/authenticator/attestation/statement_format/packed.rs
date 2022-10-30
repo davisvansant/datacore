@@ -1,3 +1,4 @@
+use ed25519_dalek::{PublicKey, Signature};
 use serde::{Deserialize, Serialize};
 
 use crate::api::supporting_data_structures::COSEAlgorithmIdentifier;
@@ -8,14 +9,14 @@ use crate::error::{AuthenticationError, AuthenticationErrorType};
 #[derive(Deserialize, Clone, Serialize)]
 pub struct PackedAttestationStatementSyntax {
     pub alg: COSEAlgorithmIdentifier,
-    pub sig: [u8; 32],
+    pub sig: Vec<u8>,
     pub x5c: Option<Vec<Vec<u8>>>,
 }
 
 impl PackedAttestationStatementSyntax {
     pub async fn generate() -> PackedAttestationStatementSyntax {
         let alg = -8;
-        let sig = [0; 32];
+        let sig = [0; 64].to_vec();
         let mut x5c = Vec::with_capacity(0);
         let attestation_cert = Vec::with_capacity(0);
 
@@ -52,7 +53,7 @@ impl PackedAttestationStatementSyntax {
             .credential_public_key
             .algorithm()
             .await;
-        let sig = [0; 32];
+        let sig = [0; 64].to_vec();
 
         PackedAttestationStatementSyntax {
             alg,
@@ -86,7 +87,37 @@ impl PackedAttestationStatementSyntax {
                     true => {
                         println!("do alg specific verification");
 
-                        // syntax.verification_procedure().await?;
+                        let public_key = authenticator_data
+                            .attestedcredentialdata
+                            .credential_public_key
+                            .public_key()
+                            .await;
+
+                        match attestation_statement.alg {
+                            -8 => {
+                                if let Ok(public_key) = PublicKey::from_bytes(&public_key) {
+                                    let signature =
+                                        Signature::from_bytes(&attestation_statement.sig)
+                                            .expect("signature::from_bytes failed");
+
+                                    match public_key.verify_strict(client_data_hash, &signature) {
+                                        Ok(()) => (),
+                                        Err(error) => {
+                                            println!("error -> {:?}", error);
+
+                                            return Err(AuthenticationError {
+                                                error: AuthenticationErrorType::OperationError,
+                                            });
+                                        }
+                                    }
+                                } else {
+                                    return Err(AuthenticationError {
+                                        error: AuthenticationErrorType::OperationError,
+                                    });
+                                }
+                            }
+                            _ => unimplemented!(),
+                        }
 
                         Ok(AttestationVerificationProcedureOutput {
                             attestation_type: AttestationType::SelfAttestation,
@@ -112,7 +143,7 @@ mod tests {
     async fn serde() -> Result<(), Box<dyn std::error::Error>> {
         let test_packed_attestation_statement_syntax_some = PackedAttestationStatementSyntax {
             alg: -8,
-            sig: [0; 32],
+            sig: [0; 64].to_vec(),
             x5c: Some(vec![Vec::<u8>::with_capacity(0)]),
         };
 
@@ -123,7 +154,7 @@ mod tests {
             &mut test_cbor_some,
         )?;
 
-        let test_cbor_sig = [0; 32];
+        let test_cbor_sig = [0; 64].to_vec();
 
         let test_assertion_cbor_value = cbor!({
             "alg" => -8,
@@ -142,7 +173,7 @@ mod tests {
             ciborium::de::from_reader(test_cbor_some.as_slice())?;
 
         assert_eq!(test_deserialized_cbor_some.alg, -8);
-        assert_eq!(test_deserialized_cbor_some.sig.len(), 32);
+        assert_eq!(test_deserialized_cbor_some.sig.len(), 64);
         assert_eq!(test_deserialized_cbor_some.x5c.unwrap().len(), 1);
 
         Ok(())
@@ -161,7 +192,7 @@ mod tests {
         .await;
 
         assert_eq!(test_output.alg, -8);
-        assert_eq!(test_output.sig.len(), 32);
+        assert_eq!(test_output.sig.len(), 64);
         assert!(test_output.x5c.is_none());
 
         Ok(())
