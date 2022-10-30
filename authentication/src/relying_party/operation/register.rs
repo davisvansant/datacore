@@ -367,9 +367,10 @@ mod tests {
     use crate::api::credential_generation_parameters::PublicKeyCredentialParameters;
     use crate::api::supporting_data_structures::TokenBindingStatus;
     use crate::authenticator::attestation::{
-        AttestedCredentialData, PackedAttestationStatementSyntax,
+        AttestedCredentialData, COSEAlgorithm, PackedAttestationStatementSyntax,
     };
     use ciborium::cbor;
+    use ed25519_dalek::PublicKey;
 
     #[tokio::test]
     async fn public_key_credential_creation_options() -> Result<(), Box<dyn std::error::Error>> {
@@ -896,18 +897,33 @@ mod tests {
             .await
             .is_ok());
 
+        let test_cose_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_signature = test_cose_key
+            .1
+            .sign(&test_hash, &PublicKey::from(&test_cose_key.1));
+
         let test_packed_attestation_statement_syntax_none =
             AttestationStatement::Packed(PackedAttestationStatementSyntax {
                 alg: -8,
-                sig: [0; 32],
+                sig: test_signature.to_bytes().to_vec(),
                 x5c: None,
             });
+
+        let test_another_credential_data = AttestedCredentialData {
+            aaguid: Vec::with_capacity(0),
+            credential_id_length: 0,
+            credential_id: Vec::with_capacity(0),
+            credential_public_key: test_cose_key.0,
+        };
+
+        let test_another_authenticator_data =
+            AuthenticatorData::generate("test_rp_id", test_another_credential_data).await;
 
         assert!(test_registration
             .verify_attestation_statement(
                 &test_attestation_statement_format,
                 &test_packed_attestation_statement_syntax_none,
-                &test_authenticator_data,
+                &test_another_authenticator_data,
                 &test_hash,
             )
             .await
@@ -916,7 +932,7 @@ mod tests {
         let test_packed_attestation_statement_syntax_none_alg =
             AttestationStatement::Packed(PackedAttestationStatementSyntax {
                 alg: -7,
-                sig: [0; 32],
+                sig: [0; 64].to_vec(),
                 x5c: None,
             });
 

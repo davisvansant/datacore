@@ -145,7 +145,7 @@ impl AuthenticationCeremony {
         let id = String::from("some_id");
 
         let account = Account {
-            key: COSEKey::generate(COSEAlgorithm::EdDSA).await,
+            key: COSEKey::generate(COSEAlgorithm::EdDSA).await.0,
             counter: 0,
             transports: Vec::with_capacity(0),
         };
@@ -867,7 +867,7 @@ mod tests {
 
         assert!(test_authentication_ceremony
             .verify_signature(
-                &test_credential_public_key,
+                &test_credential_public_key.0,
                 &test_signature,
                 &test_authenticator_data,
                 &test_hash,
