@@ -55,7 +55,7 @@ impl AttestedCredentialData {
         let aaguid = Vec::with_capacity(0);
         let credential_id_length = 0;
         let credential_id = Vec::with_capacity(0);
-        let credential_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let credential_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await.0;
 
         AttestedCredentialData {
             aaguid,
