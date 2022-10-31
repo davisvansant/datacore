@@ -26,9 +26,9 @@ impl PublicKeyCredential {
 }
 
 pub struct CredentialCreationOptions {
-    public_key: PublicKeyCredentialCreationOptions,
+    pub public_key: PublicKeyCredentialCreationOptions,
 }
 
 pub struct CredentialRequestOptions {
-    public_key: PublicKeyCredentialRequestOptions,
+    pub public_key: PublicKeyCredentialRequestOptions,
 }
