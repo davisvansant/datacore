@@ -307,12 +307,9 @@ impl AuthenticationCeremony {
         authenticator_data: &AuthenticatorData,
         hash: &[u8],
     ) -> Result<(), AuthenticationError> {
-        let concatenation: Vec<[u8; 0]> = Vec::with_capacity(0);
-
-        // match credential_public_key.alg {
-        //     -8 => println!("run EdDSA signature verification"),
-        //     _ => unimplemented!(),
-        // }
+        credential_public_key
+            .verify_signature(signature, authenticator_data, hash)
+            .await?;
 
         Ok(())
     }
@@ -369,6 +366,7 @@ mod tests {
     use crate::api::supporting_data_structures::{
         PublicKeyCredentialDescriptor, TokenBinding, TokenBindingStatus,
     };
+    use ed25519_dalek::PublicKey;
 
     #[tokio::test]
     async fn public_key_credential_request_options() -> Result<(), Box<dyn std::error::Error>> {
@@ -859,16 +857,39 @@ mod tests {
     async fn verify_signature() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
         let test_credential_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
-        let test_signature = Vec::with_capacity(0);
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data = AttestedCredentialData {
+            aaguid: Vec::with_capacity(0),
+            credential_id_length: 0,
+            credential_id: Vec::with_capacity(0),
+            credential_public_key: test_credential_public_key.0.to_owned(),
+        };
         let test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
-        let test_hash = Vec::with_capacity(0);
+        let test_hash = b"test_client_data".to_vec();
+        let test_serialized_authenticator_data =
+            bincode::serialize(&test_authenticator_data).expect("serialized_data");
+
+        let mut test_concatenation = Vec::with_capacity(500);
+
+        for element in test_serialized_authenticator_data {
+            test_concatenation.push(element.to_owned());
+        }
+
+        for element in &test_hash {
+            test_concatenation.push(element.to_owned());
+        }
+
+        test_concatenation.shrink_to_fit();
+
+        let test_signature = test_credential_public_key.1.sign(
+            &test_concatenation,
+            &PublicKey::from(&test_credential_public_key.1),
+        );
 
         assert!(test_authentication_ceremony
             .verify_signature(
                 &test_credential_public_key.0,
-                &test_signature,
+                &test_signature.to_bytes().to_vec(),
                 &test_authenticator_data,
                 &test_hash,
             )
