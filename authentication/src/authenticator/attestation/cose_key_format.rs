@@ -1,9 +1,11 @@
-use ed25519_dalek::{ExpandedSecretKey, Keypair};
+use ed25519_dalek::{ExpandedSecretKey, Keypair, PublicKey, Signature};
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::api::supporting_data_structures::COSEAlgorithmIdentifier;
+use crate::authenticator::data::AuthenticatorData;
+use crate::error::{AuthenticationError, AuthenticationErrorType};
 
 #[derive(Debug, Deserialize, Clone, Serialize)]
 #[serde(untagged)]
@@ -46,6 +48,54 @@ impl COSEKey {
                 Some(x) => x,
                 None => panic!("add better error handling here"),
             },
+        }
+    }
+
+    pub async fn verify_signature(
+        &self,
+        signature: &[u8],
+        authenticator_data: &AuthenticatorData,
+        hash: &[u8],
+    ) -> Result<(), AuthenticationError> {
+        match self {
+            COSEKey::OctetKeyPair(parameters) => {
+                let public_key_bytes = self.public_key().await;
+
+                if let Ok(public_key) = PublicKey::from_bytes(&public_key_bytes) {
+                    let signature =
+                        Signature::from_bytes(signature).expect("signature::from_bytes failed");
+
+                    let serialized_authenticator_data =
+                        bincode::serialize(authenticator_data).expect("serialized_data");
+
+                    let mut concatenation = Vec::with_capacity(500);
+
+                    for element in serialized_authenticator_data {
+                        concatenation.push(element.to_owned());
+                    }
+
+                    for element in hash {
+                        concatenation.push(element.to_owned());
+                    }
+
+                    concatenation.shrink_to_fit();
+
+                    match public_key.verify_strict(concatenation.as_slice(), &signature) {
+                        Ok(()) => Ok(()),
+                        Err(error) => {
+                            println!("error -> {:?}", error);
+
+                            return Err(AuthenticationError {
+                                error: AuthenticationErrorType::OperationError,
+                            });
+                        }
+                    }
+                } else {
+                    return Err(AuthenticationError {
+                        error: AuthenticationErrorType::OperationError,
+                    });
+                }
+            }
         }
     }
 }
