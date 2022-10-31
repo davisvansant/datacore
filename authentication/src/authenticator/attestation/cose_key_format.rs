@@ -58,7 +58,7 @@ impl COSEKey {
         hash: &[u8],
     ) -> Result<(), AuthenticationError> {
         match self {
-            COSEKey::OctetKeyPair(parameters) => {
+            COSEKey::OctetKeyPair(_) => {
                 let public_key_bytes = self.public_key().await;
 
                 if let Ok(public_key) = PublicKey::from_bytes(&public_key_bytes) {
@@ -85,22 +85,22 @@ impl COSEKey {
                         Err(error) => {
                             println!("error -> {:?}", error);
 
-                            return Err(AuthenticationError {
+                            Err(AuthenticationError {
                                 error: AuthenticationErrorType::OperationError,
-                            });
+                            })
                         }
                     }
                 } else {
-                    return Err(AuthenticationError {
+                    Err(AuthenticationError {
                         error: AuthenticationErrorType::OperationError,
-                    });
+                    })
                 }
             }
         }
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Serialize)]
+#[derive(Debug, Deserialize, Clone, Eq, PartialEq, Serialize)]
 pub enum COSEEllipticCurve {
     #[serde(rename = "6")]
     Ed25519,
@@ -142,7 +142,7 @@ pub struct OctetKeyPair {
     d: Option<[u8; 32]>,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Serialize)]
+#[derive(Debug, Deserialize, Clone, Eq, PartialEq, Serialize)]
 pub enum COSEKeyType {
     #[serde(rename = "1")]
     Okp,

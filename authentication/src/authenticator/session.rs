@@ -23,12 +23,12 @@ impl Session {
         operation.require_user_verification().await?;
         operation.collect_authorization_gesture().await?;
 
-        let processed_extensions = operation.process_extensions().await?;
+        // let _processed_extensions = operation.process_extensions().await?;
 
         operation.signature_counter().await?;
 
         let attested_credential_data = operation.attested_credential_data().await?;
-        let authenticator_data = operation.authenticator_data().await?;
+        // let _authenticator_data = operation.authenticator_data().await?;
         let attestation_object = operation
             .create_attestation_object(attested_credential_data)
             .await?;
@@ -42,16 +42,16 @@ impl Session {
     ) -> Result<(), AuthenticationError> {
         operation.check_parameters().await?;
 
-        let credential_options = operation.credential_options().await?;
+        let _credential_options = operation.credential_options().await?;
 
         operation.collect_authorization_gesture().await?;
 
-        let processed_extensions = operation.process_extensions().await?;
+        // let _processed_extensions = operation.process_extensions().await?;
 
         operation.increment_signature_counter().await?;
 
-        let authenticator_data = operation.authenticator_data().await?;
-        let signature = operation.assertion_signature().await?;
+        // let _authenticator_data = operation.authenticator_data().await?;
+        // let _signature = operation.assertion_signature().await?;
 
         Ok(())
     }

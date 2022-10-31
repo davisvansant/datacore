@@ -29,7 +29,7 @@ impl AuthenticationCeremony {
 
     pub async fn call_credentials_get(
         &self,
-        options: &PublicKeyCredentialRequestOptions,
+        _options: &PublicKeyCredentialRequestOptions,
     ) -> Result<PublicKeyCredential, AuthenticationError> {
         let r#type = String::from("public-key");
         let id = String::from("some_key_id");
@@ -281,7 +281,7 @@ impl AuthenticationCeremony {
 
     pub async fn verify_client_extension_results(
         &self,
-        client_extension_results: &AuthenticationExtensionsClientOutputs,
+        _client_extension_results: &AuthenticationExtensionsClientOutputs,
         authenticator_data: &AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
         if authenticator_data.flags[ED] == 1 {

@@ -267,7 +267,7 @@ impl Register {
 
     pub async fn verify_extension_outputs(
         &self,
-        client_extension_results: &AuthenticationExtensionsClientOutputs,
+        _client_extension_results: &AuthenticationExtensionsClientOutputs,
         authenticator_data: &AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
         if authenticator_data.flags[ED] == 1 {
