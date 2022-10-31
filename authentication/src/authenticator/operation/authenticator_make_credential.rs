@@ -1,3 +1,8 @@
+use crate::api::credential_creation_options::{
+    PublicKeyCredentialRpEntity, PublicKeyCredentialUserEntity,
+};
+use crate::api::credential_generation_parameters::PublicKeyCredentialParameters;
+use crate::api::supporting_data_structures::PublicKeyCredentialDescriptor;
 use crate::authenticator::attestation::{
     AttestationObject, AttestationStatementFormat, AttestedCredentialData,
 };
@@ -7,13 +12,13 @@ use crate::error::AuthenticationError;
 
 pub struct AuthenticatorMakeCrendential {
     hash: Vec<u8>,
-    rp_entity: String,
-    user_entity: String,
+    rp_entity: PublicKeyCredentialRpEntity,
+    user_entity: PublicKeyCredentialUserEntity,
     require_resident_key: bool,
     require_user_presence: bool,
     require_user_verification: bool,
-    cred_types_and_pub_key_apis: String,
-    exclude_credential_descriptor_list: Option<String>,
+    cred_types_and_pub_key_apis: Vec<PublicKeyCredentialParameters>,
+    exclude_credential_descriptor_list: Option<Vec<PublicKeyCredentialDescriptor>>,
     enterprise_attestation_possible: bool,
     extensions: String,
 }
@@ -21,13 +26,13 @@ pub struct AuthenticatorMakeCrendential {
 impl AuthenticatorMakeCrendential {
     pub async fn collect_parameters(
         hash: Vec<u8>,
-        rp_entity: String,
-        user_entity: String,
+        rp_entity: PublicKeyCredentialRpEntity,
+        user_entity: PublicKeyCredentialUserEntity,
         require_resident_key: bool,
         require_user_presence: bool,
         require_user_verification: bool,
-        cred_types_and_pub_key_apis: String,
-        exclude_credential_descriptor_list: Option<String>,
+        cred_types_and_pub_key_apis: Vec<PublicKeyCredentialParameters>,
+        exclude_credential_descriptor_list: Option<Vec<PublicKeyCredentialDescriptor>>,
         enterprise_attestation_possible: bool,
         extensions: String,
     ) -> AuthenticatorMakeCrendential {
@@ -97,7 +102,7 @@ impl AuthenticatorMakeCrendential {
 
         let attestation_format = AttestationStatementFormat::Packed;
         let authenticator_data =
-            AuthenticatorData::generate(&self.rp_entity, attested_credential_data).await;
+            AuthenticatorData::generate(&self.rp_entity.id, attested_credential_data).await;
         let hash = Vec::with_capacity(0);
 
         let attestation_object =
