@@ -52,6 +52,7 @@ pub enum TokenBindingStatus {
     Supported,
 }
 
+#[derive(Eq, PartialEq)]
 pub enum PublicKeyCredentialType {
     PublicKey,
 }
