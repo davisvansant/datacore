@@ -148,7 +148,17 @@ impl AuthenticatorMakeCrendential {
     }
 
     pub async fn require_user_verification(&self) -> Result<(), AuthenticationError> {
-        Ok(())
+        let user_verification = true;
+
+        match self.require_user_verification {
+            true => match user_verification {
+                true => Ok(()),
+                false => Err(AuthenticationError {
+                    error: AuthenticationErrorType::ConstraintError,
+                }),
+            },
+            false => Ok(()),
+        }
     }
 
     pub async fn collect_authorization_gesture(&self) -> Result<(), AuthenticationError> {
@@ -426,6 +436,59 @@ mod tests {
         };
 
         assert!(test_false.require_resident_key().await.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn require_user_verification() -> Result<(), Box<dyn std::error::Error>> {
+        let test_true = AuthenticatorMakeCrendential {
+            hash: Vec::with_capacity(0),
+            rp_entity: PublicKeyCredentialRpEntity {
+                id: String::from("some_id"),
+            },
+            user_entity: PublicKeyCredentialUserEntity {
+                name: String::from("some_name"),
+                display_name: String::from("some_display_name"),
+                id: [0; 16],
+            },
+            require_resident_key: false,
+            require_user_presence: false,
+            require_user_verification: true,
+            cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
+                r#type: PublicKeyCredentialType::PublicKey,
+                algorithm: -8,
+            }],
+            exclude_credential_descriptor_list: None,
+            enterprise_attestation_possible: false,
+            extensions: String::from("some_extensions"),
+        };
+
+        assert!(test_true.require_user_verification().await.is_ok());
+
+        let test_false = AuthenticatorMakeCrendential {
+            hash: Vec::with_capacity(0),
+            rp_entity: PublicKeyCredentialRpEntity {
+                id: String::from("some_id"),
+            },
+            user_entity: PublicKeyCredentialUserEntity {
+                name: String::from("some_name"),
+                display_name: String::from("some_display_name"),
+                id: [0; 16],
+            },
+            require_resident_key: false,
+            require_user_presence: false,
+            require_user_verification: true,
+            cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
+                r#type: PublicKeyCredentialType::PublicKey,
+                algorithm: -8,
+            }],
+            exclude_credential_descriptor_list: None,
+            enterprise_attestation_possible: false,
+            extensions: String::from("some_extensions"),
+        };
+
+        assert!(test_false.require_user_verification().await.is_ok());
 
         Ok(())
     }
