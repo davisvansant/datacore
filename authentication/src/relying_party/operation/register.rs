@@ -365,7 +365,7 @@ mod tests {
     use crate::api::authenticator_responses::AuthenticatorAssertionResponse;
     use crate::api::credential_creation_options::Challenge;
     use crate::api::credential_generation_parameters::PublicKeyCredentialParameters;
-    use crate::api::supporting_data_structures::TokenBindingStatus;
+    use crate::api::supporting_data_structures::{PublicKeyCredentialType, TokenBindingStatus};
     use crate::authenticator::attestation::{
         AttestedCredentialData, COSEAlgorithm, PackedAttestationStatementSyntax,
     };
@@ -844,7 +844,8 @@ mod tests {
         test_public_key_credential_creation_options
             .public_key_credential_parameters
             .push(PublicKeyCredentialParameters {
-                r#type: String::from("some_type"),
+                // r#type: String::from("some_type"),
+                r#type: PublicKeyCredentialType::PublicKey,
                 algorithm: -8,
             });
 
