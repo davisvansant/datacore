@@ -364,7 +364,7 @@ mod tests {
     use crate::api::authenticator_responses::AuthenticatorAttestationResponse;
     use crate::api::credential_creation_options::Challenge;
     use crate::api::supporting_data_structures::{
-        PublicKeyCredentialDescriptor, TokenBinding, TokenBindingStatus,
+        PublicKeyCredentialDescriptor, PublicKeyCredentialType, TokenBinding, TokenBindingStatus,
     };
     use ed25519_dalek::PublicKey;
 
@@ -493,7 +493,7 @@ mod tests {
         test_public_key_credential_request_options
             .allow_credentials
             .push(PublicKeyCredentialDescriptor {
-                r#type: String::from("public-key"),
+                r#type: PublicKeyCredentialType::PublicKey,
                 id: Vec::from(String::from("some_other_test_id")),
                 transports: Some(vec![String::from("internal")]),
             });
@@ -509,7 +509,7 @@ mod tests {
         test_public_key_credential_request_options
             .allow_credentials
             .push(PublicKeyCredentialDescriptor {
-                r#type: String::from("public-key"),
+                r#type: PublicKeyCredentialType::PublicKey,
                 id: Vec::from(String::from("test_id")),
                 transports: Some(vec![String::from("internal")]),
             });
