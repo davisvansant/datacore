@@ -59,7 +59,7 @@ impl AuthenticatorGetAssertion {
             }
         }
 
-        credential_options.retain(|credential_option| credential_option.id == self.rpid);
+        credential_options.retain(|credential_option| credential_option.id == self.rpid.as_bytes());
 
         match &credential_options.is_empty() {
             true => Err(AuthenticationError {
