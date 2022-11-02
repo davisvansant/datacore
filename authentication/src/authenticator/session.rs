@@ -28,9 +28,11 @@ impl Session {
         operation.signature_counter().await?;
 
         let attested_credential_data = operation.attested_credential_data().await?;
-        // let _authenticator_data = operation.authenticator_data().await?;
+        let authenticator_data = operation
+            .authenticator_data(attested_credential_data)
+            .await?;
         let attestation_object = operation
-            .create_attestation_object(attested_credential_data)
+            .create_attestation_object(authenticator_data)
             .await?;
 
         Ok(attestation_object)
