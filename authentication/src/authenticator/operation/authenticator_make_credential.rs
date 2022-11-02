@@ -162,6 +162,16 @@ impl AuthenticatorMakeCrendential {
     }
 
     pub async fn collect_authorization_gesture(&self) -> Result<(), AuthenticationError> {
+        match self.require_user_verification {
+            true => println!("user verification"),
+            false => {}
+        }
+
+        match self.require_user_presence {
+            true => println!("test user presence"),
+            false => {}
+        }
+
         Ok(())
     }
 
@@ -489,6 +499,35 @@ mod tests {
         };
 
         assert!(test_false.require_user_verification().await.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn collect_authorization_gesture() -> Result<(), Box<dyn std::error::Error>> {
+        let test_ok = AuthenticatorMakeCrendential {
+            hash: Vec::with_capacity(0),
+            rp_entity: PublicKeyCredentialRpEntity {
+                id: String::from("some_id"),
+            },
+            user_entity: PublicKeyCredentialUserEntity {
+                name: String::from("some_name"),
+                display_name: String::from("some_display_name"),
+                id: [0; 16],
+            },
+            require_resident_key: false,
+            require_user_presence: false,
+            require_user_verification: true,
+            cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
+                r#type: PublicKeyCredentialType::PublicKey,
+                algorithm: -8,
+            }],
+            exclude_credential_descriptor_list: None,
+            enterprise_attestation_possible: false,
+            extensions: String::from("some_extensions"),
+        };
+
+        assert!(test_ok.collect_authorization_gesture().await.is_ok());
 
         Ok(())
     }
