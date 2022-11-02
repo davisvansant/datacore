@@ -24,7 +24,8 @@ impl AttestationObject {
     pub async fn generate(
         attestation_format: AttestationStatementFormat,
         authenticator_data: AuthenticatorData,
-        hash: Vec<u8>,
+        // hash: Vec<u8>,
+        hash: &[u8],
     ) -> AttestationObject {
         let format = attestation_format.identifier().await;
         let attestation_statement = match attestation_format {

@@ -31,7 +31,8 @@ impl PackedAttestationStatementSyntax {
 
     pub async fn signing_procedure(
         authenticator_data: &AuthenticatorData,
-        client_data_hash: Vec<u8>,
+        // client_data_hash: Vec<u8>,
+        client_data_hash: &[u8],
     ) -> PackedAttestationStatementSyntax {
         let mut attest = Vec::with_capacity(500);
         let serialized_authenticator_data =
@@ -41,7 +42,7 @@ impl PackedAttestationStatementSyntax {
             attest.push(element);
         }
         for element in client_data_hash {
-            attest.push(element);
+            attest.push(*element);
         }
 
         attest.shrink_to_fit();
@@ -187,7 +188,7 @@ mod tests {
         let test_hash = b"test_client_data".to_vec();
         let test_output = PackedAttestationStatementSyntax::signing_procedure(
             &test_authenticator_data,
-            test_hash,
+            &test_hash,
         )
         .await;
 
