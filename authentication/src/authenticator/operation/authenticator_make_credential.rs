@@ -6,7 +6,7 @@ use crate::api::supporting_data_structures::{
     PublicKeyCredentialDescriptor, PublicKeyCredentialType,
 };
 use crate::authenticator::attestation::{
-    AttestationObject, AttestationStatementFormat, AttestedCredentialData,
+    AttestationObject, AttestationStatementFormat, AttestedCredentialData, COSEAlgorithm, COSEKey,
 };
 // use crate::authenticator::credential_object::CredentialObject;
 use crate::authenticator::data::AuthenticatorData;
@@ -63,7 +63,7 @@ impl AuthenticatorMakeCrendential {
         let mut supported_combinations = Vec::with_capacity(5);
         let eddsa = PublicKeyCredentialParameters {
             r#type: PublicKeyCredentialType::PublicKey,
-            algorithm: -8,
+            alg: -8,
         };
 
         supported_combinations.push(eddsa);
@@ -97,10 +97,13 @@ impl AuthenticatorMakeCrendential {
         let test_credential_id = String::from("some_credential_id").as_bytes().to_vec();
         let internal_credential_for_testing = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
-            id: String::from("some_credential_id"),
-            private_key: String::from("some_private_key"),
+            // id: String::from("some_credential_id"),
+            id: b"cred_identifier_".to_owned(),
+            // private_key: String::from("some_private_key"),
+            private_key: Vec::with_capacity(0),
             rpid: String::from("some_relying_party_id"),
-            user_handle: String::from("some_user_handle"),
+            // user_handle: String::from("some_user_handle"),
+            user_handle: [0; 16],
             other_ui: String::from("some_other_ui"),
         };
 
@@ -175,6 +178,27 @@ impl AuthenticatorMakeCrendential {
         Ok(())
     }
 
+    pub async fn generate_new_credential_object(&self) -> Result<(), AuthenticationError> {
+        let algorithm = COSEAlgorithm::from(self.cred_types_and_pub_key_apis[0].alg).await;
+        let new_credential = COSEKey::generate(algorithm).await;
+        let credential_id = [0; 16];
+        let credential = PublicKeyCredentialSource {
+            r#type: PublicKeyCredentialType::PublicKey,
+            // id: String::from("some_credential_id"),
+            // id: b"cred_identifier_".to_owned(),
+            id: credential_id,
+            private_key: new_credential.1.to_bytes().to_vec(),
+            rpid: self.rp_entity.id.to_owned(),
+            user_handle: self.user_entity.id,
+            other_ui: String::from("some_other_ui"),
+        };
+        let mut credentials = HashMap::with_capacity(1);
+
+        credentials.insert(credential_id, credential);
+
+        Ok(())
+    }
+
     pub async fn process_extensions(&self) -> Result<(), AuthenticationError> {
         Ok(())
     }
@@ -235,7 +259,7 @@ mod tests {
             require_user_verification: false,
             cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
                 r#type: PublicKeyCredentialType::PublicKey,
-                algorithm: -8,
+                alg: -8,
             }],
             exclude_credential_descriptor_list: None,
             enterprise_attestation_possible: false,
@@ -259,7 +283,7 @@ mod tests {
             require_user_verification: false,
             cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
                 r#type: PublicKeyCredentialType::PublicKey,
-                algorithm: -7,
+                alg: -7,
             }],
             exclude_credential_descriptor_list: None,
             enterprise_attestation_possible: false,
@@ -288,15 +312,15 @@ mod tests {
             cred_types_and_pub_key_apis: vec![
                 PublicKeyCredentialParameters {
                     r#type: PublicKeyCredentialType::PublicKey,
-                    algorithm: -6,
+                    alg: -6,
                 },
                 PublicKeyCredentialParameters {
                     r#type: PublicKeyCredentialType::PublicKey,
-                    algorithm: -7,
+                    alg: -7,
                 },
                 PublicKeyCredentialParameters {
                     r#type: PublicKeyCredentialType::PublicKey,
-                    algorithm: -8,
+                    alg: -8,
                 },
             ],
             exclude_credential_descriptor_list: None,
@@ -329,7 +353,7 @@ mod tests {
             require_user_verification: false,
             cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
                 r#type: PublicKeyCredentialType::PublicKey,
-                algorithm: -8,
+                alg: -8,
             }],
             exclude_credential_descriptor_list: None,
             enterprise_attestation_possible: false,
@@ -353,7 +377,7 @@ mod tests {
             require_user_verification: false,
             cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
                 r#type: PublicKeyCredentialType::PublicKey,
-                algorithm: -8,
+                alg: -8,
             }],
             exclude_credential_descriptor_list: Some(vec![PublicKeyCredentialDescriptor {
                 r#type: PublicKeyCredentialType::PublicKey,
@@ -381,7 +405,7 @@ mod tests {
             require_user_verification: false,
             cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
                 r#type: PublicKeyCredentialType::PublicKey,
-                algorithm: -8,
+                alg: -8,
             }],
             exclude_credential_descriptor_list: Some(vec![PublicKeyCredentialDescriptor {
                 r#type: PublicKeyCredentialType::PublicKey,
@@ -414,7 +438,7 @@ mod tests {
             require_user_verification: false,
             cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
                 r#type: PublicKeyCredentialType::PublicKey,
-                algorithm: -8,
+                alg: -8,
             }],
             exclude_credential_descriptor_list: None,
             enterprise_attestation_possible: false,
@@ -438,7 +462,7 @@ mod tests {
             require_user_verification: false,
             cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
                 r#type: PublicKeyCredentialType::PublicKey,
-                algorithm: -8,
+                alg: -8,
             }],
             exclude_credential_descriptor_list: None,
             enterprise_attestation_possible: false,
@@ -467,7 +491,7 @@ mod tests {
             require_user_verification: true,
             cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
                 r#type: PublicKeyCredentialType::PublicKey,
-                algorithm: -8,
+                alg: -8,
             }],
             exclude_credential_descriptor_list: None,
             enterprise_attestation_possible: false,
@@ -491,7 +515,7 @@ mod tests {
             require_user_verification: true,
             cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
                 r#type: PublicKeyCredentialType::PublicKey,
-                algorithm: -8,
+                alg: -8,
             }],
             exclude_credential_descriptor_list: None,
             enterprise_attestation_possible: false,
@@ -520,7 +544,7 @@ mod tests {
             require_user_verification: true,
             cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
                 r#type: PublicKeyCredentialType::PublicKey,
-                algorithm: -8,
+                alg: -8,
             }],
             exclude_credential_descriptor_list: None,
             enterprise_attestation_possible: false,
@@ -528,6 +552,35 @@ mod tests {
         };
 
         assert!(test_ok.collect_authorization_gesture().await.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn generate_new_credential_object() -> Result<(), Box<dyn std::error::Error>> {
+        let test_ok = AuthenticatorMakeCrendential {
+            hash: Vec::with_capacity(0),
+            rp_entity: PublicKeyCredentialRpEntity {
+                id: String::from("some_id"),
+            },
+            user_entity: PublicKeyCredentialUserEntity {
+                name: String::from("some_name"),
+                display_name: String::from("some_display_name"),
+                id: [0; 16],
+            },
+            require_resident_key: false,
+            require_user_presence: false,
+            require_user_verification: true,
+            cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
+                r#type: PublicKeyCredentialType::PublicKey,
+                alg: -8,
+            }],
+            exclude_credential_descriptor_list: None,
+            enterprise_attestation_possible: false,
+            extensions: String::from("some_extensions"),
+        };
+
+        assert!(test_ok.generate_new_credential_object().await.is_ok());
 
         Ok(())
     }
