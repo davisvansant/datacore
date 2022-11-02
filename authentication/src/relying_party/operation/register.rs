@@ -246,7 +246,7 @@ impl Register {
                 .credential_public_key
                 .algorithm()
                 .await
-                == public_key_credential_parameters.algorithm
+                == public_key_credential_parameters.alg
             {
                 true => {
                     algorithm_match.push(1);
@@ -846,7 +846,7 @@ mod tests {
             .push(PublicKeyCredentialParameters {
                 // r#type: String::from("some_type"),
                 r#type: PublicKeyCredentialType::PublicKey,
-                algorithm: -8,
+                alg: -8,
             });
 
         assert!(test_registration

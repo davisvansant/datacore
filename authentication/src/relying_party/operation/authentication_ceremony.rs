@@ -108,7 +108,8 @@ impl AuthenticationCeremony {
         authenticator_assertion_response: &AuthenticatorAssertionResponse,
     ) -> Result<(), AuthenticationError> {
         let mut credentials = HashMap::with_capacity(1);
-        let credential_id = String::from("some_id").into_bytes();
+        // let credential_id = String::from("some_id").into_bytes();
+        let credential_id = [0; 16].to_vec();
         let public_key_credential_source = PublicKeyCredentialSource::generate().await;
 
         credentials.insert(credential_id, public_key_credential_source);
@@ -116,7 +117,7 @@ impl AuthenticationCeremony {
         if let Some(credential_source) =
             credentials.get(&authenticator_assertion_response.user_handle)
         {
-            match credential_source.id.as_bytes() == authenticator_assertion_response.user_handle {
+            match credential_source.id.to_vec() == authenticator_assertion_response.user_handle {
                 true => Ok(()),
                 false => Err(AuthenticationError {
                     error: AuthenticationErrorType::OperationError,
@@ -547,7 +548,8 @@ mod tests {
             .await
             .is_err());
 
-        test_authenticator_assertion_response.user_handle = b"some_id".to_vec();
+        // test_authenticator_assertion_response.user_handle = b"some_id".to_vec();
+        test_authenticator_assertion_response.user_handle = [0; 16].to_vec();
 
         assert!(test_authentication_ceremony
             .identify_user_and_verify(&test_authenticator_assertion_response)
