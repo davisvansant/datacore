@@ -912,7 +912,8 @@ mod tests {
 
         let test_another_credential_data = AttestedCredentialData {
             aaguid: Vec::with_capacity(0),
-            credential_id_length: 0,
+            // credential_id_length: 0,
+            credential_id_length: Vec::<[u8; 8]>::with_capacity(0).len().to_be_bytes(),
             credential_id: Vec::with_capacity(0),
             credential_public_key: test_cose_key.0,
         };

@@ -861,7 +861,8 @@ mod tests {
         let test_credential_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data = AttestedCredentialData {
             aaguid: Vec::with_capacity(0),
-            credential_id_length: 0,
+            // credential_id_length: 0,
+            credential_id_length: Vec::<[u8; 8]>::with_capacity(0).len().to_be_bytes(),
             credential_id: Vec::with_capacity(0),
             credential_public_key: test_credential_public_key.0.to_owned(),
         };
