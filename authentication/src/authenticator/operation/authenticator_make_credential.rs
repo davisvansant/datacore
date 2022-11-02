@@ -215,7 +215,17 @@ impl AuthenticatorMakeCrendential {
     pub async fn attested_credential_data(
         &self,
     ) -> Result<AttestedCredentialData, AuthenticationError> {
-        let attested_credential_data = AttestedCredentialData::generate().await;
+        let aaguid = [0; 128].to_vec();
+        let credential_id = [0; 16];
+        let public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+
+        let attested_credential_data = AttestedCredentialData {
+            aaguid,
+            credential_id_length: credential_id.len().to_be_bytes(),
+            credential_id: credential_id.to_vec(),
+            credential_public_key: public_key.0,
+        };
+        // let attested_credential_data = AttestedCredentialData::generate().await;
 
         Ok(attested_credential_data)
     }
@@ -615,6 +625,35 @@ mod tests {
         };
 
         assert!(test_ok.signature_counter().await.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn attested_credential_data() -> Result<(), Box<dyn std::error::Error>> {
+        let test_ok = AuthenticatorMakeCrendential {
+            hash: Vec::with_capacity(0),
+            rp_entity: PublicKeyCredentialRpEntity {
+                id: String::from("some_id"),
+            },
+            user_entity: PublicKeyCredentialUserEntity {
+                name: String::from("some_name"),
+                display_name: String::from("some_display_name"),
+                id: [0; 16],
+            },
+            require_resident_key: false,
+            require_user_presence: false,
+            require_user_verification: true,
+            cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
+                r#type: PublicKeyCredentialType::PublicKey,
+                alg: -8,
+            }],
+            exclude_credential_descriptor_list: None,
+            enterprise_attestation_possible: false,
+            extensions: String::from("some_extensions"),
+        };
+
+        assert!(test_ok.attested_credential_data().await.is_ok());
 
         Ok(())
     }
