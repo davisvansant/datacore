@@ -121,6 +121,14 @@ impl COSEAlgorithm {
             COSEAlgorithm::ES256 => -7,
         }
     }
+
+    pub async fn from(identifier: COSEAlgorithmIdentifier) -> COSEAlgorithm {
+        match identifier {
+            -8 => COSEAlgorithm::EdDSA,
+            -7 => COSEAlgorithm::ES256,
+            _ => unimplemented!(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone, Serialize)]
