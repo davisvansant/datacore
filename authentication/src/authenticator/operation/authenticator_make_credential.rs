@@ -242,17 +242,11 @@ impl AuthenticatorMakeCrendential {
 
     pub async fn create_attestation_object(
         &self,
-        attested_credential_data: AttestedCredentialData,
+        authenticator_data: AuthenticatorData,
     ) -> Result<AttestationObject, AuthenticationError> {
-        // let _ = CredentialObject::generate().await;
-
         let attestation_format = AttestationStatementFormat::Packed;
-        let authenticator_data =
-            AuthenticatorData::generate(&self.rp_entity.id, attested_credential_data).await;
-        let hash = Vec::with_capacity(0);
-
         let attestation_object =
-            AttestationObject::generate(attestation_format, authenticator_data, hash).await;
+            AttestationObject::generate(attestation_format, authenticator_data, &self.hash).await;
 
         Ok(attestation_object)
     }
@@ -692,6 +686,44 @@ mod tests {
 
         assert!(test_ok
             .authenticator_data(test_attested_credential_data)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn create_attestation_object() -> Result<(), Box<dyn std::error::Error>> {
+        let test_ok = AuthenticatorMakeCrendential {
+            hash: Vec::with_capacity(0),
+            rp_entity: PublicKeyCredentialRpEntity {
+                id: String::from("some_id"),
+            },
+            user_entity: PublicKeyCredentialUserEntity {
+                name: String::from("some_name"),
+                display_name: String::from("some_display_name"),
+                id: [0; 16],
+            },
+            require_resident_key: false,
+            require_user_presence: false,
+            require_user_verification: true,
+            cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
+                r#type: PublicKeyCredentialType::PublicKey,
+                alg: -8,
+            }],
+            exclude_credential_descriptor_list: None,
+            enterprise_attestation_possible: false,
+            extensions: String::from("some_extensions"),
+        };
+
+        let test_attested_credential_data = test_ok.attested_credential_data().await.unwrap();
+        let test_authenticator_data = test_ok
+            .authenticator_data(test_attested_credential_data)
+            .await
+            .unwrap();
+
+        assert!(test_ok
+            .create_attestation_object(test_authenticator_data)
             .await
             .is_ok());
 
