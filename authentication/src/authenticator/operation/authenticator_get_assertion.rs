@@ -1,3 +1,4 @@
+use crate::api::supporting_data_structures::PublicKeyCredentialDescriptor;
 use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 
@@ -6,7 +7,7 @@ pub type CredentialOptions = Vec<PublicKeyCredentialSource>;
 pub struct AuthenticatorGetAssertion {
     rpid: String,
     hash: Vec<u8>,
-    allow_descriptor_credential_list: Option<Vec<String>>,
+    allow_descriptor_credential_list: Option<Vec<PublicKeyCredentialDescriptor>>,
     require_user_presence: bool,
     require_user_verification: bool,
     extensions: Vec<String>,
@@ -16,7 +17,7 @@ impl AuthenticatorGetAssertion {
     pub async fn collect_parameters(
         rpid: String,
         hash: Vec<u8>,
-        allow_descriptor_credential_list: Option<Vec<String>>,
+        allow_descriptor_credential_list: Option<Vec<PublicKeyCredentialDescriptor>>,
         require_user_presence: bool,
         require_user_verification: bool,
         extensions: Vec<String>,
