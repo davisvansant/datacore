@@ -239,15 +239,36 @@ impl Register {
         options: &PublicKeyCredentialCreationOptions,
     ) -> Result<(), AuthenticationError> {
         let mut algorithm_match = Vec::with_capacity(1);
+        let public_key_alg = match &authenticator_data.attestedcredentialdata {
+            Some(attested_credential_data) => {
+                attested_credential_data
+                    .credential_public_key
+                    .algorithm()
+                    .await
+            }
+            None => {
+                return Err(AuthenticationError {
+                    error: AuthenticationErrorType::OperationError,
+                })
+            }
+        };
 
         for public_key_credential_parameters in &options.public_key_credential_parameters {
-            match authenticator_data
-                .attestedcredentialdata
-                .credential_public_key
-                .algorithm()
-                .await
-                == public_key_credential_parameters.alg
-            {
+            // match authenticator_data
+            //     .attestedcredentialdata
+            //     .credential_public_key
+            //     .algorithm()
+            //     .await
+            //     == public_key_credential_parameters.alg
+            // {
+            //     true => {
+            //         algorithm_match.push(1);
+
+            //         break;
+            //     }
+            //     false => continue,
+            // }
+            match public_key_alg == public_key_credential_parameters.alg {
                 true => {
                     algorithm_match.push(1);
 
@@ -324,12 +345,24 @@ impl Register {
         &self,
         authenticator_data: &AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
-        match authenticator_data.attestedcredentialdata.credential_id == b"some_credential_id" {
-            true => Ok(()),
-            false => Err(AuthenticationError {
+        if let Some(attested_credential_data) = &authenticator_data.attestedcredentialdata {
+            match attested_credential_data.credential_id == b"some_credential_id" {
+                true => Ok(()),
+                false => Err(AuthenticationError {
+                    error: AuthenticationErrorType::OperationError,
+                }),
+            }
+        } else {
+            Err(AuthenticationError {
                 error: AuthenticationErrorType::OperationError,
-            }),
+            })
         }
+        // match authenticator_data.attestedcredentialdata.credential_id == b"some_credential_id" {
+        //     true => Ok(()),
+        //     false => Err(AuthenticationError {
+        //         error: AuthenticationErrorType::OperationError,
+        //     }),
+        // }
     }
 
     pub async fn register(
@@ -348,6 +381,7 @@ impl Register {
         let account = Account {
             key: authenticator_data
                 .attestedcredentialdata
+                .expect("attested credential data for initial impl")
                 .credential_public_key,
             counter: authenticator_data.signcount,
             transports: Vec::with_capacity(0),

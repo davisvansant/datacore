@@ -49,11 +49,20 @@ impl PackedAttestationStatementSyntax {
 
         println!("{:?}", attest);
 
-        let alg = authenticator_data
-            .attestedcredentialdata
-            .credential_public_key
-            .algorithm()
-            .await;
+        // let alg = authenticator_data
+        //     .attestedcredentialdata
+        //     .credential_public_key
+        //     .algorithm()
+        //     .await;
+        let alg = if let Some(attested_credential_data) = &authenticator_data.attestedcredentialdata
+        {
+            attested_credential_data
+                .credential_public_key
+                .algorithm()
+                .await
+        } else {
+            panic!("need better error handling...")
+        };
         let sig = [0; 64].to_vec();
 
         PackedAttestationStatementSyntax {
@@ -68,6 +77,23 @@ impl PackedAttestationStatementSyntax {
         authenticator_data: &AuthenticatorData,
         client_data_hash: &[u8],
     ) -> Result<AttestationVerificationProcedureOutput, AuthenticationError> {
+        let (public_key_alg, public_key) =
+            if let Some(attested_credential_data) = &authenticator_data.attestedcredentialdata {
+                let alg = attested_credential_data
+                    .credential_public_key
+                    .algorithm()
+                    .await;
+
+                let public_key = attested_credential_data
+                    .credential_public_key
+                    .public_key()
+                    .await;
+
+                (alg, public_key)
+            } else {
+                panic!("need better error handling here...");
+            };
+
         match attestation_statement.x5c.is_some() {
             true => {
                 println!("run basic/attca attestation procedures...");
@@ -78,21 +104,15 @@ impl PackedAttestationStatementSyntax {
                 })
             }
             false => {
-                match attestation_statement.alg
-                    == authenticator_data
-                        .attestedcredentialdata
-                        .credential_public_key
-                        .algorithm()
-                        .await
-                {
+                match attestation_statement.alg == public_key_alg {
                     true => {
                         println!("do alg specific verification");
 
-                        let public_key = authenticator_data
-                            .attestedcredentialdata
-                            .credential_public_key
-                            .public_key()
-                            .await;
+                        // let public_key = authenticator_data
+                        //     .attestedcredentialdata
+                        //     .credential_public_key
+                        //     .public_key()
+                        //     .await;
 
                         match attestation_statement.alg {
                             -8 => {

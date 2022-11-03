@@ -15,8 +15,8 @@ pub struct AuthenticatorData {
     pub rp_id_hash: RpIdHash,
     pub flags: [u8; 8],
     pub signcount: SignCount,
-    pub attestedcredentialdata: AttestedCredentialData,
-    pub extensions: String,
+    pub attestedcredentialdata: Option<AttestedCredentialData>,
+    pub extensions: Option<String>,
 }
 
 impl AuthenticatorData {
@@ -27,14 +27,14 @@ impl AuthenticatorData {
         let rp_id_hash = generate_hash(rp_id.as_bytes()).await;
         let flags = [0; 8];
         let signcount = 0;
-        let extensions = String::from("some_extensions");
+        // let extensions = String::from("some_extensions");
 
         AuthenticatorData {
             rp_id_hash,
             flags,
             signcount,
-            attestedcredentialdata,
-            extensions,
+            attestedcredentialdata: Some(attestedcredentialdata),
+            extensions: None,
         }
     }
 
@@ -78,7 +78,7 @@ mod tests {
         assert_eq!(test_authenticator_data.rp_id_hash, test_rp_hash);
         assert_eq!(test_authenticator_data.flags.len(), 8);
         assert_eq!(test_authenticator_data.signcount, 0);
-        assert_eq!(test_authenticator_data.extensions, "some_extensions");
+        // assert_eq!(test_authenticator_data.extensions, "some_extensions");
 
         Ok(())
     }
