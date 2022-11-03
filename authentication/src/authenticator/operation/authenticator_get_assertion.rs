@@ -1,8 +1,10 @@
 use crate::api::supporting_data_structures::{
     PublicKeyCredentialDescriptor, PublicKeyCredentialType,
 };
+use crate::authenticator::data::AuthenticatorData;
 use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
+use crate::security::sha2::generate_hash;
 
 use std::collections::HashMap;
 
@@ -131,8 +133,25 @@ impl AuthenticatorGetAssertion {
         Ok(())
     }
 
-    pub async fn authenticator_data(&self) -> Result<(), AuthenticationError> {
-        Ok(())
+    pub async fn authenticator_data(&self) -> Result<AuthenticatorData, AuthenticationError> {
+        let rp_id_hash = generate_hash(self.rpid.as_bytes()).await;
+        let mut authenticator_data = AuthenticatorData {
+            rp_id_hash,
+            flags: [0; 8],
+            signcount: 0,
+            attestedcredentialdata: None,
+            extensions: None,
+        };
+
+        if self.require_user_presence {
+            authenticator_data.set_user_present().await;
+        }
+
+        if self.require_user_verification {
+            authenticator_data.set_user_verifed().await;
+        }
+
+        Ok(authenticator_data)
     }
 
     pub async fn assertion_signature(&self) -> Result<(), AuthenticationError> {
@@ -143,6 +162,7 @@ impl AuthenticatorGetAssertion {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::authenticator::data::{UP, UV};
 
     #[tokio::test]
     async fn credential_options() -> Result<(), Box<dyn std::error::Error>> {
@@ -251,6 +271,61 @@ mod tests {
             .increment_signature_counter(&test_selected_credentaial)
             .await
             .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn authenticator_data() -> Result<(), Box<dyn std::error::Error>> {
+        let test_false = AuthenticatorGetAssertion {
+            rpid: String::from("some_relying_party_id"),
+            hash: Vec::with_capacity(0),
+            allow_descriptor_credential_list: Some(vec![PublicKeyCredentialDescriptor {
+                r#type: PublicKeyCredentialType::PublicKey,
+                id: b"cred_identifier_".to_vec(),
+                transports: None,
+            }]),
+            require_user_presence: false,
+            require_user_verification: false,
+            extensions: vec![String::from("some_extension")],
+        };
+
+        let test_authenticator_data = test_false.authenticator_data().await.unwrap();
+
+        assert_eq!(
+            test_authenticator_data.rp_id_hash,
+            generate_hash(b"some_relying_party_id").await,
+        );
+        assert_eq!(test_authenticator_data.flags[UP], 0);
+        assert_eq!(test_authenticator_data.flags[UV], 0);
+        assert_eq!(test_authenticator_data.signcount, 0);
+        assert!(test_authenticator_data.attestedcredentialdata.is_none());
+        assert!(test_authenticator_data.extensions.is_none());
+
+        let test_true = AuthenticatorGetAssertion {
+            rpid: String::from("some_other_rp_id"),
+            hash: Vec::with_capacity(0),
+            allow_descriptor_credential_list: Some(vec![PublicKeyCredentialDescriptor {
+                r#type: PublicKeyCredentialType::PublicKey,
+                id: b"cred_identifier_".to_vec(),
+                transports: None,
+            }]),
+            require_user_presence: true,
+            require_user_verification: true,
+            extensions: vec![String::from("some_extension")],
+        };
+
+        let test_authenticator_data = test_true.authenticator_data().await.unwrap();
+
+        assert_eq!(
+            test_authenticator_data.rp_id_hash,
+            generate_hash(b"some_other_rp_id").await,
+        );
+        assert_eq!(test_authenticator_data.flags[UP], 1);
+        assert_eq!(test_authenticator_data.flags[UV], 1);
+        assert_eq!(test_authenticator_data.signcount, 0);
+        assert!(test_authenticator_data.attestedcredentialdata.is_none());
+        assert!(test_authenticator_data.extensions.is_none());
 
         Ok(())
     }

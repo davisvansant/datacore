@@ -55,7 +55,7 @@ impl Session {
             .increment_signature_counter(&selected_credential)
             .await?;
 
-        // let _authenticator_data = operation.authenticator_data().await?;
+        let authenticator_data = operation.authenticator_data().await?;
         // let _signature = operation.assertion_signature().await?;
 
         Ok(())
