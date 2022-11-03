@@ -1,5 +1,6 @@
 use crate::api::supporting_data_structures::PublicKeyCredentialType;
 
+#[derive(Clone)]
 pub struct PublicKeyCredentialSource {
     pub r#type: PublicKeyCredentialType,
     // pub id: String,
