@@ -91,7 +91,10 @@ impl AuthenticatorGetAssertion {
         }
     }
 
-    pub async fn collect_authorization_gesture(&self) -> Result<(), AuthenticationError> {
+    pub async fn collect_authorization_gesture(
+        &self,
+        credential_options: Vec<PublicKeyCredentialSource>,
+    ) -> Result<(), AuthenticationError> {
         Ok(())
     }
 
@@ -169,6 +172,31 @@ mod tests {
         };
 
         assert!(test_none_rp_error.credential_options().await.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn collect_authorization_gesture() -> Result<(), Box<dyn std::error::Error>> {
+        let test_ok = AuthenticatorGetAssertion {
+            rpid: String::from("some_relying_party_id"),
+            hash: Vec::with_capacity(0),
+            allow_descriptor_credential_list: Some(vec![PublicKeyCredentialDescriptor {
+                r#type: PublicKeyCredentialType::PublicKey,
+                id: b"cred_identifier_".to_vec(),
+                transports: None,
+            }]),
+            require_user_presence: false,
+            require_user_verification: false,
+            extensions: vec![String::from("some_extension")],
+        };
+
+        let test_credential_options = test_ok.credential_options().await.unwrap();
+
+        assert!(test_ok
+            .collect_authorization_gesture(test_credential_options)
+            .await
+            .is_ok());
 
         Ok(())
     }

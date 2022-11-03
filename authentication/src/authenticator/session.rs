@@ -44,9 +44,11 @@ impl Session {
     ) -> Result<(), AuthenticationError> {
         operation.check_parameters().await?;
 
-        let _credential_options = operation.credential_options().await?;
+        let credential_options = operation.credential_options().await?;
 
-        operation.collect_authorization_gesture().await?;
+        operation
+            .collect_authorization_gesture(credential_options)
+            .await?;
 
         // let _processed_extensions = operation.process_extensions().await?;
 
