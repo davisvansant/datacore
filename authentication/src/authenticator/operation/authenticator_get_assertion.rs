@@ -94,15 +94,40 @@ impl AuthenticatorGetAssertion {
     pub async fn collect_authorization_gesture(
         &self,
         credential_options: Vec<PublicKeyCredentialSource>,
-    ) -> Result<(), AuthenticationError> {
-        Ok(())
+    ) -> Result<PublicKeyCredentialSource, AuthenticationError> {
+        let selected_credential = PublicKeyCredentialSource {
+            r#type: PublicKeyCredentialType::PublicKey,
+            id: b"cred_identifier_".to_owned(),
+            private_key: Vec::with_capacity(0),
+            rpid: String::from("some_relying_party_id"),
+            user_handle: [0; 16],
+            other_ui: String::from("some_other_ui"),
+        };
+
+        Ok(selected_credential)
     }
 
     pub async fn process_extensions(&self) -> Result<(), AuthenticationError> {
         Ok(())
     }
 
-    pub async fn increment_signature_counter(&self) -> Result<(), AuthenticationError> {
+    pub async fn increment_signature_counter(
+        &self,
+        selected_credential: &PublicKeyCredentialSource,
+    ) -> Result<(), AuthenticationError> {
+        let mut signature_counter = HashMap::with_capacity(1);
+        let initial_value = 0_u32.to_be_bytes();
+
+        signature_counter.insert(selected_credential.id, initial_value);
+
+        if let Some(sign_count) = signature_counter.get_mut(&selected_credential.id) {
+            let mut value = u32::from_be_bytes(*sign_count);
+
+            value += 1;
+
+            *sign_count = value.to_be_bytes();
+        }
+
         Ok(())
     }
 
@@ -195,6 +220,35 @@ mod tests {
 
         assert!(test_ok
             .collect_authorization_gesture(test_credential_options)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn increment_signature_counter() -> Result<(), Box<dyn std::error::Error>> {
+        let test_ok = AuthenticatorGetAssertion {
+            rpid: String::from("some_relying_party_id"),
+            hash: Vec::with_capacity(0),
+            allow_descriptor_credential_list: Some(vec![PublicKeyCredentialDescriptor {
+                r#type: PublicKeyCredentialType::PublicKey,
+                id: b"cred_identifier_".to_vec(),
+                transports: None,
+            }]),
+            require_user_presence: false,
+            require_user_verification: false,
+            extensions: vec![String::from("some_extension")],
+        };
+
+        let test_credential_options = test_ok.credential_options().await.unwrap();
+        let test_selected_credentaial = test_ok
+            .collect_authorization_gesture(test_credential_options)
+            .await
+            .unwrap();
+
+        assert!(test_ok
+            .increment_signature_counter(&test_selected_credentaial)
             .await
             .is_ok());
 

@@ -45,14 +45,15 @@ impl Session {
         operation.check_parameters().await?;
 
         let credential_options = operation.credential_options().await?;
-
-        operation
+        let selected_credential = operation
             .collect_authorization_gesture(credential_options)
             .await?;
 
         // let _processed_extensions = operation.process_extensions().await?;
 
-        operation.increment_signature_counter().await?;
+        operation
+            .increment_signature_counter(&selected_credential)
+            .await?;
 
         // let _authenticator_data = operation.authenticator_data().await?;
         // let _signature = operation.assertion_signature().await?;
