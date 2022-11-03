@@ -1,8 +1,12 @@
-use crate::api::supporting_data_structures::PublicKeyCredentialDescriptor;
+use crate::api::supporting_data_structures::{
+    PublicKeyCredentialDescriptor, PublicKeyCredentialType,
+};
 use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 
-pub type CredentialOptions = Vec<PublicKeyCredentialSource>;
+use std::collections::HashMap;
+
+// pub type CredentialOptions = Vec<PublicKeyCredentialSource>;
 
 pub struct AuthenticatorGetAssertion {
     rpid: String,
@@ -36,7 +40,9 @@ impl AuthenticatorGetAssertion {
         Ok(())
     }
 
-    pub async fn credential_options(&self) -> Result<CredentialOptions, AuthenticationError> {
+    pub async fn credential_options(
+        &self,
+    ) -> Result<Vec<PublicKeyCredentialSource>, AuthenticationError> {
         let mut credential_options = match &self.allow_descriptor_credential_list {
             Some(allow_descriptor_credential_list) => {
                 Vec::with_capacity(allow_descriptor_credential_list.len())
@@ -44,23 +50,38 @@ impl AuthenticatorGetAssertion {
             None => Vec::with_capacity(0),
         };
 
+        let mut credentials = HashMap::with_capacity(1);
+        let test_credential_id = b"cred_identifier_".to_vec();
+        let internal_credential_for_testing = PublicKeyCredentialSource {
+            r#type: PublicKeyCredentialType::PublicKey,
+            id: b"cred_identifier_".to_owned(),
+            private_key: Vec::with_capacity(0),
+            rpid: String::from("some_relying_party_id"),
+            user_handle: [0; 16],
+            other_ui: String::from("some_other_ui"),
+        };
+
+        credentials.insert(test_credential_id, internal_credential_for_testing);
+
         match &self.allow_descriptor_credential_list {
             Some(allow_descriptor_credential_list) => {
-                for _credential_source in allow_descriptor_credential_list {
-                    let placeholder_credential_source = PublicKeyCredentialSource::generate().await;
-
-                    credential_options.push(placeholder_credential_source);
+                for descriptor in allow_descriptor_credential_list {
+                    match credentials.get(&descriptor.id) {
+                        Some(credential_source) => {
+                            credential_options.push(credential_source.to_owned());
+                        }
+                        None => continue,
+                    }
                 }
             }
             None => {
-                // lookup exsisting credential sources and add to
-                let placeholder_credential_source = PublicKeyCredentialSource::generate().await;
-
-                credential_options.push(placeholder_credential_source);
+                for credential_source in credentials.values() {
+                    credential_options.push(credential_source.to_owned())
+                }
             }
         }
 
-        credential_options.retain(|credential_option| credential_option.id == self.rpid.as_bytes());
+        credential_options.retain(|credential_option| credential_option.rpid == self.rpid);
 
         match &credential_options.is_empty() {
             true => Err(AuthenticationError {
@@ -87,6 +108,68 @@ impl AuthenticatorGetAssertion {
     }
 
     pub async fn assertion_signature(&self) -> Result<(), AuthenticationError> {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn credential_options() -> Result<(), Box<dyn std::error::Error>> {
+        let test_ok = AuthenticatorGetAssertion {
+            rpid: String::from("some_relying_party_id"),
+            hash: Vec::with_capacity(0),
+            allow_descriptor_credential_list: Some(vec![PublicKeyCredentialDescriptor {
+                r#type: PublicKeyCredentialType::PublicKey,
+                id: b"cred_identifier_".to_vec(),
+                transports: None,
+            }]),
+            require_user_presence: false,
+            require_user_verification: false,
+            extensions: vec![String::from("some_extension")],
+        };
+
+        assert!(test_ok.credential_options().await.is_ok());
+
+        let test_err = AuthenticatorGetAssertion {
+            rpid: String::from("some_rp_id"),
+            hash: Vec::with_capacity(0),
+            allow_descriptor_credential_list: Some(vec![PublicKeyCredentialDescriptor {
+                r#type: PublicKeyCredentialType::PublicKey,
+                id: b"cred_identifier_".to_vec(),
+                transports: None,
+            }]),
+            require_user_presence: false,
+            require_user_verification: false,
+            extensions: vec![String::from("some_extension")],
+        };
+
+        assert!(test_err.credential_options().await.is_err());
+
+        let test_none_rp_ok = AuthenticatorGetAssertion {
+            rpid: String::from("some_relying_party_id"),
+            hash: Vec::with_capacity(0),
+            allow_descriptor_credential_list: None,
+            require_user_presence: false,
+            require_user_verification: false,
+            extensions: vec![String::from("some_extension")],
+        };
+
+        assert!(test_none_rp_ok.credential_options().await.is_ok());
+
+        let test_none_rp_error = AuthenticatorGetAssertion {
+            rpid: String::from("some_rp_id"),
+            hash: Vec::with_capacity(0),
+            allow_descriptor_credential_list: None,
+            require_user_presence: false,
+            require_user_verification: false,
+            extensions: vec![String::from("some_extension")],
+        };
+
+        assert!(test_none_rp_error.credential_options().await.is_err());
+
         Ok(())
     }
 }
