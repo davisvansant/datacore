@@ -1,3 +1,4 @@
+use crate::api::authenticator_responses::AuthenticatorAssertionResponse;
 use crate::api::supporting_data_structures::{
     PublicKeyCredentialDescriptor, PublicKeyCredentialType,
 };
@@ -154,8 +155,91 @@ impl AuthenticatorGetAssertion {
         Ok(authenticator_data)
     }
 
-    pub async fn assertion_signature(&self) -> Result<(), AuthenticationError> {
-        Ok(())
+    pub async fn assertion_signature(
+        &self,
+        authenticator_data: &AuthenticatorData,
+        selected_credential: &PublicKeyCredentialSource,
+    ) -> Result<AuthenticatorAssertionResponse, AuthenticationError> {
+        let mut authenticator_data_byte_array = Vec::with_capacity(500);
+        let mut sign = Vec::with_capacity(500);
+
+        let serialized_authenticator_data_rp_id_hash =
+            match bincode::serialize(&authenticator_data.rp_id_hash) {
+                Ok(rp_id_hash) => rp_id_hash,
+                Err(error) => {
+                    println!("error with serialization -> {:?}", error);
+
+                    return Err(AuthenticationError {
+                        error: AuthenticationErrorType::UnknownError,
+                    });
+                }
+            };
+
+        let serialized_authenticator_data_flags =
+            match bincode::serialize(&authenticator_data.flags) {
+                Ok(flags) => flags,
+                Err(error) => {
+                    println!("error with serialization -> {:?}", error);
+
+                    return Err(AuthenticationError {
+                        error: AuthenticationErrorType::UnknownError,
+                    });
+                }
+            };
+
+        let serialized_authenticator_data_sign_count =
+            match bincode::serialize(&authenticator_data.signcount) {
+                Ok(sign_count) => sign_count,
+                Err(error) => {
+                    println!("error with serialization -> {:?}", error);
+
+                    return Err(AuthenticationError {
+                        error: AuthenticationErrorType::UnknownError,
+                    });
+                }
+            };
+
+        // for element in serialized_authenticator_data_rp_id_hash {
+        //     sign.push(element);
+        // }
+
+        // for element in serialized_authenticator_data_flags {
+        //     sign.push(element);
+        // }
+
+        // for element in serialized_authenticator_data_sign_count {
+        //     sign.push(element);
+        // }
+        for element in serialized_authenticator_data_rp_id_hash {
+            authenticator_data_byte_array.push(element);
+        }
+
+        for element in serialized_authenticator_data_flags {
+            authenticator_data_byte_array.push(element);
+        }
+
+        for element in serialized_authenticator_data_sign_count {
+            authenticator_data_byte_array.push(element);
+        }
+
+        for element in &authenticator_data_byte_array {
+            sign.push(*element);
+        }
+
+        for element in &self.hash {
+            sign.push(*element);
+        }
+
+        sign.shrink_to_fit();
+
+        let assertion_response = AuthenticatorAssertionResponse {
+            client_data_json: self.hash.to_owned(),
+            authenticator_data: authenticator_data_byte_array,
+            signature: sign,
+            user_handle: selected_credential.user_handle.to_vec(),
+        };
+
+        Ok(assertion_response)
     }
 }
 
@@ -326,6 +410,40 @@ mod tests {
         assert_eq!(test_authenticator_data.signcount, 0);
         assert!(test_authenticator_data.attestedcredentialdata.is_none());
         assert!(test_authenticator_data.extensions.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn assertion_signature() -> Result<(), Box<dyn std::error::Error>> {
+        let test_ok = AuthenticatorGetAssertion {
+            rpid: String::from("some_relying_party_id"),
+            hash: b"some_test_client_data".to_vec(),
+            allow_descriptor_credential_list: Some(vec![PublicKeyCredentialDescriptor {
+                r#type: PublicKeyCredentialType::PublicKey,
+                id: b"cred_identifier_".to_vec(),
+                transports: None,
+            }]),
+            require_user_presence: false,
+            require_user_verification: false,
+            extensions: vec![String::from("some_extension")],
+        };
+
+        let test_credential_options = test_ok.credential_options().await.unwrap();
+        let test_selected_credentaial = test_ok
+            .collect_authorization_gesture(test_credential_options)
+            .await
+            .unwrap();
+        let test_authenticator_data = test_ok.authenticator_data().await.unwrap();
+        let test_assertion_signature = test_ok
+            .assertion_signature(&test_authenticator_data, &test_selected_credentaial)
+            .await
+            .unwrap();
+
+        assert_eq!(test_assertion_signature.client_data_json.len(), 21);
+        assert_eq!(test_assertion_signature.authenticator_data.len(), 52);
+        assert_eq!(test_assertion_signature.signature.len(), 73);
+        assert_eq!(test_assertion_signature.user_handle.len(), 16);
 
         Ok(())
     }

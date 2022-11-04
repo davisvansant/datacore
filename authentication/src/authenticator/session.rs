@@ -56,7 +56,9 @@ impl Session {
             .await?;
 
         let authenticator_data = operation.authenticator_data().await?;
-        // let _signature = operation.assertion_signature().await?;
+        let _signature = operation
+            .assertion_signature(&authenticator_data, &selected_credential)
+            .await?;
 
         Ok(())
     }
