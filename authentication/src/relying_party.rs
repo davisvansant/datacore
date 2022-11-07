@@ -1,18 +1,31 @@
 use crate::api::supporting_data_structures::TokenBinding;
 use crate::error::AuthenticationError;
 use crate::relying_party::operation::{AuthenticationCeremony, Register};
+use crate::relying_party::store::{Store, StoreChannel};
 
 pub mod operation;
+pub mod store;
 
 pub struct RelyingParty {
     identifier: String,
+    store: StoreChannel,
 }
 
 impl RelyingParty {
     pub async fn init() -> RelyingParty {
         let identifier = String::from("some_identifier");
+        let (mut store, channel) = Store::init().await;
 
-        RelyingParty { identifier }
+        tokio::spawn(async move {
+            if let Err(error) = store.run().await {
+                println!("store error -> {:?}", error);
+            }
+        });
+
+        RelyingParty {
+            identifier,
+            store: channel,
+        }
     }
 
     pub async fn register_new_credential(
@@ -76,7 +89,9 @@ impl RelyingParty {
             .assess_attestation_trustworthiness(attestation_statement_output)
             .await?;
         operation.check_credential_id(&authenticator_data).await?;
-        operation.register(options, authenticator_data).await?;
+        operation
+            .register(&self.store, options, authenticator_data)
+            .await?;
 
         Ok(())
     }
@@ -98,7 +113,9 @@ impl RelyingParty {
 
         operation.identify_user_and_verify(&response).await?;
 
-        let credential_public_key = operation.credential_public_key(&credential).await?;
+        let credential_public_key = operation
+            .credential_public_key(&self.store, &credential)
+            .await?;
         let (client_data_json, authenticator_data, signature) =
             operation.response_values(response).await?;
         let client_data = operation.client_data(&client_data_json).await?;
@@ -138,7 +155,7 @@ impl RelyingParty {
             .await?;
 
         operation
-            .stored_sign_count(&credential, &authenticator_data)
+            .stored_sign_count(&self.store, &credential, &authenticator_data)
             .await?;
 
         Ok(())
