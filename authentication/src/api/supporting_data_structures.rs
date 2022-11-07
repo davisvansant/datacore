@@ -63,6 +63,7 @@ pub struct PublicKeyCredentialDescriptor {
     pub transports: Option<Vec<String>>,
 }
 
+#[derive(Debug)]
 pub enum AuthenticatorTransport {
     Usb,
     Nfc,
