@@ -21,6 +21,7 @@ pub enum Request {
 #[derive(Debug)]
 pub enum Response {
     PublicKey(COSEKey),
+    FailCeremony(bool),
 }
 
 #[derive(Clone)]
@@ -87,20 +88,29 @@ impl StoreChannel {
         credential_id: Vec<u8>,
         authenticator_data_sign_count: u32,
     ) -> Result<(), AuthenticationError> {
-        let (_request, _response) = oneshot::channel();
+        let (request, response) = oneshot::channel();
+        let error = AuthenticationError {
+            error: AuthenticationErrorType::OperationError,
+        };
 
-        match self
+        if let Ok(()) = self
             .request
             .send((
                 Request::SignCount((credential_id, authenticator_data_sign_count)),
-                _request,
+                request,
             ))
             .await
         {
-            Ok(()) => Ok(()),
-            Err(_) => Err(AuthenticationError {
-                error: AuthenticationErrorType::OperationError,
-            }),
+            if let Ok(Response::FailCeremony(fail_ceremony)) = response.await {
+                match fail_ceremony {
+                    true => Err(error),
+                    false => Ok(()),
+                }
+            } else {
+                Err(error)
+            }
+        } else {
+            Err(error)
         }
     }
 }
@@ -138,8 +148,16 @@ impl Store {
                     }
                 }
                 Request::SignCount((credential_id, authenticator_data_sign_count)) => {
-                    self.sign_count(credential_id, authenticator_data_sign_count)
-                        .await?;
+                    if let Ok(()) = self
+                        .sign_count(credential_id, authenticator_data_sign_count)
+                        .await
+                    {
+                        _ = response.send(Response::FailCeremony(false))
+                    } else {
+                        _ = response.send(Response::FailCeremony(true));
+
+                        continue;
+                    }
                 }
             }
         }
