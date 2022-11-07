@@ -877,4 +877,51 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn stored_sign_count() -> Result<(), Box<dyn std::error::Error>> {
+        let test_authentication_ceremony = AuthenticationCeremony {};
+        let test_public_key_credential_request_options = test_authentication_ceremony
+            .public_key_credential_request_options()
+            .await?;
+        let test_public_key_credential = test_authentication_ceremony
+            .call_credentials_get(&test_public_key_credential_request_options)
+            .await?;
+        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let mut test_authenticator_data =
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+
+        test_authenticator_data.signcount = 1;
+
+        let mut test_store = Store::init().await;
+
+        tokio::spawn(async move {
+            if let Err(error) = test_store.0.run().await {
+                println!("test store error -> {:?}", error);
+            }
+        });
+
+        test_store
+            .1
+            .register(
+                b"some_key_id".to_vec(),
+                UserAccount {
+                    public_key: COSEKey::generate(COSEAlgorithm::EdDSA).await.0,
+                    signature_counter: 0,
+                    transports: None,
+                },
+            )
+            .await?;
+
+        assert!(test_authentication_ceremony
+            .stored_sign_count(
+                &test_store.1,
+                &test_public_key_credential,
+                &test_authenticator_data,
+            )
+            .await
+            .is_ok());
+
+        Ok(())
+    }
 }
