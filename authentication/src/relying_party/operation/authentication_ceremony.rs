@@ -7,10 +7,11 @@ use crate::api::authenticator_responses::{
 use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientOutputs;
 use crate::api::public_key_credential::PublicKeyCredential;
 use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
-use crate::authenticator::attestation::{AttestedCredentialData, COSEAlgorithm, COSEKey};
+use crate::authenticator::attestation::{AttestedCredentialData, COSEKey};
 use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
 use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
+use crate::relying_party::StoreChannel;
 use crate::security::sha2::generate_hash;
 
 use std::collections::HashMap;
@@ -132,33 +133,12 @@ impl AuthenticationCeremony {
 
     pub async fn credential_public_key(
         &self,
+        store: &StoreChannel,
         credential: &PublicKeyCredential,
     ) -> Result<COSEKey, AuthenticationError> {
-        let mut some_credentials_map = HashMap::with_capacity(1);
+        let credential = store.lookup(credential.id.as_bytes().to_vec()).await?;
 
-        struct Account {
-            // key: Vec<u8>,
-            key: COSEKey,
-            counter: u32,
-            transports: Vec<String>,
-        }
-
-        let id = String::from("some_id");
-
-        let account = Account {
-            key: COSEKey::generate(COSEAlgorithm::EdDSA).await.0,
-            counter: 0,
-            transports: Vec::with_capacity(0),
-        };
-
-        some_credentials_map.insert(id, account);
-
-        match some_credentials_map.get(&credential.id) {
-            Some(credential) => Ok(credential.key.to_owned()),
-            None => Err(AuthenticationError {
-                error: AuthenticationErrorType::OperationError,
-            }),
-        }
+        Ok(credential)
     }
 
     pub async fn response_values(
@@ -317,45 +297,18 @@ impl AuthenticationCeremony {
 
     pub async fn stored_sign_count(
         &self,
+        store: &StoreChannel,
         credential: &PublicKeyCredential,
         authenticator_data: &AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
-        let mut some_credentials_map = HashMap::with_capacity(1);
+        store
+            .sign_count(
+                credential.id.as_bytes().to_vec(),
+                authenticator_data.signcount,
+            )
+            .await?;
 
-        struct Account {
-            key: Vec<u8>,
-            counter: u32,
-            transports: Vec<String>,
-        }
-
-        let id = String::from("some_id");
-
-        let account = Account {
-            key: Vec::with_capacity(0),
-            counter: 0,
-            transports: Vec::with_capacity(0),
-        };
-
-        some_credentials_map.insert(id, account);
-
-        if let Some(account) = some_credentials_map.get_mut(&credential.id) {
-            let stored_sign_count = account.counter;
-
-            match authenticator_data.signcount <= stored_sign_count {
-                true => Err(AuthenticationError {
-                    error: AuthenticationErrorType::OperationError,
-                }),
-                false => {
-                    account.counter = authenticator_data.signcount;
-
-                    Ok(())
-                }
-            }
-        } else {
-            Err(AuthenticationError {
-                error: AuthenticationErrorType::OperationError,
-            })
-        }
+        Ok(())
     }
 }
 
@@ -367,6 +320,9 @@ mod tests {
     use crate::api::supporting_data_structures::{
         PublicKeyCredentialDescriptor, PublicKeyCredentialType, TokenBinding, TokenBindingStatus,
     };
+    use crate::authenticator::attestation::COSEAlgorithm;
+    use crate::relying_party::store::UserAccount;
+    use crate::relying_party::Store;
     use ed25519_dalek::PublicKey;
 
     #[tokio::test]
@@ -569,15 +525,35 @@ mod tests {
             .call_credentials_get(&test_public_key_credential_request_options)
             .await?;
 
+        let mut test_store = Store::init().await;
+
+        tokio::spawn(async move {
+            if let Err(error) = test_store.0.run().await {
+                println!("test store error -> {:?}", error);
+            }
+        });
+
+        test_store
+            .1
+            .register(
+                b"some_id".to_vec(),
+                UserAccount {
+                    public_key: COSEKey::generate(COSEAlgorithm::EdDSA).await.0,
+                    signature_counter: 0,
+                    transports: None,
+                },
+            )
+            .await?;
+
         assert!(test_authentication_ceremony
-            .credential_public_key(&test_public_key_credential)
+            .credential_public_key(&test_store.1, &test_public_key_credential)
             .await
             .is_err());
 
         test_public_key_credential.id = String::from("some_id");
 
         assert!(test_authentication_ceremony
-            .credential_public_key(&test_public_key_credential)
+            .credential_public_key(&test_store.1, &test_public_key_credential)
             .await
             .is_ok());
 

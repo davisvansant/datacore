@@ -12,13 +12,14 @@ use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::{
     AttestationObject, AttestationStatement, AttestationStatementFormat,
     AttestationStatementFormatIdentifier, AttestationType, AttestationVerificationProcedureOutput,
-    COSEKey, PackedAttestationStatementSyntax,
+    PackedAttestationStatementSyntax,
 };
 use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
 use crate::error::{AuthenticationError, AuthenticationErrorType};
+use crate::relying_party::store::{StoreChannel, UserAccount};
 use crate::security::sha2::generate_hash;
 
-use std::collections::HashMap;
+// use std::collections::HashMap;
 
 pub struct Register {}
 
@@ -367,27 +368,28 @@ impl Register {
 
     pub async fn register(
         &self,
+        store: &StoreChannel,
         options: PublicKeyCredentialCreationOptions,
         authenticator_data: AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
-        let mut some_credentials_map = HashMap::with_capacity(1);
-
-        struct Account {
-            key: COSEKey,
-            counter: u32,
-            transports: Vec<String>,
-        }
-
-        let account = Account {
-            key: authenticator_data
-                .attestedcredentialdata
-                .expect("attested credential data for initial impl")
-                .credential_public_key,
-            counter: authenticator_data.signcount,
-            transports: Vec::with_capacity(0),
+        let public_key =
+            if let Some(attested_credential_data) = authenticator_data.attestedcredentialdata {
+                attested_credential_data.credential_public_key
+            } else {
+                return Err(AuthenticationError {
+                    error: AuthenticationErrorType::OperationError,
+                });
+            };
+        let signature_counter = authenticator_data.signcount;
+        let new_account = UserAccount {
+            public_key,
+            signature_counter,
+            transports: None,
         };
 
-        some_credentials_map.insert(options.user, account);
+        store
+            .register(options.user.id.to_vec(), new_account)
+            .await?;
 
         Ok(())
     }
@@ -401,7 +403,7 @@ mod tests {
     use crate::api::credential_generation_parameters::PublicKeyCredentialParameters;
     use crate::api::supporting_data_structures::{PublicKeyCredentialType, TokenBindingStatus};
     use crate::authenticator::attestation::{
-        AttestedCredentialData, COSEAlgorithm, PackedAttestationStatementSyntax,
+        AttestedCredentialData, COSEAlgorithm, COSEKey, PackedAttestationStatementSyntax,
     };
     use ciborium::cbor;
     use ed25519_dalek::PublicKey;
