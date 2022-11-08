@@ -342,26 +342,20 @@ impl Register {
 
     pub async fn check_credential_id(
         &self,
+        store: &StoreChannel,
         authenticator_data: &AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
         if let Some(attested_credential_data) = &authenticator_data.attestedcredentialdata {
-            match attested_credential_data.credential_id == b"some_credential_id" {
-                true => Ok(()),
-                false => Err(AuthenticationError {
-                    error: AuthenticationErrorType::OperationError,
-                }),
-            }
+            store
+                .check(attested_credential_data.credential_id.to_owned())
+                .await?;
+
+            Ok(())
         } else {
             Err(AuthenticationError {
                 error: AuthenticationErrorType::OperationError,
             })
         }
-        // match authenticator_data.attestedcredentialdata.credential_id == b"some_credential_id" {
-        //     true => Ok(()),
-        //     false => Err(AuthenticationError {
-        //         error: AuthenticationErrorType::OperationError,
-        //     }),
-        // }
     }
 
     pub async fn register(
@@ -403,6 +397,7 @@ mod tests {
     use crate::authenticator::attestation::{
         AttestedCredentialData, COSEAlgorithm, COSEKey, PackedAttestationStatementSyntax,
     };
+    use crate::relying_party::Store;
     use ciborium::cbor;
     use ed25519_dalek::PublicKey;
 
@@ -994,6 +989,65 @@ mod tests {
 
         assert!(test_registration
             .assess_attestation_trustworthiness(test_attestation_verification_output)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_credential_id() -> Result<(), Box<dyn std::error::Error>> {
+        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_authenticator_data =
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+        let test_registration = Register {};
+        let mut test_store = Store::init().await;
+
+        tokio::spawn(async move {
+            if let Err(error) = test_store.0.run().await {
+                println!("test store error -> {:?}", error);
+            }
+        });
+
+        test_store
+            .1
+            .register(
+                b"".to_vec(),
+                UserAccount {
+                    public_key: COSEKey::generate(COSEAlgorithm::EdDSA).await.0,
+                    signature_counter: 0,
+                    transports: None,
+                },
+            )
+            .await?;
+
+        assert!(test_registration
+            .check_credential_id(&test_store.1, &test_authenticator_data)
+            .await
+            .is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn register() -> Result<(), Box<dyn std::error::Error>> {
+        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_authenticator_data =
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+        let test_registration = Register {};
+        let test_options = test_registration
+            .public_key_credential_creation_options()
+            .await?;
+        let mut test_store = Store::init().await;
+
+        tokio::spawn(async move {
+            if let Err(error) = test_store.0.run().await {
+                println!("test store error -> {:?}", error);
+            }
+        });
+
+        assert!(test_registration
+            .register(&test_store.1, test_options, test_authenticator_data)
             .await
             .is_ok());
 

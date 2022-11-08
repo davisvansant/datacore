@@ -88,7 +88,9 @@ impl RelyingParty {
         operation
             .assess_attestation_trustworthiness(attestation_statement_output)
             .await?;
-        operation.check_credential_id(&authenticator_data).await?;
+        operation
+            .check_credential_id(&self.store, &authenticator_data)
+            .await?;
         operation
             .register(&self.store, options, authenticator_data)
             .await?;
