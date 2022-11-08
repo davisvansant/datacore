@@ -15,6 +15,7 @@ pub struct UserAccount {
 pub enum Request {
     Check(Vec<u8>),
     Register((Vec<u8>, UserAccount)),
+    Identify(Vec<u8>),
     Lookup(Vec<u8>),
     SignCount((Vec<u8>, u32)),
 }
@@ -84,6 +85,30 @@ impl StoreChannel {
                     error: AuthenticationErrorType::OperationError,
                 })
             }
+        }
+    }
+
+    pub async fn identify(&self, credential_id: Vec<u8>) -> Result<(), AuthenticationError> {
+        let (request, response) = oneshot::channel();
+        let error = AuthenticationError {
+            error: AuthenticationErrorType::OperationError,
+        };
+
+        if let Ok(()) = self
+            .request
+            .send((Request::Identify(credential_id), request))
+            .await
+        {
+            if let Ok(Response::FailCeremony(fail_ceremony)) = response.await {
+                match fail_ceremony {
+                    true => Err(error),
+                    false => Ok(()),
+                }
+            } else {
+                Err(error)
+            }
+        } else {
+            Err(error)
         }
     }
 
@@ -171,6 +196,10 @@ impl Store {
                 Request::Register((credential_id, user_account)) => {
                     self.register(credential_id, user_account).await?;
                 }
+                Request::Identify(credential_id) => match self.identify(credential_id).await {
+                    Ok(()) => _ = response.send(Response::FailCeremony(false)),
+                    Err(_) => _ = response.send(Response::FailCeremony(true)),
+                },
                 Request::Lookup(credential_id) => {
                     if let Ok(public_key) = self.lookup(credential_id).await {
                         _ = response.send(Response::PublicKey(public_key))
@@ -213,6 +242,15 @@ impl Store {
         self.credentials.insert(credential_id, user_account);
 
         Ok(())
+    }
+
+    async fn identify(&self, credential_id: Vec<u8>) -> Result<(), AuthenticationError> {
+        match self.credentials.contains_key(&credential_id) {
+            true => Ok(()),
+            false => Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            }),
+        }
     }
 
     async fn lookup(&self, credential_id: Vec<u8>) -> Result<COSEKey, AuthenticationError> {
