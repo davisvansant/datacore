@@ -9,12 +9,10 @@ use crate::api::public_key_credential::PublicKeyCredential;
 use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::{AttestedCredentialData, COSEKey};
 use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
-use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
+// use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::relying_party::StoreChannel;
 use crate::security::sha2::generate_hash;
-
-use std::collections::HashMap;
 
 pub struct AuthenticationCeremony {}
 
@@ -104,28 +102,14 @@ impl AuthenticationCeremony {
 
     pub async fn identify_user_and_verify(
         &self,
+        store: &StoreChannel,
         authenticator_assertion_response: &AuthenticatorAssertionResponse,
     ) -> Result<(), AuthenticationError> {
-        let mut credentials = HashMap::with_capacity(1);
-        let credential_id = [0; 16].to_vec();
-        let public_key_credential_source = PublicKeyCredentialSource::generate().await;
+        store
+            .identify(authenticator_assertion_response.user_handle.to_owned())
+            .await?;
 
-        credentials.insert(credential_id, public_key_credential_source);
-
-        if let Some(credential_source) =
-            credentials.get(&authenticator_assertion_response.user_handle)
-        {
-            match credential_source.id.to_vec() == authenticator_assertion_response.user_handle {
-                true => Ok(()),
-                false => Err(AuthenticationError {
-                    error: AuthenticationErrorType::OperationError,
-                }),
-            }
-        } else {
-            Err(AuthenticationError {
-                error: AuthenticationErrorType::OperationError,
-            })
-        }
+        Ok(())
     }
 
     pub async fn credential_public_key(
@@ -479,22 +463,33 @@ mod tests {
             user_handle: Vec::with_capacity(0),
         };
 
+        let mut test_store = Store::init().await;
+
+        tokio::spawn(async move {
+            test_store.0.run().await.unwrap();
+        });
+
         assert!(test_authentication_ceremony
-            .identify_user_and_verify(&test_authenticator_assertion_response)
+            .identify_user_and_verify(&test_store.1, &test_authenticator_assertion_response)
             .await
             .is_err());
 
         test_authenticator_assertion_response.user_handle = b"some_other_id".to_vec();
 
-        assert!(test_authentication_ceremony
-            .identify_user_and_verify(&test_authenticator_assertion_response)
-            .await
-            .is_err());
+        test_store
+            .1
+            .register(
+                b"some_other_id".to_vec(),
+                UserAccount {
+                    public_key: COSEKey::generate(COSEAlgorithm::EdDSA).await.0,
+                    signature_counter: 0,
+                    transports: None,
+                },
+            )
+            .await?;
 
-        test_authenticator_assertion_response.user_handle = [0; 16].to_vec();
-
         assert!(test_authentication_ceremony
-            .identify_user_and_verify(&test_authenticator_assertion_response)
+            .identify_user_and_verify(&test_store.1, &test_authenticator_assertion_response)
             .await
             .is_ok());
 

@@ -113,7 +113,9 @@ impl RelyingParty {
             .verify_credential_id(&options, &credential)
             .await?;
 
-        operation.identify_user_and_verify(&response).await?;
+        operation
+            .identify_user_and_verify(&self.store, &response)
+            .await?;
 
         let credential_public_key = operation
             .credential_public_key(&self.store, &credential)
