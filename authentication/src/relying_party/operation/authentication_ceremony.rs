@@ -32,9 +32,7 @@ impl AuthenticationCeremony {
         &self,
         _options: &PublicKeyCredentialRequestOptions,
     ) -> Result<PublicKeyCredential, AuthenticationError> {
-        let r#type = String::from("public-key");
         let id = String::from("some_key_id");
-        let raw_id = Vec::with_capacity(0);
         let client_data_json = Vec::with_capacity(0);
         let authenticator_data = Vec::with_capacity(0);
         let signature = Vec::with_capacity(0);
@@ -46,7 +44,7 @@ impl AuthenticationCeremony {
                 signature,
                 user_handle,
             });
-        let credential = PublicKeyCredential::generate(r#type, id, raw_id, response).await;
+        let credential = PublicKeyCredential::generate(id, response).await;
 
         Ok(credential)
     }
@@ -109,7 +107,6 @@ impl AuthenticationCeremony {
         authenticator_assertion_response: &AuthenticatorAssertionResponse,
     ) -> Result<(), AuthenticationError> {
         let mut credentials = HashMap::with_capacity(1);
-        // let credential_id = String::from("some_id").into_bytes();
         let credential_id = [0; 16].to_vec();
         let public_key_credential_source = PublicKeyCredentialSource::generate().await;
 
@@ -355,36 +352,32 @@ mod tests {
     #[tokio::test]
     async fn authenticator_assertion_response() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
-        let test_public_key_credential_assertion = PublicKeyCredential {
-            id: String::from("test_id"),
-            raw_id: Vec::with_capacity(0),
-            response: AuthenticatorResponse::AuthenticatorAssertionResponse(
-                AuthenticatorAssertionResponse {
-                    client_data_json: Vec::with_capacity(0),
-                    authenticator_data: Vec::with_capacity(0),
-                    signature: Vec::with_capacity(0),
-                    user_handle: Vec::with_capacity(0),
-                },
-            ),
-            r#type: String::from("test_type"),
-        };
+        let test_public_key_credential_assertion = PublicKeyCredential::generate(
+            String::from("test_id"),
+            AuthenticatorResponse::AuthenticatorAssertionResponse(AuthenticatorAssertionResponse {
+                client_data_json: Vec::with_capacity(0),
+                authenticator_data: Vec::with_capacity(0),
+                signature: Vec::with_capacity(0),
+                user_handle: Vec::with_capacity(0),
+            }),
+        )
+        .await;
 
         assert!(test_authentication_ceremony
             .authenticator_assertion_response(&test_public_key_credential_assertion)
             .await
             .is_ok());
 
-        let test_public_key_credential_attestation = PublicKeyCredential {
-            id: String::from("test_id"),
-            raw_id: Vec::with_capacity(0),
-            response: AuthenticatorResponse::AuthenticatorAttestationResponse(
+        let test_public_key_credential_attestation = PublicKeyCredential::generate(
+            String::from("test_id"),
+            AuthenticatorResponse::AuthenticatorAttestationResponse(
                 AuthenticatorAttestationResponse {
                     client_data_json: Vec::with_capacity(0),
                     attestation_object: Vec::with_capacity(0),
                 },
             ),
-            r#type: String::from("test_type"),
-        };
+        )
+        .await;
 
         assert!(test_authentication_ceremony
             .authenticator_assertion_response(&test_public_key_credential_attestation)
@@ -397,19 +390,16 @@ mod tests {
     #[tokio::test]
     async fn client_extension_results() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
-        let test_public_key_credential = PublicKeyCredential {
-            id: String::from("test_id"),
-            raw_id: Vec::with_capacity(0),
-            response: AuthenticatorResponse::AuthenticatorAssertionResponse(
-                AuthenticatorAssertionResponse {
-                    client_data_json: Vec::with_capacity(0),
-                    authenticator_data: Vec::with_capacity(0),
-                    signature: Vec::with_capacity(0),
-                    user_handle: Vec::with_capacity(0),
-                },
-            ),
-            r#type: String::from("test_type"),
-        };
+        let test_public_key_credential = PublicKeyCredential::generate(
+            String::from("test_id"),
+            AuthenticatorResponse::AuthenticatorAssertionResponse(AuthenticatorAssertionResponse {
+                client_data_json: Vec::with_capacity(0),
+                authenticator_data: Vec::with_capacity(0),
+                signature: Vec::with_capacity(0),
+                user_handle: Vec::with_capacity(0),
+            }),
+        )
+        .await;
 
         assert!(test_authentication_ceremony
             .client_extension_results(&test_public_key_credential)
@@ -425,19 +415,16 @@ mod tests {
         let mut test_public_key_credential_request_options = test_authentication_ceremony
             .public_key_credential_request_options()
             .await?;
-        let test_public_key_credential = PublicKeyCredential {
-            id: String::from("test_id"),
-            raw_id: Vec::with_capacity(0),
-            response: AuthenticatorResponse::AuthenticatorAssertionResponse(
-                AuthenticatorAssertionResponse {
-                    client_data_json: Vec::with_capacity(0),
-                    authenticator_data: Vec::with_capacity(0),
-                    signature: Vec::with_capacity(0),
-                    user_handle: Vec::with_capacity(0),
-                },
-            ),
-            r#type: String::from("test_type"),
-        };
+        let test_public_key_credential = PublicKeyCredential::generate(
+            String::from("test_id"),
+            AuthenticatorResponse::AuthenticatorAssertionResponse(AuthenticatorAssertionResponse {
+                client_data_json: Vec::with_capacity(0),
+                authenticator_data: Vec::with_capacity(0),
+                signature: Vec::with_capacity(0),
+                user_handle: Vec::with_capacity(0),
+            }),
+        )
+        .await;
 
         assert!(test_authentication_ceremony
             .verify_credential_id(
@@ -504,7 +491,6 @@ mod tests {
             .await
             .is_err());
 
-        // test_authenticator_assertion_response.user_handle = b"some_id".to_vec();
         test_authenticator_assertion_response.user_handle = [0; 16].to_vec();
 
         assert!(test_authentication_ceremony

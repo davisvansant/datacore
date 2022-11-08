@@ -40,9 +40,7 @@ impl Register {
         &self,
         _options: &PublicKeyCredentialCreationOptions,
     ) -> Result<PublicKeyCredential, AuthenticationError> {
-        let r#type = String::from("public-key");
         let id = String::from("some_credential_id");
-        let raw_id = Vec::with_capacity(0);
         let client_data_json = Vec::with_capacity(0);
         let attestation_object = Vec::with_capacity(0);
         let response = AuthenticatorResponse::AuthenticatorAttestationResponse(
@@ -51,7 +49,7 @@ impl Register {
                 attestation_object,
             },
         );
-        let credential = PublicKeyCredential::generate(r#type, id, raw_id, response).await;
+        let credential = PublicKeyCredential::generate(id, response).await;
 
         Ok(credential)
     }
@@ -459,7 +457,10 @@ mod tests {
             .call_credentials_create(&test_public_key_credential_creation_options)
             .await?;
 
-        assert_eq!(test_public_key_credential.r#type, "public-key");
+        assert_eq!(
+            test_public_key_credential.r#type,
+            PublicKeyCredentialType::PublicKey,
+        );
         assert_eq!(test_public_key_credential.id, "some_credential_id");
 
         Ok(())
@@ -468,36 +469,32 @@ mod tests {
     #[tokio::test]
     async fn authenticator_attestation_response() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration = Register {};
-        let test_public_key_credential_assertion = PublicKeyCredential {
-            id: String::from("test_id"),
-            raw_id: Vec::with_capacity(0),
-            response: AuthenticatorResponse::AuthenticatorAssertionResponse(
-                AuthenticatorAssertionResponse {
-                    client_data_json: Vec::with_capacity(0),
-                    authenticator_data: Vec::with_capacity(0),
-                    signature: Vec::with_capacity(0),
-                    user_handle: Vec::with_capacity(0),
-                },
-            ),
-            r#type: String::from("test_type"),
-        };
+        let test_public_key_credential_assertion = PublicKeyCredential::generate(
+            String::from("test_id"),
+            AuthenticatorResponse::AuthenticatorAssertionResponse(AuthenticatorAssertionResponse {
+                client_data_json: Vec::with_capacity(0),
+                authenticator_data: Vec::with_capacity(0),
+                signature: Vec::with_capacity(0),
+                user_handle: Vec::with_capacity(0),
+            }),
+        )
+        .await;
         let test_authenticator_attestation_response_err = test_registration
             .authenticator_attestation_response(&test_public_key_credential_assertion)
             .await;
 
         assert!(test_authenticator_attestation_response_err.is_err());
 
-        let test_public_key_credential_attestation = PublicKeyCredential {
-            id: String::from("test_id"),
-            raw_id: Vec::with_capacity(0),
-            response: AuthenticatorResponse::AuthenticatorAttestationResponse(
+        let test_public_key_credential_attestation = PublicKeyCredential::generate(
+            String::from("test_id"),
+            AuthenticatorResponse::AuthenticatorAttestationResponse(
                 AuthenticatorAttestationResponse {
                     client_data_json: Vec::with_capacity(0),
                     attestation_object: Vec::with_capacity(0),
                 },
             ),
-            r#type: String::from("test_type"),
-        };
+        )
+        .await;
         let test_authenticator_attestation_response_ok = test_registration
             .authenticator_attestation_response(&test_public_key_credential_attestation)
             .await;
