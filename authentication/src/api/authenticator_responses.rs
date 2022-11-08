@@ -2,12 +2,13 @@ pub type ClientDataJSON = Vec<u8>;
 pub type Signature = Vec<u8>;
 pub type UserHandle = Vec<u8>;
 
+#[derive(Debug)]
 pub enum AuthenticatorResponse {
     AuthenticatorAttestationResponse(AuthenticatorAttestationResponse),
     AuthenticatorAssertionResponse(AuthenticatorAssertionResponse),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AuthenticatorAttestationResponse {
     pub client_data_json: ClientDataJSON,
     pub attestation_object: Vec<u8>,
@@ -25,7 +26,7 @@ impl AuthenticatorAttestationResponse {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AuthenticatorAssertionResponse {
     pub client_data_json: ClientDataJSON,
     pub authenticator_data: Vec<u8>,
