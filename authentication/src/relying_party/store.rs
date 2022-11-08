@@ -13,6 +13,7 @@ pub struct UserAccount {
 
 #[derive(Debug)]
 pub enum Request {
+    Check(Vec<u8>),
     Register((Vec<u8>, UserAccount)),
     Lookup(Vec<u8>),
     SignCount((Vec<u8>, u32)),
@@ -37,6 +38,30 @@ impl StoreChannel {
         let (request, receiver) = mpsc::channel::<(Request, oneshot::Sender<Response>)>(64);
 
         (StoreChannel { request }, receiver)
+    }
+
+    pub async fn check(&self, credential_id: Vec<u8>) -> Result<(), AuthenticationError> {
+        let (request, response) = oneshot::channel();
+        let error = AuthenticationError {
+            error: AuthenticationErrorType::OperationError,
+        };
+
+        if let Ok(()) = self
+            .request
+            .send((Request::Check(credential_id), request))
+            .await
+        {
+            if let Ok(Response::FailCeremony(fail_ceremony)) = response.await {
+                match fail_ceremony {
+                    true => Err(error),
+                    false => Ok(()),
+                }
+            } else {
+                Err(error)
+            }
+        } else {
+            Err(error)
+        }
     }
 
     pub async fn register(
@@ -137,6 +162,12 @@ impl Store {
     pub async fn run(&mut self) -> Result<(), AuthenticationError> {
         while let Some((request, response)) = self.request.recv().await {
             match request {
+                Request::Check(credential_id) => match self.check(credential_id).await {
+                    Ok(()) => _ = response.send(Response::FailCeremony(false)),
+                    Err(_) => {
+                        _ = response.send(Response::FailCeremony(true));
+                    }
+                },
                 Request::Register((credential_id, user_account)) => {
                     self.register(credential_id, user_account).await?;
                 }
@@ -163,6 +194,15 @@ impl Store {
         }
 
         Ok(())
+    }
+
+    async fn check(&self, credential_id: Vec<u8>) -> Result<(), AuthenticationError> {
+        match self.credentials.contains_key(&credential_id) {
+            true => Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            }),
+            false => Ok(()),
+        }
     }
 
     async fn register(
