@@ -1,21 +1,21 @@
 use crate::api::assertion_generation_options::PublicKeyCredentialRequestOptions;
 use crate::api::authenticator_responses::AuthenticatorResponse;
 use crate::api::credential_creation_options::PublicKeyCredentialCreationOptions;
+use crate::api::supporting_data_structures::PublicKeyCredentialType;
 
+#[derive(Debug)]
 pub struct PublicKeyCredential {
     pub id: String,
     pub raw_id: Vec<u8>,
     pub response: AuthenticatorResponse,
-    pub r#type: String,
+    pub r#type: PublicKeyCredentialType,
 }
 
 impl PublicKeyCredential {
-    pub async fn generate(
-        r#type: String,
-        id: String,
-        raw_id: Vec<u8>,
-        response: AuthenticatorResponse,
-    ) -> PublicKeyCredential {
+    pub async fn generate(id: String, response: AuthenticatorResponse) -> PublicKeyCredential {
+        let r#type = PublicKeyCredentialType::PublicKey;
+        let raw_id = id.as_bytes().to_vec();
+
         PublicKeyCredential {
             id,
             raw_id,
