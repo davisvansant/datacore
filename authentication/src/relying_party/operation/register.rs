@@ -14,7 +14,8 @@ use crate::authenticator::attestation::{
     AttestationStatementFormatIdentifier, AttestationType, AttestationVerificationProcedureOutput,
     PackedAttestationStatementSyntax,
 };
-use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
+// use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
+use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::relying_party::store::{StoreChannel, UserAccount};
 use crate::security::sha2::generate_hash;
@@ -212,7 +213,13 @@ impl Register {
         &self,
         authenticator_data: &AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
-        match authenticator_data.flags[UP] == 1 {
+        // match authenticator_data.flags[UP] == 1 {
+        //     true => Ok(()),
+        //     false => Err(AuthenticationError {
+        //         error: AuthenticationErrorType::OperationError,
+        //     }),
+        // }
+        match authenticator_data.user_present().await {
             true => Ok(()),
             false => Err(AuthenticationError {
                 error: AuthenticationErrorType::OperationError,
@@ -224,7 +231,13 @@ impl Register {
         &self,
         authenticator_data: &AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
-        match authenticator_data.flags[UV] == 1 {
+        // match authenticator_data.flags[UV] == 1 {
+        //     true => Ok(()),
+        //     false => Err(AuthenticationError {
+        //         error: AuthenticationErrorType::OperationError,
+        //     }),
+        // }
+        match authenticator_data.user_verified().await {
             true => Ok(()),
             false => Err(AuthenticationError {
                 error: AuthenticationErrorType::OperationError,
@@ -290,7 +303,12 @@ impl Register {
         _client_extension_results: &AuthenticationExtensionsClientOutputs,
         authenticator_data: &AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
-        if authenticator_data.flags[ED] == 1 {
+        // if authenticator_data.flags[ED] == 1 {
+        //     todo!()
+        // } else {
+        //     Ok(())
+        // }
+        if authenticator_data.includes_extension_data().await {
             todo!()
         } else {
             Ok(())
@@ -776,7 +794,8 @@ mod tests {
             AttestationStatementFormat::try_from(&test_perform_decoding.0)?,
             AttestationStatementFormat::Packed,
         );
-        assert_eq!(test_perform_decoding.1.flags[UP], 0);
+        // assert_eq!(test_perform_decoding.1.flags[UP], 0);
+        assert!(!test_perform_decoding.1.user_present().await);
         assert_eq!(test_perform_decoding.1.signcount, 0);
 
         match test_perform_decoding.2 {

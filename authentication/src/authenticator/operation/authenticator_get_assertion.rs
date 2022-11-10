@@ -138,7 +138,8 @@ impl AuthenticatorGetAssertion {
         let rp_id_hash = generate_hash(self.rpid.as_bytes()).await;
         let mut authenticator_data = AuthenticatorData {
             rp_id_hash,
-            flags: [0; 8],
+            // flags: [0; 8],
+            flags: 0b0000_0000,
             signcount: 0,
             attestedcredentialdata: None,
             extensions: None,
@@ -246,7 +247,7 @@ impl AuthenticatorGetAssertion {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::authenticator::data::{UP, UV};
+    // use crate::authenticator::data::{UP, UV};
 
     #[tokio::test]
     async fn credential_options() -> Result<(), Box<dyn std::error::Error>> {
@@ -380,8 +381,10 @@ mod tests {
             test_authenticator_data.rp_id_hash,
             generate_hash(b"some_relying_party_id").await,
         );
-        assert_eq!(test_authenticator_data.flags[UP], 0);
-        assert_eq!(test_authenticator_data.flags[UV], 0);
+        // assert_eq!(test_authenticator_data.flags[UP], 0);
+        // assert_eq!(test_authenticator_data.flags[UV], 0);
+        assert!(!test_authenticator_data.user_present().await);
+        assert!(!test_authenticator_data.user_verified().await);
         assert_eq!(test_authenticator_data.signcount, 0);
         assert!(test_authenticator_data.attestedcredentialdata.is_none());
         assert!(test_authenticator_data.extensions.is_none());
@@ -405,8 +408,10 @@ mod tests {
             test_authenticator_data.rp_id_hash,
             generate_hash(b"some_other_rp_id").await,
         );
-        assert_eq!(test_authenticator_data.flags[UP], 1);
-        assert_eq!(test_authenticator_data.flags[UV], 1);
+        // assert_eq!(test_authenticator_data.flags[UP], 1);
+        // assert_eq!(test_authenticator_data.flags[UV], 1);
+        assert!(test_authenticator_data.user_present().await);
+        assert!(test_authenticator_data.user_verified().await);
         assert_eq!(test_authenticator_data.signcount, 0);
         assert!(test_authenticator_data.attestedcredentialdata.is_none());
         assert!(test_authenticator_data.extensions.is_none());
@@ -441,8 +446,8 @@ mod tests {
             .unwrap();
 
         assert_eq!(test_assertion_signature.client_data_json.len(), 21);
-        assert_eq!(test_assertion_signature.authenticator_data.len(), 52);
-        assert_eq!(test_assertion_signature.signature.len(), 73);
+        assert_eq!(test_assertion_signature.authenticator_data.len(), 45);
+        assert_eq!(test_assertion_signature.signature.len(), 66);
         assert_eq!(test_assertion_signature.user_handle.len(), 16);
 
         Ok(())

@@ -8,7 +8,8 @@ use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientOut
 use crate::api::public_key_credential::PublicKeyCredential;
 use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::{AttestedCredentialData, COSEKey};
-use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
+// use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
+use crate::authenticator::data::AuthenticatorData;
 // use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::relying_party::StoreChannel;
@@ -221,7 +222,13 @@ impl AuthenticationCeremony {
         &self,
         authenticator_data: &AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
-        match authenticator_data.flags[UP] == 1 {
+        // match authenticator_data.flags[UP] == 1 {
+        //     true => Ok(()),
+        //     false => Err(AuthenticationError {
+        //         error: AuthenticationErrorType::OperationError,
+        //     }),
+        // }
+        match authenticator_data.user_present().await {
             true => Ok(()),
             false => Err(AuthenticationError {
                 error: AuthenticationErrorType::OperationError,
@@ -233,7 +240,13 @@ impl AuthenticationCeremony {
         &self,
         authenticator_data: &AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
-        match authenticator_data.flags[UV] == 1 {
+        // match authenticator_data.flags[UV] == 1 {
+        //     true => Ok(()),
+        //     false => Err(AuthenticationError {
+        //         error: AuthenticationErrorType::OperationError,
+        //     }),
+        // }
+        match authenticator_data.user_verified().await {
             true => Ok(()),
             false => Err(AuthenticationError {
                 error: AuthenticationErrorType::OperationError,
@@ -246,7 +259,12 @@ impl AuthenticationCeremony {
         _client_extension_results: &AuthenticationExtensionsClientOutputs,
         authenticator_data: &AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
-        if authenticator_data.flags[ED] == 1 {
+        // if authenticator_data.flags[ED] == 1 {
+        //     todo!();
+        // } else {
+        //     Ok(())
+        // }
+        if authenticator_data.includes_extension_data().await {
             todo!();
         } else {
             Ok(())
