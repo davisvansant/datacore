@@ -8,7 +8,6 @@ use crate::api::supporting_data_structures::{
 use crate::authenticator::attestation::{
     AttestationObject, AttestationStatementFormat, AttestedCredentialData, COSEAlgorithm, COSEKey,
 };
-// use crate::authenticator::credential_object::CredentialObject;
 use crate::authenticator::data::AuthenticatorData;
 use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
@@ -97,12 +96,9 @@ impl AuthenticatorMakeCrendential {
         let test_credential_id = String::from("some_credential_id").as_bytes().to_vec();
         let internal_credential_for_testing = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
-            // id: String::from("some_credential_id"),
             id: b"cred_identifier_".to_owned(),
-            // private_key: String::from("some_private_key"),
             private_key: Vec::with_capacity(0),
             rpid: String::from("some_relying_party_id"),
-            // user_handle: String::from("some_user_handle"),
             user_handle: [0; 16],
             other_ui: String::from("some_other_ui"),
         };
@@ -184,8 +180,6 @@ impl AuthenticatorMakeCrendential {
         let credential_id = [0; 16];
         let credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
-            // id: String::from("some_credential_id"),
-            // id: b"cred_identifier_".to_owned(),
             id: credential_id,
             private_key: new_credential.1.to_bytes().to_vec(),
             rpid: self.rp_entity.id.to_owned(),
@@ -225,7 +219,6 @@ impl AuthenticatorMakeCrendential {
             credential_id: credential_id.to_vec(),
             credential_public_key: public_key.0,
         };
-        // let attested_credential_data = AttestedCredentialData::generate().await;
 
         Ok(attested_credential_data)
     }
@@ -266,7 +259,6 @@ mod tests {
             user_entity: PublicKeyCredentialUserEntity {
                 name: String::from("some_name"),
                 display_name: String::from("some_display_name"),
-                // id: String::from("some_id"),
                 id: [0; 16],
             },
             require_resident_key: false,

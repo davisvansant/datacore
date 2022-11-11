@@ -9,8 +9,6 @@ use crate::security::sha2::generate_hash;
 
 use std::collections::HashMap;
 
-// pub type CredentialOptions = Vec<PublicKeyCredentialSource>;
-
 pub struct AuthenticatorGetAssertion {
     rpid: String,
     hash: Vec<u8>,
@@ -138,7 +136,6 @@ impl AuthenticatorGetAssertion {
         let rp_id_hash = generate_hash(self.rpid.as_bytes()).await;
         let mut authenticator_data = AuthenticatorData {
             rp_id_hash,
-            // flags: [0; 8],
             flags: 0b0000_0000,
             signcount: 0,
             attestedcredentialdata: None,
@@ -200,17 +197,6 @@ impl AuthenticatorGetAssertion {
                 }
             };
 
-        // for element in serialized_authenticator_data_rp_id_hash {
-        //     sign.push(element);
-        // }
-
-        // for element in serialized_authenticator_data_flags {
-        //     sign.push(element);
-        // }
-
-        // for element in serialized_authenticator_data_sign_count {
-        //     sign.push(element);
-        // }
         for element in serialized_authenticator_data_rp_id_hash {
             authenticator_data_byte_array.push(element);
         }
@@ -247,7 +233,6 @@ impl AuthenticatorGetAssertion {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use crate::authenticator::data::{UP, UV};
 
     #[tokio::test]
     async fn credential_options() -> Result<(), Box<dyn std::error::Error>> {
@@ -381,8 +366,6 @@ mod tests {
             test_authenticator_data.rp_id_hash,
             generate_hash(b"some_relying_party_id").await,
         );
-        // assert_eq!(test_authenticator_data.flags[UP], 0);
-        // assert_eq!(test_authenticator_data.flags[UV], 0);
         assert!(!test_authenticator_data.user_present().await);
         assert!(!test_authenticator_data.user_verified().await);
         assert_eq!(test_authenticator_data.signcount, 0);
@@ -408,8 +391,6 @@ mod tests {
             test_authenticator_data.rp_id_hash,
             generate_hash(b"some_other_rp_id").await,
         );
-        // assert_eq!(test_authenticator_data.flags[UP], 1);
-        // assert_eq!(test_authenticator_data.flags[UV], 1);
         assert!(test_authenticator_data.user_present().await);
         assert!(test_authenticator_data.user_verified().await);
         assert_eq!(test_authenticator_data.signcount, 0);

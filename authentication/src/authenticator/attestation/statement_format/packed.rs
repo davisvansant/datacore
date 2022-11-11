@@ -31,7 +31,6 @@ impl PackedAttestationStatementSyntax {
 
     pub async fn signing_procedure(
         authenticator_data: &AuthenticatorData,
-        // client_data_hash: Vec<u8>,
         client_data_hash: &[u8],
     ) -> PackedAttestationStatementSyntax {
         let mut attest = Vec::with_capacity(500);
@@ -49,11 +48,6 @@ impl PackedAttestationStatementSyntax {
 
         println!("{:?}", attest);
 
-        // let alg = authenticator_data
-        //     .attestedcredentialdata
-        //     .credential_public_key
-        //     .algorithm()
-        //     .await;
         let alg = if let Some(attested_credential_data) = &authenticator_data.attestedcredentialdata
         {
             attested_credential_data
@@ -103,53 +97,44 @@ impl PackedAttestationStatementSyntax {
                     x5c: Some(vec![Vec::with_capacity(0)]),
                 })
             }
-            false => {
-                match attestation_statement.alg == public_key_alg {
-                    true => {
-                        println!("do alg specific verification");
+            false => match attestation_statement.alg == public_key_alg {
+                true => {
+                    println!("do alg specific verification");
 
-                        // let public_key = authenticator_data
-                        //     .attestedcredentialdata
-                        //     .credential_public_key
-                        //     .public_key()
-                        //     .await;
+                    match attestation_statement.alg {
+                        -8 => {
+                            if let Ok(public_key) = PublicKey::from_bytes(&public_key) {
+                                let signature = Signature::from_bytes(&attestation_statement.sig)
+                                    .expect("signature::from_bytes failed");
 
-                        match attestation_statement.alg {
-                            -8 => {
-                                if let Ok(public_key) = PublicKey::from_bytes(&public_key) {
-                                    let signature =
-                                        Signature::from_bytes(&attestation_statement.sig)
-                                            .expect("signature::from_bytes failed");
+                                match public_key.verify_strict(client_data_hash, &signature) {
+                                    Ok(()) => (),
+                                    Err(error) => {
+                                        println!("error -> {:?}", error);
 
-                                    match public_key.verify_strict(client_data_hash, &signature) {
-                                        Ok(()) => (),
-                                        Err(error) => {
-                                            println!("error -> {:?}", error);
-
-                                            return Err(AuthenticationError {
-                                                error: AuthenticationErrorType::OperationError,
-                                            });
-                                        }
+                                        return Err(AuthenticationError {
+                                            error: AuthenticationErrorType::OperationError,
+                                        });
                                     }
-                                } else {
-                                    return Err(AuthenticationError {
-                                        error: AuthenticationErrorType::OperationError,
-                                    });
                                 }
+                            } else {
+                                return Err(AuthenticationError {
+                                    error: AuthenticationErrorType::OperationError,
+                                });
                             }
-                            _ => unimplemented!(),
                         }
-
-                        Ok(AttestationVerificationProcedureOutput {
-                            attestation_type: AttestationType::SelfAttestation,
-                            x5c: None,
-                        })
+                        _ => unimplemented!(),
                     }
-                    false => Err(AuthenticationError {
-                        error: AuthenticationErrorType::OperationError,
-                    }),
+
+                    Ok(AttestationVerificationProcedureOutput {
+                        attestation_type: AttestationType::SelfAttestation,
+                        x5c: None,
+                    })
                 }
-            }
+                false => Err(AuthenticationError {
+                    error: AuthenticationErrorType::OperationError,
+                }),
+            },
         }
     }
 }
