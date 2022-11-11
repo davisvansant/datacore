@@ -32,10 +32,13 @@ impl PackedAttestationStatementSyntax {
     pub async fn signing_procedure(
         authenticator_data: &AuthenticatorData,
         client_data_hash: &[u8],
-    ) -> PackedAttestationStatementSyntax {
+    ) -> Result<PackedAttestationStatementSyntax, AuthenticationError> {
         let mut attest = Vec::with_capacity(500);
-        let serialized_authenticator_data =
-            bincode::serialize(authenticator_data).expect("serialized_data");
+        let Ok(serialized_authenticator_data) = bincode::serialize(authenticator_data) else {
+            return Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            });
+        };
 
         for element in serialized_authenticator_data {
             attest.push(element);
@@ -55,15 +58,17 @@ impl PackedAttestationStatementSyntax {
                 .algorithm()
                 .await
         } else {
-            panic!("need better error handling...")
+            return Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            });
         };
         let sig = [0; 64].to_vec();
 
-        PackedAttestationStatementSyntax {
+        Ok(PackedAttestationStatementSyntax {
             alg,
             sig,
             x5c: None,
-        }
+        })
     }
 
     pub async fn verification_procedure(
@@ -85,7 +90,9 @@ impl PackedAttestationStatementSyntax {
 
                 (alg, public_key)
             } else {
-                panic!("need better error handling here...");
+                return Err(AuthenticationError {
+                    error: AuthenticationErrorType::OperationError,
+                });
             };
 
         match attestation_statement.x5c.is_some() {
@@ -195,7 +202,7 @@ mod tests {
             &test_authenticator_data,
             &test_hash,
         )
-        .await;
+        .await?;
 
         assert_eq!(test_output.alg, -8);
         assert_eq!(test_output.sig.len(), 64);

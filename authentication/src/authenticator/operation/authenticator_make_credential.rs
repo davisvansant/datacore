@@ -239,7 +239,7 @@ impl AuthenticatorMakeCrendential {
     ) -> Result<AttestationObject, AuthenticationError> {
         let attestation_format = AttestationStatementFormat::Packed;
         let attestation_object =
-            AttestationObject::generate(attestation_format, authenticator_data, &self.hash).await;
+            AttestationObject::generate(attestation_format, authenticator_data, &self.hash).await?;
 
         Ok(attestation_object)
     }

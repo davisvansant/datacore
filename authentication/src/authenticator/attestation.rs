@@ -6,6 +6,7 @@ pub use crate::authenticator::attestation::statement_format::{
     AttestationVerificationProcedureOutput, PackedAttestationStatementSyntax,
 };
 use crate::authenticator::data::AuthenticatorData;
+use crate::error::AuthenticationError;
 
 mod cose_key_format;
 mod statement_format;
@@ -24,29 +25,27 @@ impl AttestationObject {
     pub async fn generate(
         attestation_format: AttestationStatementFormat,
         authenticator_data: AuthenticatorData,
-        // hash: Vec<u8>,
         hash: &[u8],
-    ) -> AttestationObject {
+    ) -> Result<AttestationObject, AuthenticationError> {
         let format = attestation_format.identifier().await;
         let attestation_statement = match attestation_format {
             AttestationStatementFormat::Packed => AttestationStatement::Packed(
                 PackedAttestationStatementSyntax::signing_procedure(&authenticator_data, hash)
-                    .await,
+                    .await?,
             ),
         };
 
-        AttestationObject {
+        Ok(AttestationObject {
             format,
             attestation_statement,
             authenticator_data,
-        }
+        })
     }
 }
 
 #[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct AttestedCredentialData {
     pub aaguid: Vec<u8>,
-    // pub credential_id_length: u16,
     pub credential_id_length: [u8; 8],
     pub credential_id: Vec<u8>,
     pub credential_public_key: COSEKey,
