@@ -8,9 +8,7 @@ use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientOut
 use crate::api::public_key_credential::PublicKeyCredential;
 use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::{AttestedCredentialData, COSEKey};
-// use crate::authenticator::data::{AuthenticatorData, ED, UP, UV};
 use crate::authenticator::data::AuthenticatorData;
-// use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::relying_party::StoreChannel;
 use crate::security::sha2::generate_hash;
@@ -222,12 +220,6 @@ impl AuthenticationCeremony {
         &self,
         authenticator_data: &AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
-        // match authenticator_data.flags[UP] == 1 {
-        //     true => Ok(()),
-        //     false => Err(AuthenticationError {
-        //         error: AuthenticationErrorType::OperationError,
-        //     }),
-        // }
         match authenticator_data.user_present().await {
             true => Ok(()),
             false => Err(AuthenticationError {
@@ -240,12 +232,6 @@ impl AuthenticationCeremony {
         &self,
         authenticator_data: &AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
-        // match authenticator_data.flags[UV] == 1 {
-        //     true => Ok(()),
-        //     false => Err(AuthenticationError {
-        //         error: AuthenticationErrorType::OperationError,
-        //     }),
-        // }
         match authenticator_data.user_verified().await {
             true => Ok(()),
             false => Err(AuthenticationError {
@@ -259,11 +245,6 @@ impl AuthenticationCeremony {
         _client_extension_results: &AuthenticationExtensionsClientOutputs,
         authenticator_data: &AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
-        // if authenticator_data.flags[ED] == 1 {
-        //     todo!();
-        // } else {
-        //     Ok(())
-        // }
         if authenticator_data.includes_extension_data().await {
             todo!();
         } else {
@@ -836,7 +817,6 @@ mod tests {
         let test_credential_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data = AttestedCredentialData {
             aaguid: Vec::with_capacity(0),
-            // credential_id_length: 0,
             credential_id_length: Vec::<[u8; 8]>::with_capacity(0).len().to_be_bytes(),
             credential_id: Vec::with_capacity(0),
             credential_public_key: test_credential_public_key.0.to_owned(),
