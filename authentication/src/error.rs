@@ -1,9 +1,9 @@
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct AuthenticationError {
     pub error: AuthenticationErrorType,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum AuthenticationErrorType {
     UnknownError,
     NotSupportedError,
