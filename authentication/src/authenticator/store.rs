@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 
+#[derive(Debug)]
 pub enum CredentialsRequest {
     Set((String, String), PublicKeyCredentialSource),
     SignatureCounter(String),
@@ -13,31 +14,158 @@ pub enum CredentialsRequest {
     Lookup((String, String)),
 }
 
+#[derive(Debug)]
+pub enum CredentialsResponse {
+    PublicKeyCredentialSource(PublicKeyCredentialSource),
+    TerminateOperation,
+}
+
+pub struct CredentialsChannel {
+    request: mpsc::Sender<(CredentialsRequest, oneshot::Sender<CredentialsResponse>)>,
+    error: AuthenticationError,
+}
+
+impl CredentialsChannel {
+    pub async fn init() -> (
+        CredentialsChannel,
+        mpsc::Receiver<(CredentialsRequest, oneshot::Sender<CredentialsResponse>)>,
+    ) {
+        let (sender, receiver) = mpsc::channel(64);
+
+        let error = AuthenticationError {
+            error: AuthenticationErrorType::OperationError,
+        };
+
+        (
+            CredentialsChannel {
+                request: sender,
+                error,
+            },
+            receiver,
+        )
+    }
+
+    pub async fn set(
+        &self,
+        rp_entity_id: String,
+        credential_id: String,
+        credential_source: PublicKeyCredentialSource,
+    ) -> Result<(), AuthenticationError> {
+        let (_request, _response) = oneshot::channel();
+
+        match self
+            .request
+            .send((
+                CredentialsRequest::Set((rp_entity_id, credential_id), credential_source),
+                _request,
+            ))
+            .await
+        {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                println!("error sending register request to store -> {:?}", error);
+
+                Err(self.error)
+            }
+        }
+    }
+
+    pub async fn signature_counter(
+        &self,
+        credential_id: String,
+    ) -> Result<(), AuthenticationError> {
+        let (_request, _response) = oneshot::channel();
+
+        match self
+            .request
+            .send((
+                CredentialsRequest::SignatureCounter(credential_id),
+                _request,
+            ))
+            .await
+        {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                println!("error sending register request to store -> {:?}", error);
+
+                Err(self.error)
+            }
+        }
+    }
+
+    pub async fn increment(&self, credential_id: String) -> Result<(), AuthenticationError> {
+        let (_request, _response) = oneshot::channel();
+
+        match self
+            .request
+            .send((CredentialsRequest::Increment(credential_id), _request))
+            .await
+        {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                println!("error sending register request to store -> {:?}", error);
+
+                Err(self.error)
+            }
+        }
+    }
+
+    pub async fn lookup(
+        &self,
+        rp_entity_id: String,
+        credential_id: String,
+    ) -> Result<PublicKeyCredentialSource, AuthenticationError> {
+        let (request, response) = oneshot::channel();
+
+        if let Ok(()) = self
+            .request
+            .send((
+                CredentialsRequest::Lookup((rp_entity_id, credential_id)),
+                request,
+            ))
+            .await
+        {
+            match response.await {
+                Ok(CredentialsResponse::PublicKeyCredentialSource(credential_source)) => {
+                    Ok(credential_source)
+                }
+                Ok(CredentialsResponse::TerminateOperation) => Err(self.error),
+                Err(_) => Err(self.error),
+            }
+        } else {
+            Err(self.error)
+        }
+    }
+}
+
 pub struct Credentials {
     map: HashMap<(String, String), PublicKeyCredentialSource>,
-    receiver: mpsc::Receiver<CredentialsRequest>,
+    receiver: mpsc::Receiver<(CredentialsRequest, oneshot::Sender<CredentialsResponse>)>,
     signature_counter: HashMap<String, mpsc::Sender<SignatureCounterRequest>>,
     signature_counter_handles: Vec<JoinHandle<()>>,
 }
 
 impl Credentials {
-    pub async fn init() -> Credentials {
+    pub async fn init() -> (CredentialsChannel, Credentials) {
         let capacity = 50;
         let map = HashMap::with_capacity(capacity);
-        let (sender, receiver) = mpsc::channel(64);
+        let (credentials_channel, receiver) = CredentialsChannel::init().await;
         let signature_counter = HashMap::with_capacity(capacity);
         let signature_counter_handles = Vec::with_capacity(capacity);
 
-        Credentials {
-            map,
-            receiver,
-            signature_counter,
-            signature_counter_handles,
-        }
+        (
+            credentials_channel,
+            Credentials {
+                map,
+                receiver,
+                signature_counter,
+                signature_counter_handles,
+            },
+        )
     }
 
     pub async fn run(&mut self) -> Result<(), AuthenticationError> {
-        while let Some(request) = self.receiver.recv().await {
+        while let Some((request, response)) = self.receiver.recv().await {
             match request {
                 CredentialsRequest::Set((rp_entity_id, user_handle), source) => {
                     self.set(rp_entity_id, user_handle, source).await?;
@@ -49,7 +177,14 @@ impl Credentials {
                     self.increment(&credential_id).await?;
                 }
                 CredentialsRequest::Lookup((rp_id, credential_id)) => {
-                    self.lookup(rp_id, credential_id).await?;
+                    match self.lookup(rp_id, credential_id).await {
+                        Ok(credential_source) => {
+                            _ = response.send(CredentialsResponse::PublicKeyCredentialSource(
+                                credential_source,
+                            ));
+                        }
+                        Err(_) => _ = response.send(CredentialsResponse::TerminateOperation),
+                    }
                 }
             }
         }
@@ -175,12 +310,116 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn credentials_channel_init() -> Result<(), Box<dyn std::error::Error>> {
+        let test_credentials = Credentials::init().await;
+
+        assert!(!test_credentials.0.request.is_closed());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn credentials_channel_set() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_credentials = Credentials::init().await;
+        let test_rp_entity_id = String::from("some_rp_entity_id");
+        let test_credential_id = String::from("some_credential_id");
+        let test_credential_source = PublicKeyCredentialSource::generate().await;
+
+        tokio::spawn(async move {
+            test_credentials.1.run().await.unwrap();
+        });
+
+        assert!(test_credentials
+            .0
+            .set(
+                test_rp_entity_id,
+                test_credential_id,
+                test_credential_source,
+            )
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn credentials_channel_signature_counter() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_credentials = Credentials::init().await;
+        let test_credential_id = String::from("some_credential_id");
+
+        tokio::spawn(async move {
+            test_credentials.1.run().await.unwrap();
+        });
+
+        assert!(test_credentials
+            .0
+            .signature_counter(test_credential_id)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn credentials_channel_increment() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_credentials = Credentials::init().await;
+        let test_credential_id = String::from("some_credential_id");
+
+        tokio::spawn(async move {
+            test_credentials.1.run().await.unwrap();
+        });
+
+        assert!(test_credentials
+            .0
+            .increment(test_credential_id)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn credentials_channel_lookup() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_credentials = Credentials::init().await;
+        let test_rp_entity_id = String::from("some_rp_entity_id");
+        let test_credential_id = String::from("some_credential_id");
+        let test_credential_source = PublicKeyCredentialSource::generate().await;
+
+        tokio::spawn(async move {
+            test_credentials.1.run().await.unwrap();
+        });
+
+        assert!(test_credentials
+            .0
+            .lookup(test_rp_entity_id.to_owned(), test_credential_id.to_owned())
+            .await
+            .is_err());
+
+        test_credentials
+            .0
+            .set(
+                test_rp_entity_id.to_owned(),
+                test_credential_id.to_owned(),
+                test_credential_source,
+            )
+            .await?;
+
+        assert!(test_credentials
+            .0
+            .lookup(test_rp_entity_id.to_owned(), test_credential_id.to_owned())
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn credentials_init() -> Result<(), Box<dyn std::error::Error>> {
         let test_credentials = Credentials::init().await;
 
-        assert!(test_credentials.map.is_empty());
-        assert!(test_credentials.signature_counter.is_empty());
-        assert!(test_credentials.signature_counter_handles.is_empty());
+        assert!(test_credentials.1.map.is_empty());
+        assert!(test_credentials.1.signature_counter.is_empty());
+        assert!(test_credentials.1.signature_counter_handles.is_empty());
 
         Ok(())
     }
@@ -193,6 +432,7 @@ mod tests {
         let test_credential_source = PublicKeyCredentialSource::generate().await;
 
         test_credentials
+            .1
             .set(
                 test_rp_entity_id,
                 test_credential_id,
@@ -200,7 +440,7 @@ mod tests {
             )
             .await?;
 
-        assert!(!test_credentials.map.is_empty());
+        assert!(!test_credentials.1.map.is_empty());
 
         Ok(())
     }
@@ -211,11 +451,12 @@ mod tests {
         let test_credential_id = String::from("some_credential_id");
 
         test_credentials
+            .1
             .signature_counter(&test_credential_id)
             .await?;
 
-        assert!(!test_credentials.signature_counter.is_empty());
-        assert!(!test_credentials.signature_counter_handles.is_empty());
+        assert!(!test_credentials.1.signature_counter.is_empty());
+        assert!(!test_credentials.1.signature_counter_handles.is_empty());
 
         Ok(())
     }
@@ -226,10 +467,11 @@ mod tests {
         let test_credential_id = String::from("some_credential_id");
 
         test_credentials
+            .1
             .signature_counter(&test_credential_id)
             .await?;
 
-        test_credentials.increment(&test_credential_id).await?;
+        test_credentials.1.increment(&test_credential_id).await?;
 
         Ok(())
     }
@@ -242,6 +484,7 @@ mod tests {
         let test_credential_source = PublicKeyCredentialSource::generate().await;
 
         test_credentials
+            .1
             .set(
                 test_rp_entity_id.to_owned(),
                 test_credential_id.to_owned(),
@@ -250,10 +493,12 @@ mod tests {
             .await?;
 
         assert!(test_credentials
+            .1
             .lookup(test_rp_entity_id.to_owned(), test_credential_id.to_owned())
             .await
             .is_ok());
         assert!(test_credentials
+            .1
             .lookup(
                 test_rp_entity_id.to_owned(),
                 String::from("some_other_credential_id"),
@@ -261,6 +506,7 @@ mod tests {
             .await
             .is_err());
         assert!(test_credentials
+            .1
             .lookup(
                 String::from("some_other_rp_entity_id"),
                 test_credential_id.to_owned(),
@@ -268,6 +514,7 @@ mod tests {
             .await
             .is_err());
         assert!(test_credentials
+            .1
             .lookup(String::from("some_rp"), String::from("some_credential"))
             .await
             .is_err());
