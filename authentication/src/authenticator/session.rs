@@ -60,10 +60,12 @@ impl Session {
         // let _processed_extensions = operation.process_extensions().await?;
 
         operation
-            .increment_signature_counter(&selected_credential)
+            .increment_signature_counter(&self.store, &selected_credential)
             .await?;
 
-        let authenticator_data = operation.authenticator_data().await?;
+        let authenticator_data = operation
+            .authenticator_data(&self.store, &selected_credential)
+            .await?;
         let _signature = operation
             .assertion_signature(&authenticator_data, &selected_credential)
             .await?;

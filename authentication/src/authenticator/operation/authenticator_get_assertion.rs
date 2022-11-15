@@ -4,6 +4,7 @@ use crate::api::supporting_data_structures::{
 };
 use crate::authenticator::data::AuthenticatorData;
 use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
+use crate::authenticator::store::CredentialsChannel;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::security::sha2::generate_hash;
 
@@ -114,30 +115,25 @@ impl AuthenticatorGetAssertion {
 
     pub async fn increment_signature_counter(
         &self,
+        store: &CredentialsChannel,
         selected_credential: &PublicKeyCredentialSource,
     ) -> Result<(), AuthenticationError> {
-        let mut signature_counter = HashMap::with_capacity(1);
-        let initial_value = 0_u32.to_be_bytes();
-
-        signature_counter.insert(selected_credential.id, initial_value);
-
-        if let Some(sign_count) = signature_counter.get_mut(&selected_credential.id) {
-            let mut value = u32::from_be_bytes(*sign_count);
-
-            value += 1;
-
-            *sign_count = value.to_be_bytes();
-        }
+        store.increment(selected_credential.id).await?;
 
         Ok(())
     }
 
-    pub async fn authenticator_data(&self) -> Result<AuthenticatorData, AuthenticationError> {
+    pub async fn authenticator_data(
+        &self,
+        store: &CredentialsChannel,
+        selected_credential: &PublicKeyCredentialSource,
+    ) -> Result<AuthenticatorData, AuthenticationError> {
         let rp_id_hash = generate_hash(self.rpid.as_bytes()).await;
+        let signcount = store.counter(selected_credential.id).await?;
         let mut authenticator_data = AuthenticatorData {
             rp_id_hash,
             flags: 0b0000_0000,
-            signcount: 0,
+            signcount,
             attestedcredentialdata: None,
             extensions: None,
         };
@@ -233,6 +229,7 @@ impl AuthenticatorGetAssertion {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::authenticator::store::Credentials;
 
     #[tokio::test]
     async fn credential_options() -> Result<(), Box<dyn std::error::Error>> {
@@ -318,6 +315,12 @@ mod tests {
 
     #[tokio::test]
     async fn increment_signature_counter() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_credentials_store = Credentials::init().await;
+
+        tokio::spawn(async move {
+            test_credentials_store.1.run().await.unwrap();
+        });
+
         let test_ok = AuthenticatorGetAssertion {
             rpid: String::from("some_relying_party_id"),
             hash: Vec::with_capacity(0),
@@ -338,7 +341,7 @@ mod tests {
             .unwrap();
 
         assert!(test_ok
-            .increment_signature_counter(&test_selected_credentaial)
+            .increment_signature_counter(&test_credentials_store.0, &test_selected_credentaial)
             .await
             .is_ok());
 
@@ -347,6 +350,12 @@ mod tests {
 
     #[tokio::test]
     async fn authenticator_data() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_credentials_store = Credentials::init().await;
+
+        tokio::spawn(async move {
+            test_credentials_store.1.run().await.unwrap();
+        });
+
         let test_false = AuthenticatorGetAssertion {
             rpid: String::from("some_relying_party_id"),
             hash: Vec::with_capacity(0),
@@ -360,7 +369,19 @@ mod tests {
             extensions: vec![String::from("some_extension")],
         };
 
-        let test_authenticator_data = test_false.authenticator_data().await.unwrap();
+        let mut test_selected_credential = PublicKeyCredentialSource::generate().await;
+
+        test_selected_credential.id = *b"cred_identifier_";
+
+        test_credentials_store
+            .0
+            .signature_counter(*b"cred_identifier_")
+            .await?;
+
+        let test_authenticator_data = test_false
+            .authenticator_data(&test_credentials_store.0, &test_selected_credential)
+            .await
+            .unwrap();
 
         assert_eq!(
             test_authenticator_data.rp_id_hash,
@@ -385,7 +406,10 @@ mod tests {
             extensions: vec![String::from("some_extension")],
         };
 
-        let test_authenticator_data = test_true.authenticator_data().await.unwrap();
+        let test_authenticator_data = test_true
+            .authenticator_data(&test_credentials_store.0, &test_selected_credential)
+            .await
+            .unwrap();
 
         assert_eq!(
             test_authenticator_data.rp_id_hash,
@@ -402,6 +426,12 @@ mod tests {
 
     #[tokio::test]
     async fn assertion_signature() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_credentials_store = Credentials::init().await;
+
+        tokio::spawn(async move {
+            test_credentials_store.1.run().await.unwrap();
+        });
+
         let test_ok = AuthenticatorGetAssertion {
             rpid: String::from("some_relying_party_id"),
             hash: b"some_test_client_data".to_vec(),
@@ -420,7 +450,19 @@ mod tests {
             .collect_authorization_gesture(test_credential_options)
             .await
             .unwrap();
-        let test_authenticator_data = test_ok.authenticator_data().await.unwrap();
+        let mut test_selected_credential = PublicKeyCredentialSource::generate().await;
+
+        test_selected_credential.id = *b"cred_identifier_";
+
+        test_credentials_store
+            .0
+            .signature_counter(*b"cred_identifier_")
+            .await?;
+
+        let test_authenticator_data = test_ok
+            .authenticator_data(&test_credentials_store.0, &test_selected_credential)
+            .await
+            .unwrap();
         let test_assertion_signature = test_ok
             .assertion_signature(&test_authenticator_data, &test_selected_credentaial)
             .await
