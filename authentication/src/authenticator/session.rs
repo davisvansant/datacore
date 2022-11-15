@@ -1,12 +1,15 @@
 use crate::authenticator::attestation::AttestationObject;
 use crate::authenticator::operation::{AuthenticatorGetAssertion, AuthenticatorMakeCrendential};
+use crate::authenticator::store::CredentialsChannel;
 use crate::error::AuthenticationError;
 
-pub struct Session {}
+pub struct Session {
+    store: CredentialsChannel,
+}
 
 impl Session {
-    pub async fn init() -> Session {
-        Session {}
+    pub async fn init(store: CredentialsChannel) -> Session {
+        Session { store }
     }
 
     pub async fn lookup(&self) -> Result<(), AuthenticationError> {
@@ -14,6 +17,7 @@ impl Session {
     }
 
     pub async fn authenticator_make_credential(
+        &self,
         operation: AuthenticatorMakeCrendential,
     ) -> Result<AttestationObject, AuthenticationError> {
         operation.check_parameters().await?;
@@ -23,9 +27,13 @@ impl Session {
         operation.require_user_verification().await?;
         operation.collect_authorization_gesture().await?;
 
+        operation
+            .generate_new_credential_object(&self.store)
+            .await?;
+
         // let _processed_extensions = operation.process_extensions().await?;
 
-        operation.signature_counter().await?;
+        operation.signature_counter(&self.store).await?;
 
         let attested_credential_data = operation.attested_credential_data().await?;
         let authenticator_data = operation

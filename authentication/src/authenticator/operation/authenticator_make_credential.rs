@@ -10,6 +10,7 @@ use crate::authenticator::attestation::{
 };
 use crate::authenticator::data::AuthenticatorData;
 use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
+use crate::authenticator::store::CredentialsChannel;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 
 use std::collections::HashMap;
@@ -174,7 +175,10 @@ impl AuthenticatorMakeCrendential {
         Ok(())
     }
 
-    pub async fn generate_new_credential_object(&self) -> Result<(), AuthenticationError> {
+    pub async fn generate_new_credential_object(
+        &self,
+        store: &CredentialsChannel,
+    ) -> Result<(), AuthenticationError> {
         let algorithm = COSEAlgorithm::from(self.cred_types_and_pub_key_apis[0].alg).await;
         let new_credential = COSEKey::generate(algorithm).await;
         let credential_id = [0; 16];
@@ -186,9 +190,14 @@ impl AuthenticatorMakeCrendential {
             user_handle: self.user_entity.id,
             other_ui: String::from("some_other_ui"),
         };
-        let mut credentials = HashMap::with_capacity(1);
 
-        credentials.insert(credential_id, credential);
+        store
+            .set(
+                self.rp_entity.id.to_owned(),
+                self.user_entity.id,
+                credential,
+            )
+            .await?;
 
         Ok(())
     }
@@ -197,11 +206,13 @@ impl AuthenticatorMakeCrendential {
         Ok(())
     }
 
-    pub async fn signature_counter(&self) -> Result<(), AuthenticationError> {
-        let mut signature_counter = HashMap::with_capacity(1);
+    pub async fn signature_counter(
+        &self,
+        store: &CredentialsChannel,
+    ) -> Result<(), AuthenticationError> {
         let credential_id = [0; 16];
 
-        signature_counter.insert(credential_id, 0);
+        store.signature_counter(credential_id).await?;
 
         Ok(())
     }
@@ -248,6 +259,7 @@ impl AuthenticatorMakeCrendential {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::authenticator::store::Credentials;
 
     #[tokio::test]
     async fn check_supported_combinations() -> Result<(), Box<dyn std::error::Error>> {
@@ -565,6 +577,7 @@ mod tests {
 
     #[tokio::test]
     async fn generate_new_credential_object() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_credentials_store = Credentials::init().await;
         let test_ok = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
@@ -587,13 +600,21 @@ mod tests {
             extensions: String::from("some_extensions"),
         };
 
-        assert!(test_ok.generate_new_credential_object().await.is_ok());
+        tokio::spawn(async move {
+            test_credentials_store.1.run().await.unwrap();
+        });
+
+        assert!(test_ok
+            .generate_new_credential_object(&test_credentials_store.0)
+            .await
+            .is_ok());
 
         Ok(())
     }
 
     #[tokio::test]
     async fn signature_counter() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_credentials_store = Credentials::init().await;
         let test_ok = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
@@ -616,7 +637,14 @@ mod tests {
             extensions: String::from("some_extensions"),
         };
 
-        assert!(test_ok.signature_counter().await.is_ok());
+        tokio::spawn(async move {
+            test_credentials_store.1.run().await.unwrap();
+        });
+
+        assert!(test_ok
+            .signature_counter(&test_credentials_store.0)
+            .await
+            .is_ok());
 
         Ok(())
     }
