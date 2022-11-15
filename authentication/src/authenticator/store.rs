@@ -12,11 +12,13 @@ pub enum CredentialsRequest {
     SignatureCounter(String),
     Increment(String),
     Lookup((String, String)),
+    Counter(String),
 }
 
 #[derive(Debug)]
 pub enum CredentialsResponse {
     PublicKeyCredentialSource(PublicKeyCredentialSource),
+    SignCount(u32),
     TerminateOperation,
 }
 
@@ -131,6 +133,25 @@ impl CredentialsChannel {
                 }
                 Ok(CredentialsResponse::TerminateOperation) => Err(self.error),
                 Err(_) => Err(self.error),
+                _ => Err(self.error),
+            }
+        } else {
+            Err(self.error)
+        }
+    }
+
+    pub async fn counter(&self, credential_id: String) -> Result<u32, AuthenticationError> {
+        let (request, response) = oneshot::channel();
+
+        if let Ok(()) = self
+            .request
+            .send((CredentialsRequest::Counter(credential_id), request))
+            .await
+        {
+            if let Ok(CredentialsResponse::SignCount(value)) = response.await {
+                Ok(value)
+            } else {
+                Err(self.error)
             }
         } else {
             Err(self.error)
@@ -141,7 +162,13 @@ impl CredentialsChannel {
 pub struct Credentials {
     map: HashMap<(String, String), PublicKeyCredentialSource>,
     receiver: mpsc::Receiver<(CredentialsRequest, oneshot::Sender<CredentialsResponse>)>,
-    signature_counter: HashMap<String, mpsc::Sender<SignatureCounterRequest>>,
+    signature_counter: HashMap<
+        String,
+        mpsc::Sender<(
+            SignatureCounterRequest,
+            oneshot::Sender<SignatureCounterResponse>,
+        )>,
+    >,
     signature_counter_handles: Vec<JoinHandle<()>>,
 }
 
@@ -186,6 +213,12 @@ impl Credentials {
                         Err(_) => _ = response.send(CredentialsResponse::TerminateOperation),
                     }
                 }
+                CredentialsRequest::Counter(credential_id) => {
+                    match self.counter(&credential_id).await {
+                        Ok(value) => _ = response.send(CredentialsResponse::SignCount(value)),
+                        Err(_) => _ = response.send(CredentialsResponse::TerminateOperation),
+                    }
+                }
             }
         }
 
@@ -223,7 +256,12 @@ impl Credentials {
 
     async fn increment(&self, credential_id: &str) -> Result<(), AuthenticationError> {
         if let Some(channel) = self.signature_counter.get(credential_id) {
-            if let Err(error) = channel.send(SignatureCounterRequest::Increment).await {
+            let (_request, _response) = oneshot::channel();
+
+            if let Err(error) = channel
+                .send((SignatureCounterRequest::Increment, _request))
+                .await
+            {
                 println!("signature channel error -> {:?}", error);
             }
         }
@@ -244,6 +282,33 @@ impl Credentials {
             })
         }
     }
+
+    async fn counter(&self, credential_id: &str) -> Result<u32, AuthenticationError> {
+        if let Some(channel) = self.signature_counter.get(credential_id) {
+            let (request, response) = oneshot::channel();
+
+            if channel
+                .send((SignatureCounterRequest::Value, request))
+                .await
+                .is_err()
+            {
+                Err(AuthenticationError {
+                    error: AuthenticationErrorType::OperationError,
+                })
+            } else {
+                match response.await {
+                    Ok(SignatureCounterResponse::Value(value)) => Ok(value),
+                    Err(_) => Err(AuthenticationError {
+                        error: AuthenticationErrorType::OperationError,
+                    }),
+                }
+            }
+        } else {
+            Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            })
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -252,13 +317,27 @@ pub enum SignatureCounterRequest {
     Value,
 }
 
+#[derive(Debug)]
+pub enum SignatureCounterResponse {
+    Value(u32),
+}
+
 pub struct SignatureCounter {
     value: u32,
-    receiver: mpsc::Receiver<SignatureCounterRequest>,
+    receiver: mpsc::Receiver<(
+        SignatureCounterRequest,
+        oneshot::Sender<SignatureCounterResponse>,
+    )>,
 }
 
 impl SignatureCounter {
-    pub async fn init() -> (mpsc::Sender<SignatureCounterRequest>, SignatureCounter) {
+    pub async fn init() -> (
+        mpsc::Sender<(
+            SignatureCounterRequest,
+            oneshot::Sender<SignatureCounterResponse>,
+        )>,
+        SignatureCounter,
+    ) {
         let value: u32 = 0;
         let (sender, receiver) = mpsc::channel(64);
 
@@ -266,13 +345,15 @@ impl SignatureCounter {
     }
 
     pub async fn run(&mut self) -> Result<(), AuthenticationError> {
-        while let Some(request) = self.receiver.recv().await {
+        while let Some((request, response)) = self.receiver.recv().await {
             match request {
                 SignatureCounterRequest::Increment => {
                     self.increment().await;
                 }
                 SignatureCounterRequest::Value => {
                     let value = self.value().await;
+
+                    _ = response.send(SignatureCounterResponse::Value(value));
                 }
             }
         }
@@ -292,22 +373,6 @@ impl SignatureCounter {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[tokio::test]
-    async fn signature_counter() -> Result<(), Box<dyn std::error::Error>> {
-        let test_u32: u32 = 10;
-        let test_be_bytes: [u8; 4] = 10_u32.to_be_bytes();
-
-        assert_eq!(
-            std::mem::size_of_val(&test_u32),
-            std::mem::size_of_val(&test_be_bytes),
-        );
-
-        assert_eq!(std::mem::size_of_val(&test_u32), 4);
-        assert_eq!(std::mem::size_of_val(&test_be_bytes), 4);
-
-        Ok(())
-    }
 
     #[tokio::test]
     async fn credentials_channel_init() -> Result<(), Box<dyn std::error::Error>> {
@@ -407,6 +472,29 @@ mod tests {
         assert!(test_credentials
             .0
             .lookup(test_rp_entity_id.to_owned(), test_credential_id.to_owned())
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn credentials_channel_counter() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_credentials = Credentials::init().await;
+        let test_credential_id = String::from("some_credential_id");
+
+        tokio::spawn(async move {
+            test_credentials.1.run().await.unwrap();
+        });
+
+        test_credentials
+            .0
+            .signature_counter(test_credential_id.to_owned())
+            .await?;
+
+        assert!(test_credentials
+            .0
+            .counter(test_credential_id.to_owned())
             .await
             .is_ok());
 
@@ -518,6 +606,29 @@ mod tests {
             .lookup(String::from("some_rp"), String::from("some_credential"))
             .await
             .is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn credentials_counter() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_credentials = Credentials::init().await;
+        let test_credential_id = String::from("some_credential_id");
+
+        assert!(test_credentials
+            .1
+            .counter(&test_credential_id)
+            .await
+            .is_err());
+
+        test_credentials
+            .1
+            .signature_counter(&test_credential_id)
+            .await?;
+
+        let test_value = test_credentials.1.counter(&test_credential_id).await?;
+
+        assert_eq!(test_value, 0);
 
         Ok(())
     }
