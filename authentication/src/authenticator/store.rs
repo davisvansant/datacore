@@ -8,10 +8,10 @@ use tokio::task::JoinHandle;
 
 #[derive(Debug)]
 pub enum CredentialsRequest {
-    Set((String, String), PublicKeyCredentialSource),
+    Set((String, [u8; 16]), PublicKeyCredentialSource),
     SignatureCounter(String),
     Increment(String),
-    Lookup((String, String)),
+    Lookup((String, [u8; 16])),
     Counter(String),
 }
 
@@ -50,7 +50,7 @@ impl CredentialsChannel {
     pub async fn set(
         &self,
         rp_entity_id: String,
-        credential_id: String,
+        user_handle: [u8; 16],
         credential_source: PublicKeyCredentialSource,
     ) -> Result<(), AuthenticationError> {
         let (_request, _response) = oneshot::channel();
@@ -58,7 +58,7 @@ impl CredentialsChannel {
         match self
             .request
             .send((
-                CredentialsRequest::Set((rp_entity_id, credential_id), credential_source),
+                CredentialsRequest::Set((rp_entity_id, user_handle), credential_source),
                 _request,
             ))
             .await
@@ -115,14 +115,14 @@ impl CredentialsChannel {
     pub async fn lookup(
         &self,
         rp_entity_id: String,
-        credential_id: String,
+        user_handle: [u8; 16],
     ) -> Result<PublicKeyCredentialSource, AuthenticationError> {
         let (request, response) = oneshot::channel();
 
         if let Ok(()) = self
             .request
             .send((
-                CredentialsRequest::Lookup((rp_entity_id, credential_id)),
+                CredentialsRequest::Lookup((rp_entity_id, user_handle)),
                 request,
             ))
             .await
@@ -160,7 +160,7 @@ impl CredentialsChannel {
 }
 
 pub struct Credentials {
-    map: HashMap<(String, String), PublicKeyCredentialSource>,
+    map: HashMap<(String, [u8; 16]), PublicKeyCredentialSource>,
     receiver: mpsc::Receiver<(CredentialsRequest, oneshot::Sender<CredentialsResponse>)>,
     signature_counter: HashMap<
         String,
@@ -228,7 +228,7 @@ impl Credentials {
     async fn set(
         &mut self,
         rp_entity_id: String,
-        user_handle: String,
+        user_handle: [u8; 16],
         source: PublicKeyCredentialSource,
     ) -> Result<(), AuthenticationError> {
         self.map.insert((rp_entity_id, user_handle), source);
@@ -272,9 +272,9 @@ impl Credentials {
     async fn lookup(
         &self,
         rp_id: String,
-        credential_id: String,
+        user_handle: [u8; 16],
     ) -> Result<PublicKeyCredentialSource, AuthenticationError> {
-        if let Some(credential_source) = self.map.get(&(rp_id, credential_id)) {
+        if let Some(credential_source) = self.map.get(&(rp_id, user_handle)) {
             Ok(credential_source.to_owned())
         } else {
             Err(AuthenticationError {
@@ -387,7 +387,7 @@ mod tests {
     async fn credentials_channel_set() -> Result<(), Box<dyn std::error::Error>> {
         let mut test_credentials = Credentials::init().await;
         let test_rp_entity_id = String::from("some_rp_entity_id");
-        let test_credential_id = String::from("some_credential_id");
+        let test_user_handle = [0; 16];
         let test_credential_source = PublicKeyCredentialSource::generate().await;
 
         tokio::spawn(async move {
@@ -396,11 +396,7 @@ mod tests {
 
         assert!(test_credentials
             .0
-            .set(
-                test_rp_entity_id,
-                test_credential_id,
-                test_credential_source,
-            )
+            .set(test_rp_entity_id, test_user_handle, test_credential_source)
             .await
             .is_ok());
 
@@ -447,7 +443,7 @@ mod tests {
     async fn credentials_channel_lookup() -> Result<(), Box<dyn std::error::Error>> {
         let mut test_credentials = Credentials::init().await;
         let test_rp_entity_id = String::from("some_rp_entity_id");
-        let test_credential_id = String::from("some_credential_id");
+        let test_user_handle = [0; 16];
         let test_credential_source = PublicKeyCredentialSource::generate().await;
 
         tokio::spawn(async move {
@@ -456,7 +452,7 @@ mod tests {
 
         assert!(test_credentials
             .0
-            .lookup(test_rp_entity_id.to_owned(), test_credential_id.to_owned())
+            .lookup(test_rp_entity_id.to_owned(), test_user_handle)
             .await
             .is_err());
 
@@ -464,14 +460,14 @@ mod tests {
             .0
             .set(
                 test_rp_entity_id.to_owned(),
-                test_credential_id.to_owned(),
+                test_user_handle,
                 test_credential_source,
             )
             .await?;
 
         assert!(test_credentials
             .0
-            .lookup(test_rp_entity_id.to_owned(), test_credential_id.to_owned())
+            .lookup(test_rp_entity_id.to_owned(), test_user_handle)
             .await
             .is_ok());
 
@@ -516,16 +512,12 @@ mod tests {
     async fn credentials_set() -> Result<(), Box<dyn std::error::Error>> {
         let mut test_credentials = Credentials::init().await;
         let test_rp_entity_id = String::from("some_rp_entity_id");
-        let test_credential_id = String::from("some_credential_id");
+        let test_user_handle = [0; 16];
         let test_credential_source = PublicKeyCredentialSource::generate().await;
 
         test_credentials
             .1
-            .set(
-                test_rp_entity_id,
-                test_credential_id,
-                test_credential_source,
-            )
+            .set(test_rp_entity_id, test_user_handle, test_credential_source)
             .await?;
 
         assert!(!test_credentials.1.map.is_empty());
@@ -568,42 +560,36 @@ mod tests {
     async fn credentials_lookup() -> Result<(), Box<dyn std::error::Error>> {
         let mut test_credentials = Credentials::init().await;
         let test_rp_entity_id = String::from("some_rp_entity_id");
-        let test_credential_id = String::from("some_credential_id");
+        let test_user_handle = [0; 16];
         let test_credential_source = PublicKeyCredentialSource::generate().await;
 
         test_credentials
             .1
             .set(
                 test_rp_entity_id.to_owned(),
-                test_credential_id.to_owned(),
+                test_user_handle,
                 test_credential_source,
             )
             .await?;
 
         assert!(test_credentials
             .1
-            .lookup(test_rp_entity_id.to_owned(), test_credential_id.to_owned())
+            .lookup(test_rp_entity_id.to_owned(), test_user_handle)
             .await
             .is_ok());
         assert!(test_credentials
             .1
-            .lookup(
-                test_rp_entity_id.to_owned(),
-                String::from("some_other_credential_id"),
-            )
+            .lookup(test_rp_entity_id.to_owned(), [1; 16])
             .await
             .is_err());
         assert!(test_credentials
             .1
-            .lookup(
-                String::from("some_other_rp_entity_id"),
-                test_credential_id.to_owned(),
-            )
+            .lookup(String::from("some_other_rp_entity_id"), test_user_handle)
             .await
             .is_err());
         assert!(test_credentials
             .1
-            .lookup(String::from("some_rp"), String::from("some_credential"))
+            .lookup(String::from("some_rp"), [2; 16])
             .await
             .is_err());
 
