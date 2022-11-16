@@ -13,12 +13,14 @@ pub enum CredentialsRequest {
     Increment([u8; 16]),
     Lookup((String, [u8; 16])),
     Counter([u8; 16]),
+    Values,
 }
 
 #[derive(Debug)]
 pub enum CredentialsResponse {
     PublicKeyCredentialSource(PublicKeyCredentialSource),
     SignCount(u32),
+    Values(Vec<PublicKeyCredentialSource>),
     TerminateOperation,
 }
 
@@ -157,6 +159,25 @@ impl CredentialsChannel {
             Err(self.error)
         }
     }
+
+    pub async fn values(&self) -> Result<Vec<PublicKeyCredentialSource>, AuthenticationError> {
+        let (request, response) = oneshot::channel();
+
+        match self
+            .request
+            .send((CredentialsRequest::Values, request))
+            .await
+        {
+            Ok(()) => {
+                if let Ok(CredentialsResponse::Values(values)) = response.await {
+                    Ok(values)
+                } else {
+                    Err(self.error)
+                }
+            }
+            Err(_) => Err(self.error),
+        }
+    }
 }
 
 pub struct Credentials {
@@ -218,6 +239,11 @@ impl Credentials {
                         Ok(value) => _ = response.send(CredentialsResponse::SignCount(value)),
                         Err(_) => _ = response.send(CredentialsResponse::TerminateOperation),
                     }
+                }
+                CredentialsRequest::Values => {
+                    let values = self.values().await;
+
+                    _ = response.send(CredentialsResponse::Values(values));
                 }
             }
         }
@@ -311,6 +337,16 @@ impl Credentials {
                 error: AuthenticationErrorType::OperationError,
             })
         }
+    }
+
+    async fn values(&self) -> Vec<PublicKeyCredentialSource> {
+        let mut values = Vec::with_capacity(self.map.len());
+
+        for value in self.map.values() {
+            values.push(value.to_owned());
+        }
+
+        values
     }
 }
 
