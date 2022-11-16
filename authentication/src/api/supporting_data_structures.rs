@@ -59,7 +59,7 @@ pub enum PublicKeyCredentialType {
 
 pub struct PublicKeyCredentialDescriptor {
     pub r#type: PublicKeyCredentialType,
-    pub id: Vec<u8>,
+    pub id: [u8; 16],
     pub transports: Option<Vec<String>>,
 }
 
