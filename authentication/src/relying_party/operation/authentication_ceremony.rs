@@ -398,7 +398,7 @@ mod tests {
         let mut test_public_key_credential_request_options = test_authentication_ceremony
             .public_key_credential_request_options()
             .await?;
-        let test_public_key_credential = PublicKeyCredential::generate(
+        let mut test_public_key_credential = PublicKeyCredential::generate(
             String::from("test_id"),
             AuthenticatorResponse::AuthenticatorAssertionResponse(AuthenticatorAssertionResponse {
                 client_data_json: Vec::with_capacity(0),
@@ -421,7 +421,7 @@ mod tests {
             .allow_credentials
             .push(PublicKeyCredentialDescriptor {
                 r#type: PublicKeyCredentialType::PublicKey,
-                id: Vec::from(String::from("some_other_test_id")),
+                id: [1; 16],
                 transports: Some(vec![String::from("internal")]),
             });
 
@@ -433,11 +433,13 @@ mod tests {
             .await
             .is_err());
 
+        test_public_key_credential.id = String::from_utf8([2; 16].to_vec())?;
+
         test_public_key_credential_request_options
             .allow_credentials
             .push(PublicKeyCredentialDescriptor {
                 r#type: PublicKeyCredentialType::PublicKey,
-                id: Vec::from(String::from("test_id")),
+                id: [2; 16],
                 transports: Some(vec![String::from("internal")]),
             });
 

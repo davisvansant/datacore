@@ -22,7 +22,7 @@ impl Session {
     ) -> Result<AttestationObject, AuthenticationError> {
         operation.check_parameters().await?;
         operation.check_supported_combinations().await?;
-        operation.authorize_disclosure().await?;
+        operation.authorize_disclosure(&self.store).await?;
         operation.require_resident_key().await?;
         operation.require_user_verification().await?;
         operation.collect_authorization_gesture().await?;
@@ -52,7 +52,7 @@ impl Session {
     ) -> Result<(), AuthenticationError> {
         operation.check_parameters().await?;
 
-        let credential_options = operation.credential_options().await?;
+        let credential_options = operation.credential_options(&self.store).await?;
         let selected_credential = operation
             .collect_authorization_gesture(credential_options)
             .await?;

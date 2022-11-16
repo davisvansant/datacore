@@ -13,8 +13,6 @@ use crate::authenticator::public_key_credential_source::PublicKeyCredentialSourc
 use crate::authenticator::store::CredentialsChannel;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 
-use std::collections::HashMap;
-
 pub struct AuthenticatorMakeCrendential {
     hash: Vec<u8>,
     rp_entity: PublicKeyCredentialRpEntity,
@@ -92,24 +90,17 @@ impl AuthenticatorMakeCrendential {
         }
     }
 
-    pub async fn authorize_disclosure(&self) -> Result<(), AuthenticationError> {
-        let mut credentials = HashMap::with_capacity(1);
-        let test_credential_id = String::from("some_credential_id").as_bytes().to_vec();
-        let internal_credential_for_testing = PublicKeyCredentialSource {
-            r#type: PublicKeyCredentialType::PublicKey,
-            id: b"cred_identifier_".to_owned(),
-            private_key: Vec::with_capacity(0),
-            rpid: String::from("some_relying_party_id"),
-            user_handle: [0; 16],
-            other_ui: String::from("some_other_ui"),
-        };
-
-        credentials.insert(test_credential_id, internal_credential_for_testing);
-
+    pub async fn authorize_disclosure(
+        &self,
+        store: &CredentialsChannel,
+    ) -> Result<(), AuthenticationError> {
         if let Some(descriptor_list) = &self.exclude_credential_descriptor_list {
             for descriptor in descriptor_list {
-                match credentials.get(&descriptor.id) {
-                    Some(credential) => {
+                match store
+                    .lookup(self.rp_entity.id.to_owned(), descriptor.id)
+                    .await
+                {
+                    Ok(credential) => {
                         match credential.rpid == self.rp_entity.id
                             && credential.r#type == descriptor.r#type
                         {
@@ -123,7 +114,7 @@ impl AuthenticatorMakeCrendential {
                             false => continue,
                         }
                     }
-                    None => continue,
+                    Err(_) => continue,
                 }
             }
         } else {
@@ -357,6 +348,33 @@ mod tests {
 
     #[tokio::test]
     async fn authorize_disclosure() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_credentials_store = Credentials::init().await;
+
+        tokio::spawn(async move {
+            test_credentials_store.1.run().await.unwrap();
+        });
+
+        let test_algorithm = COSEAlgorithm::EdDSA;
+        let test_new_credential = COSEKey::generate(test_algorithm).await;
+        let test_credential_id = *b"cred_identifier_";
+        let test_credential = PublicKeyCredentialSource {
+            r#type: PublicKeyCredentialType::PublicKey,
+            id: test_credential_id,
+            private_key: test_new_credential.1.to_bytes().to_vec(),
+            rpid: String::from("some_relying_party_id"),
+            user_handle: [0; 16],
+            other_ui: String::from("some_other_ui"),
+        };
+
+        test_credentials_store
+            .0
+            .set(
+                String::from("some_relying_party_id"),
+                *b"cred_identifier_",
+                test_credential,
+            )
+            .await?;
+
         let test_none = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
@@ -379,7 +397,10 @@ mod tests {
             extensions: String::from("some_extensions"),
         };
 
-        assert!(test_none.authorize_disclosure().await.is_ok());
+        assert!(test_none
+            .authorize_disclosure(&test_credentials_store.0)
+            .await
+            .is_ok());
 
         let test_some_unmatched = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
@@ -400,14 +421,17 @@ mod tests {
             }],
             exclude_credential_descriptor_list: Some(vec![PublicKeyCredentialDescriptor {
                 r#type: PublicKeyCredentialType::PublicKey,
-                id: b"some_id".to_vec(),
+                id: *b"cred_identifier_",
                 transports: None,
             }]),
             enterprise_attestation_possible: false,
             extensions: String::from("some_extensions"),
         };
 
-        assert!(test_some_unmatched.authorize_disclosure().await.is_ok());
+        assert!(test_some_unmatched
+            .authorize_disclosure(&test_credentials_store.0)
+            .await
+            .is_ok());
 
         let test_some_matched = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
@@ -428,14 +452,17 @@ mod tests {
             }],
             exclude_credential_descriptor_list: Some(vec![PublicKeyCredentialDescriptor {
                 r#type: PublicKeyCredentialType::PublicKey,
-                id: b"some_credential_id".to_vec(),
+                id: *b"cred_identifier_",
                 transports: None,
             }]),
             enterprise_attestation_possible: false,
             extensions: String::from("some_extensions"),
         };
 
-        assert!(test_some_matched.authorize_disclosure().await.is_err());
+        assert!(test_some_matched
+            .authorize_disclosure(&test_credentials_store.0)
+            .await
+            .is_err());
 
         Ok(())
     }
