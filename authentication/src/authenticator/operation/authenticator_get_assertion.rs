@@ -247,7 +247,7 @@ mod tests {
             )
             .await?;
 
-        let test_ok = AuthenticatorGetAssertion {
+        let mut test_get_assertion = AuthenticatorGetAssertion {
             rpid: String::from("some_relying_party_id"),
             hash: Vec::with_capacity(0),
             allow_descriptor_credential_list: Some(vec![PublicKeyCredentialDescriptor {
@@ -260,53 +260,29 @@ mod tests {
             extensions: vec![String::from("some_extension")],
         };
 
-        assert!(test_ok
+        assert!(test_get_assertion
             .credential_options(&test_credentials_store.0)
             .await
             .is_ok());
 
-        let test_err = AuthenticatorGetAssertion {
-            rpid: String::from("some_rp_id"),
-            hash: Vec::with_capacity(0),
-            allow_descriptor_credential_list: Some(vec![PublicKeyCredentialDescriptor {
-                r#type: PublicKeyCredentialType::PublicKey,
-                id: *b"cred_identifier_",
-                transports: None,
-            }]),
-            require_user_presence: false,
-            require_user_verification: false,
-            extensions: vec![String::from("some_extension")],
-        };
+        test_get_assertion.rpid = String::from("some_rp_id");
 
-        assert!(test_err
+        assert!(test_get_assertion
             .credential_options(&test_credentials_store.0)
             .await
             .is_err());
 
-        let test_none_rp_ok = AuthenticatorGetAssertion {
-            rpid: String::from("some_relying_party_id"),
-            hash: Vec::with_capacity(0),
-            allow_descriptor_credential_list: None,
-            require_user_presence: false,
-            require_user_verification: false,
-            extensions: vec![String::from("some_extension")],
-        };
+        test_get_assertion.rpid = String::from("some_relying_party_id");
+        test_get_assertion.allow_descriptor_credential_list = None;
 
-        assert!(test_none_rp_ok
+        assert!(test_get_assertion
             .credential_options(&test_credentials_store.0)
             .await
             .is_ok());
 
-        let test_none_rp_error = AuthenticatorGetAssertion {
-            rpid: String::from("some_rp_id"),
-            hash: Vec::with_capacity(0),
-            allow_descriptor_credential_list: None,
-            require_user_presence: false,
-            require_user_verification: false,
-            extensions: vec![String::from("some_extension")],
-        };
+        test_get_assertion.rpid = String::from("some_rp_id");
 
-        assert!(test_none_rp_error
+        assert!(test_get_assertion
             .credential_options(&test_credentials_store.0)
             .await
             .is_err());
@@ -358,8 +334,7 @@ mod tests {
 
         let test_credential_options = test_ok
             .credential_options(&test_credentials_store.0)
-            .await
-            .unwrap();
+            .await?;
 
         assert!(test_ok
             .collect_authorization_gesture(test_credential_options)
@@ -413,12 +388,10 @@ mod tests {
 
         let test_credential_options = test_ok
             .credential_options(&test_credentials_store.0)
-            .await
-            .unwrap();
+            .await?;
         let test_selected_credentaial = test_ok
             .collect_authorization_gesture(test_credential_options)
-            .await
-            .unwrap();
+            .await?;
 
         assert!(test_ok
             .increment_signature_counter(&test_credentials_store.0, &test_selected_credentaial)
@@ -436,7 +409,7 @@ mod tests {
             test_credentials_store.1.run().await.unwrap();
         });
 
-        let test_false = AuthenticatorGetAssertion {
+        let mut test_get_assertion = AuthenticatorGetAssertion {
             rpid: String::from("some_relying_party_id"),
             hash: Vec::with_capacity(0),
             allow_descriptor_credential_list: Some(vec![PublicKeyCredentialDescriptor {
@@ -458,10 +431,9 @@ mod tests {
             .signature_counter(*b"cred_identifier_")
             .await?;
 
-        let test_authenticator_data = test_false
+        let test_authenticator_data = test_get_assertion
             .authenticator_data(&test_credentials_store.0, &test_selected_credential)
-            .await
-            .unwrap();
+            .await?;
 
         assert_eq!(
             test_authenticator_data.rp_id_hash,
@@ -473,23 +445,13 @@ mod tests {
         assert!(test_authenticator_data.attestedcredentialdata.is_none());
         assert!(test_authenticator_data.extensions.is_none());
 
-        let test_true = AuthenticatorGetAssertion {
-            rpid: String::from("some_other_rp_id"),
-            hash: Vec::with_capacity(0),
-            allow_descriptor_credential_list: Some(vec![PublicKeyCredentialDescriptor {
-                r#type: PublicKeyCredentialType::PublicKey,
-                id: *b"cred_identifier_",
-                transports: None,
-            }]),
-            require_user_presence: true,
-            require_user_verification: true,
-            extensions: vec![String::from("some_extension")],
-        };
+        test_get_assertion.rpid = String::from("some_other_rp_id");
+        test_get_assertion.require_user_presence = true;
+        test_get_assertion.require_user_verification = true;
 
-        let test_authenticator_data = test_true
+        let test_authenticator_data = test_get_assertion
             .authenticator_data(&test_credentials_store.0, &test_selected_credential)
-            .await
-            .unwrap();
+            .await?;
 
         assert_eq!(
             test_authenticator_data.rp_id_hash,
@@ -548,12 +510,10 @@ mod tests {
 
         let test_credential_options = test_ok
             .credential_options(&test_credentials_store.0)
-            .await
-            .unwrap();
+            .await?;
         let test_selected_credentaial = test_ok
             .collect_authorization_gesture(test_credential_options)
-            .await
-            .unwrap();
+            .await?;
         let mut test_selected_credential = PublicKeyCredentialSource::generate().await;
 
         test_selected_credential.id = *b"cred_identifier_";
@@ -569,8 +529,7 @@ mod tests {
             .unwrap();
         let test_assertion_signature = test_ok
             .assertion_signature(&test_authenticator_data, &test_selected_credentaial)
-            .await
-            .unwrap();
+            .await?;
 
         assert_eq!(test_assertion_signature.client_data_json.len(), 21);
         assert_eq!(test_assertion_signature.authenticator_data.len(), 45);
