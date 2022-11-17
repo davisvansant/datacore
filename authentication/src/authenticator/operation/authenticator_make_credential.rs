@@ -13,6 +13,8 @@ use crate::authenticator::public_key_credential_source::PublicKeyCredentialSourc
 use crate::authenticator::store::CredentialsChannel;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 
+use uuid::Uuid;
+
 pub struct AuthenticatorMakeCrendential {
     hash: Vec<u8>,
     rp_entity: PublicKeyCredentialRpEntity,
@@ -172,7 +174,7 @@ impl AuthenticatorMakeCrendential {
     ) -> Result<(), AuthenticationError> {
         let algorithm = COSEAlgorithm::from(self.cred_types_and_pub_key_apis[0].alg).await;
         let new_credential = COSEKey::generate(algorithm).await;
-        let credential_id = [0; 16];
+        let credential_id = Uuid::new_v4().simple().into_uuid().into_bytes();
         let credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
             id: credential_id,
@@ -254,7 +256,7 @@ mod tests {
 
     #[tokio::test]
     async fn check_supported_combinations() -> Result<(), Box<dyn std::error::Error>> {
-        let test_supported = AuthenticatorMakeCrendential {
+        let mut test_make_credential = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
                 id: String::from("some_id"),
@@ -276,69 +278,45 @@ mod tests {
             extensions: String::from("some_extensions"),
         };
 
-        assert!(test_supported.check_supported_combinations().await.is_ok());
+        assert!(test_make_credential
+            .check_supported_combinations()
+            .await
+            .is_ok());
 
-        let test_unsupported = AuthenticatorMakeCrendential {
-            hash: Vec::with_capacity(0),
-            rp_entity: PublicKeyCredentialRpEntity {
-                id: String::from("some_id"),
-            },
-            user_entity: PublicKeyCredentialUserEntity {
-                name: String::from("some_name"),
-                display_name: String::from("some_display_name"),
-                id: [0; 16],
-            },
-            require_resident_key: false,
-            require_user_presence: false,
-            require_user_verification: false,
-            cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
+        test_make_credential.cred_types_and_pub_key_apis.clear();
+        test_make_credential
+            .cred_types_and_pub_key_apis
+            .push(PublicKeyCredentialParameters {
                 r#type: PublicKeyCredentialType::PublicKey,
                 alg: -7,
-            }],
-            exclude_credential_descriptor_list: None,
-            enterprise_attestation_possible: false,
-            extensions: String::from("some_extensions"),
-        };
+            });
 
-        assert!(test_unsupported
+        assert!(test_make_credential
             .check_supported_combinations()
             .await
             .is_err());
 
-        let test_supported_unsupported = AuthenticatorMakeCrendential {
-            hash: Vec::with_capacity(0),
-            rp_entity: PublicKeyCredentialRpEntity {
-                id: String::from("some_id"),
-            },
-            user_entity: PublicKeyCredentialUserEntity {
-                name: String::from("some_name"),
-                display_name: String::from("some_display_name"),
+        test_make_credential.cred_types_and_pub_key_apis.clear();
+        test_make_credential
+            .cred_types_and_pub_key_apis
+            .push(PublicKeyCredentialParameters {
+                r#type: PublicKeyCredentialType::PublicKey,
+                alg: -6,
+            });
+        test_make_credential
+            .cred_types_and_pub_key_apis
+            .push(PublicKeyCredentialParameters {
+                r#type: PublicKeyCredentialType::PublicKey,
+                alg: -7,
+            });
+        test_make_credential
+            .cred_types_and_pub_key_apis
+            .push(PublicKeyCredentialParameters {
+                r#type: PublicKeyCredentialType::PublicKey,
+                alg: -8,
+            });
 
-                id: [0; 16],
-            },
-            require_resident_key: false,
-            require_user_presence: false,
-            require_user_verification: false,
-            cred_types_and_pub_key_apis: vec![
-                PublicKeyCredentialParameters {
-                    r#type: PublicKeyCredentialType::PublicKey,
-                    alg: -6,
-                },
-                PublicKeyCredentialParameters {
-                    r#type: PublicKeyCredentialType::PublicKey,
-                    alg: -7,
-                },
-                PublicKeyCredentialParameters {
-                    r#type: PublicKeyCredentialType::PublicKey,
-                    alg: -8,
-                },
-            ],
-            exclude_credential_descriptor_list: None,
-            enterprise_attestation_possible: false,
-            extensions: String::from("some_extensions"),
-        };
-
-        assert!(test_supported_unsupported
+        assert!(test_make_credential
             .check_supported_combinations()
             .await
             .is_ok());
@@ -375,7 +353,7 @@ mod tests {
             )
             .await?;
 
-        let test_none = AuthenticatorMakeCrendential {
+        let mut test_make_credential = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
                 id: String::from("some_id"),
@@ -397,69 +375,26 @@ mod tests {
             extensions: String::from("some_extensions"),
         };
 
-        assert!(test_none
+        assert!(test_make_credential
             .authorize_disclosure(&test_credentials_store.0)
             .await
             .is_ok());
 
-        let test_some_unmatched = AuthenticatorMakeCrendential {
-            hash: Vec::with_capacity(0),
-            rp_entity: PublicKeyCredentialRpEntity {
-                id: String::from("some_id"),
-            },
-            user_entity: PublicKeyCredentialUserEntity {
-                name: String::from("some_name"),
-                display_name: String::from("some_display_name"),
-                id: [0; 16],
-            },
-            require_resident_key: false,
-            require_user_presence: false,
-            require_user_verification: false,
-            cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
-                r#type: PublicKeyCredentialType::PublicKey,
-                alg: -8,
-            }],
-            exclude_credential_descriptor_list: Some(vec![PublicKeyCredentialDescriptor {
+        test_make_credential.exclude_credential_descriptor_list =
+            Some(vec![PublicKeyCredentialDescriptor {
                 r#type: PublicKeyCredentialType::PublicKey,
                 id: *b"cred_identifier_",
                 transports: None,
-            }]),
-            enterprise_attestation_possible: false,
-            extensions: String::from("some_extensions"),
-        };
+            }]);
 
-        assert!(test_some_unmatched
+        assert!(test_make_credential
             .authorize_disclosure(&test_credentials_store.0)
             .await
             .is_ok());
 
-        let test_some_matched = AuthenticatorMakeCrendential {
-            hash: Vec::with_capacity(0),
-            rp_entity: PublicKeyCredentialRpEntity {
-                id: String::from("some_relying_party_id"),
-            },
-            user_entity: PublicKeyCredentialUserEntity {
-                name: String::from("some_name"),
-                display_name: String::from("some_display_name"),
-                id: [0; 16],
-            },
-            require_resident_key: false,
-            require_user_presence: false,
-            require_user_verification: false,
-            cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
-                r#type: PublicKeyCredentialType::PublicKey,
-                alg: -8,
-            }],
-            exclude_credential_descriptor_list: Some(vec![PublicKeyCredentialDescriptor {
-                r#type: PublicKeyCredentialType::PublicKey,
-                id: *b"cred_identifier_",
-                transports: None,
-            }]),
-            enterprise_attestation_possible: false,
-            extensions: String::from("some_extensions"),
-        };
+        test_make_credential.rp_entity.id = String::from("some_relying_party_id");
 
-        assert!(test_some_matched
+        assert!(test_make_credential
             .authorize_disclosure(&test_credentials_store.0)
             .await
             .is_err());
@@ -469,7 +404,7 @@ mod tests {
 
     #[tokio::test]
     async fn require_resident_key() -> Result<(), Box<dyn std::error::Error>> {
-        let test_true = AuthenticatorMakeCrendential {
+        let mut test_make_credential = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
                 id: String::from("some_id"),
@@ -491,38 +426,18 @@ mod tests {
             extensions: String::from("some_extensions"),
         };
 
-        assert!(test_true.require_resident_key().await.is_ok());
+        assert!(test_make_credential.require_resident_key().await.is_ok());
 
-        let test_false = AuthenticatorMakeCrendential {
-            hash: Vec::with_capacity(0),
-            rp_entity: PublicKeyCredentialRpEntity {
-                id: String::from("some_id"),
-            },
-            user_entity: PublicKeyCredentialUserEntity {
-                name: String::from("some_name"),
-                display_name: String::from("some_display_name"),
-                id: [0; 16],
-            },
-            require_resident_key: false,
-            require_user_presence: false,
-            require_user_verification: false,
-            cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
-                r#type: PublicKeyCredentialType::PublicKey,
-                alg: -8,
-            }],
-            exclude_credential_descriptor_list: None,
-            enterprise_attestation_possible: false,
-            extensions: String::from("some_extensions"),
-        };
+        test_make_credential.require_resident_key = false;
 
-        assert!(test_false.require_resident_key().await.is_ok());
+        assert!(test_make_credential.require_resident_key().await.is_ok());
 
         Ok(())
     }
 
     #[tokio::test]
     async fn require_user_verification() -> Result<(), Box<dyn std::error::Error>> {
-        let test_true = AuthenticatorMakeCrendential {
+        let mut test_make_credential = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
                 id: String::from("some_id"),
@@ -544,31 +459,17 @@ mod tests {
             extensions: String::from("some_extensions"),
         };
 
-        assert!(test_true.require_user_verification().await.is_ok());
+        assert!(test_make_credential
+            .require_user_verification()
+            .await
+            .is_ok());
 
-        let test_false = AuthenticatorMakeCrendential {
-            hash: Vec::with_capacity(0),
-            rp_entity: PublicKeyCredentialRpEntity {
-                id: String::from("some_id"),
-            },
-            user_entity: PublicKeyCredentialUserEntity {
-                name: String::from("some_name"),
-                display_name: String::from("some_display_name"),
-                id: [0; 16],
-            },
-            require_resident_key: false,
-            require_user_presence: false,
-            require_user_verification: true,
-            cred_types_and_pub_key_apis: vec![PublicKeyCredentialParameters {
-                r#type: PublicKeyCredentialType::PublicKey,
-                alg: -8,
-            }],
-            exclude_credential_descriptor_list: None,
-            enterprise_attestation_possible: false,
-            extensions: String::from("some_extensions"),
-        };
+        test_make_credential.require_user_verification = false;
 
-        assert!(test_false.require_user_verification().await.is_ok());
+        assert!(test_make_credential
+            .require_user_verification()
+            .await
+            .is_ok());
 
         Ok(())
     }
@@ -729,7 +630,7 @@ mod tests {
             extensions: String::from("some_extensions"),
         };
 
-        let test_attested_credential_data = test_ok.attested_credential_data().await.unwrap();
+        let test_attested_credential_data = test_ok.attested_credential_data().await?;
 
         assert!(test_ok
             .authenticator_data(test_attested_credential_data)
