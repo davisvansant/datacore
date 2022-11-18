@@ -599,28 +599,23 @@ mod tests {
     #[tokio::test]
     async fn verify_client_data_type() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
-        let test_invalid_client_data_type = CollectedClientData {
+        let mut test_client_data = CollectedClientData {
             r#type: String::from("webauthn.create"),
             challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
             origin: String::from("some_test_origin"),
             cross_origin: false,
             token_binding: None,
         };
-        let test_valid_client_data_type = CollectedClientData {
-            r#type: String::from("webauthn.get"),
-            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-            origin: String::from("some_test_origin"),
-            cross_origin: false,
-            token_binding: None,
-        };
 
         assert!(test_authentication_ceremony
-            .verify_client_data_type(&test_invalid_client_data_type)
+            .verify_client_data_type(&test_client_data)
             .await
             .is_err());
 
+        test_client_data.r#type = String::from("webauthn.get");
+
         assert!(test_authentication_ceremony
-            .verify_client_data_type(&test_valid_client_data_type)
+            .verify_client_data_type(&test_client_data)
             .await
             .is_ok());
 

@@ -388,40 +388,11 @@ mod tests {
     #[tokio::test]
     async fn public_key_credential_creation_options() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration = Register {};
-        let test_public_key_credential_creation_options = test_registration
-            .public_key_credential_creation_options()
-            .await?;
 
-        assert_eq!(
-            test_public_key_credential_creation_options.rp.id,
-            "some_rp_entity",
-        );
-        assert_eq!(
-            test_public_key_credential_creation_options.user.name,
-            "some_user",
-        );
-        assert_eq!(
-            test_public_key_credential_creation_options
-                .public_key_credential_parameters
-                .len(),
-            0,
-        );
-        assert_eq!(test_public_key_credential_creation_options.timeout, 0);
-        assert_eq!(
-            test_public_key_credential_creation_options
-                .exclude_credentials
-                .len(),
-            0,
-        );
-        assert_eq!(
-            test_public_key_credential_creation_options
-                .authenticator_selection
-                .authenticator_attachment,
-            "some_attachment",
-        );
-        assert!(test_public_key_credential_creation_options
-            .attestation
-            .is_none());
+        assert!(test_registration
+            .public_key_credential_creation_options()
+            .await
+            .is_ok());
 
         Ok(())
     }
@@ -432,15 +403,11 @@ mod tests {
         let test_public_key_credential_creation_options = test_registration
             .public_key_credential_creation_options()
             .await?;
-        let test_public_key_credential = test_registration
-            .call_credentials_create(&test_public_key_credential_creation_options)
-            .await?;
 
-        assert_eq!(
-            test_public_key_credential.r#type,
-            PublicKeyCredentialType::PublicKey,
-        );
-        assert_eq!(test_public_key_credential.id, "some_credential_id");
+        assert!(test_registration
+            .call_credentials_create(&test_public_key_credential_creation_options)
+            .await
+            .is_ok());
 
         Ok(())
     }
@@ -548,7 +515,7 @@ mod tests {
     #[tokio::test]
     async fn verify_type() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration = Register {};
-        let test_invalid_client_data_type = CollectedClientData {
+        let mut test_client_data = CollectedClientData {
             r#type: String::from("webauthn.not_create"),
             challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
             origin: String::from("some_test_origin"),
@@ -556,25 +523,17 @@ mod tests {
             token_binding: None,
         };
 
-        let test_verify_type_error = test_registration
-            .verify_type(&test_invalid_client_data_type)
-            .await;
+        assert!(test_registration
+            .verify_type(&test_client_data)
+            .await
+            .is_err());
 
-        assert!(test_verify_type_error.is_err());
+        test_client_data.r#type = String::from("webauthn.create");
 
-        let test_valid_client_data_type = CollectedClientData {
-            r#type: String::from("webauthn.create"),
-            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-            origin: String::from("some_test_origin"),
-            cross_origin: false,
-            token_binding: None,
-        };
-
-        let test_verify_type_ok = test_registration
-            .verify_type(&test_valid_client_data_type)
-            .await;
-
-        assert!(test_verify_type_ok.is_ok());
+        assert!(test_registration
+            .verify_type(&test_client_data)
+            .await
+            .is_ok());
 
         Ok(())
     }
@@ -586,7 +545,7 @@ mod tests {
             .public_key_credential_creation_options()
             .await?;
 
-        let test_invalid_client_data_challenge = CollectedClientData {
+        let mut test_client_data = CollectedClientData {
             r#type: String::from("webauthn.create"),
             challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
             origin: String::from("some_test_origin"),
@@ -594,33 +553,25 @@ mod tests {
             token_binding: None,
         };
 
-        let test_verify_challenge_error = test_registration
+        assert!(test_registration
             .verify_challenge(
-                &test_invalid_client_data_challenge,
+                &test_client_data,
+                &test_public_key_credential_creation_options
+            )
+            .await
+            .is_err());
+
+        test_client_data.challenge = test_public_key_credential_creation_options
+            .challenge
+            .to_owned();
+
+        assert!(test_registration
+            .verify_challenge(
+                &test_client_data,
                 &test_public_key_credential_creation_options,
             )
-            .await;
-
-        assert!(test_verify_challenge_error.is_err());
-
-        let test_valid_client_data_challenge = CollectedClientData {
-            r#type: String::from("webauthn.create"),
-            challenge: test_public_key_credential_creation_options
-                .challenge
-                .to_owned(),
-            origin: String::from("some_test_origin"),
-            cross_origin: false,
-            token_binding: None,
-        };
-
-        let test_verify_challenge_ok = test_registration
-            .verify_challenge(
-                &test_valid_client_data_challenge,
-                &test_public_key_credential_creation_options,
-            )
-            .await;
-
-        assert!(test_verify_challenge_ok.is_ok());
+            .await
+            .is_ok());
 
         Ok(())
     }
@@ -628,7 +579,7 @@ mod tests {
     #[tokio::test]
     async fn verify_origin() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration = Register {};
-        let test_invalid_client_data_origin = CollectedClientData {
+        let mut test_client_data = CollectedClientData {
             r#type: String::from("webauthn.create"),
             challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
             origin: String::from("some_test_origin"),
@@ -636,25 +587,17 @@ mod tests {
             token_binding: None,
         };
 
-        let test_verify_origin_error = test_registration
-            .verify_origin(&test_invalid_client_data_origin, "some_test_rp_origin")
-            .await;
+        assert!(test_registration
+            .verify_origin(&test_client_data, "some_test_rp_origin")
+            .await
+            .is_err());
 
-        assert!(test_verify_origin_error.is_err());
+        test_client_data.origin = String::from("some_test_origin");
 
-        let test_valid_client_data_origin = CollectedClientData {
-            r#type: String::from("webauthn.create"),
-            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-            origin: String::from("some_test_origin"),
-            cross_origin: false,
-            token_binding: None,
-        };
-
-        let test_verify_origin_ok = test_registration
-            .verify_origin(&test_valid_client_data_origin, "some_test_origin")
-            .await;
-
-        assert!(test_verify_origin_ok.is_ok());
+        assert!(test_registration
+            .verify_origin(&test_client_data, "some_test_origin")
+            .await
+            .is_ok());
 
         Ok(())
     }
@@ -666,50 +609,39 @@ mod tests {
             status: TokenBindingStatus::Present,
             id: String::from("some_token_binding_id"),
         };
-        let test_client_data_token_binding_none = CollectedClientData {
+
+        let mut test_client_data = CollectedClientData {
             r#type: String::from("webauthn.create"),
             challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
             origin: String::from("some_test_origin"),
             cross_origin: false,
             token_binding: None,
         };
-        let test_verify_token_binding_none = test_registration
-            .verify_token_binding(&test_client_data_token_binding_none, &test_token_binding)
-            .await;
 
-        assert!(test_verify_token_binding_none.is_ok());
+        assert!(test_registration
+            .verify_token_binding(&test_client_data, &test_token_binding)
+            .await
+            .is_ok());
 
-        let test_invalid_client_data_token_binding = CollectedClientData {
-            r#type: String::from("webauthn.create"),
-            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-            origin: String::from("some_test_origin"),
-            cross_origin: false,
-            token_binding: Some(TokenBinding {
-                status: TokenBindingStatus::Supported,
-                id: String::from("some_token_binding_id"),
-            }),
-        };
-        let test_verify_token_binding_error = test_registration
-            .verify_token_binding(&test_invalid_client_data_token_binding, &test_token_binding)
-            .await;
+        test_client_data.token_binding = Some(TokenBinding {
+            status: TokenBindingStatus::Supported,
+            id: String::from("some_token_binding_id"),
+        });
 
-        assert!(test_verify_token_binding_error.is_err());
+        assert!(test_registration
+            .verify_token_binding(&test_client_data, &test_token_binding)
+            .await
+            .is_err());
 
-        let test_valid_client_data_token_binding = CollectedClientData {
-            r#type: String::from("webauthn.create"),
-            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-            origin: String::from("some_test_origin"),
-            cross_origin: false,
-            token_binding: Some(TokenBinding {
-                status: TokenBindingStatus::Present,
-                id: String::from("some_token_binding_id"),
-            }),
-        };
-        let test_verify_token_binding_ok = test_registration
-            .verify_token_binding(&test_valid_client_data_token_binding, &test_token_binding)
-            .await;
+        test_client_data.token_binding = Some(TokenBinding {
+            status: TokenBindingStatus::Present,
+            id: String::from("some_token_binding_id"),
+        });
 
-        assert!(test_verify_token_binding_ok.is_ok());
+        assert!(test_registration
+            .verify_token_binding(&test_client_data, &test_token_binding)
+            .await
+            .is_ok());
 
         Ok(())
     }
@@ -753,8 +685,7 @@ mod tests {
         let test_registration = Register {};
         let test_perform_decoding = test_registration
             .perform_decoding(test_authenticator_attestation_response)
-            .await
-            .unwrap();
+            .await?;
 
         assert_eq!(
             AttestationStatementFormat::try_from(&test_perform_decoding.0)?,
