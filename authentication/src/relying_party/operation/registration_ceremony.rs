@@ -19,9 +19,9 @@ use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::relying_party::store::{StoreChannel, UserAccount};
 use crate::security::sha2::generate_hash;
 
-pub struct Register {}
+pub struct RegistrationCeremony {}
 
-impl Register {
+impl RegistrationCeremony {
     pub async fn public_key_credential_creation_options(
         &self,
     ) -> Result<PublicKeyCredentialCreationOptions, AuthenticationError> {
@@ -387,9 +387,9 @@ mod tests {
 
     #[tokio::test]
     async fn public_key_credential_creation_options() -> Result<(), Box<dyn std::error::Error>> {
-        let test_registration = Register {};
+        let test_registration_ceremony = RegistrationCeremony {};
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .public_key_credential_creation_options()
             .await
             .is_ok());
@@ -399,12 +399,12 @@ mod tests {
 
     #[tokio::test]
     async fn call_credentials_create() -> Result<(), Box<dyn std::error::Error>> {
-        let test_registration = Register {};
-        let test_public_key_credential_creation_options = test_registration
+        let test_registration_ceremony = RegistrationCeremony {};
+        let test_public_key_credential_creation_options = test_registration_ceremony
             .public_key_credential_creation_options()
             .await?;
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .call_credentials_create(&test_public_key_credential_creation_options)
             .await
             .is_ok());
@@ -414,7 +414,7 @@ mod tests {
 
     #[tokio::test]
     async fn authenticator_attestation_response() -> Result<(), Box<dyn std::error::Error>> {
-        let test_registration = Register {};
+        let test_registration_ceremony = RegistrationCeremony {};
         let test_public_key_credential_assertion = PublicKeyCredential::generate(
             String::from("test_id"),
             AuthenticatorResponse::AuthenticatorAssertionResponse(AuthenticatorAssertionResponse {
@@ -425,7 +425,7 @@ mod tests {
             }),
         )
         .await;
-        let test_authenticator_attestation_response_err = test_registration
+        let test_authenticator_attestation_response_err = test_registration_ceremony
             .authenticator_attestation_response(&test_public_key_credential_assertion)
             .await;
 
@@ -441,7 +441,7 @@ mod tests {
             ),
         )
         .await;
-        let test_authenticator_attestation_response_ok = test_registration
+        let test_authenticator_attestation_response_ok = test_registration_ceremony
             .authenticator_attestation_response(&test_public_key_credential_attestation)
             .await;
 
@@ -452,15 +452,15 @@ mod tests {
 
     #[tokio::test]
     async fn client_extension_results() -> Result<(), Box<dyn std::error::Error>> {
-        let test_registration = Register {};
-        let test_public_key_credential_creation_options = test_registration
+        let test_registration_ceremony = RegistrationCeremony {};
+        let test_public_key_credential_creation_options = test_registration_ceremony
             .public_key_credential_creation_options()
             .await?;
-        let test_public_key_credential = test_registration
+        let test_public_key_credential = test_registration_ceremony
             .call_credentials_create(&test_public_key_credential_creation_options)
             .await?;
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .client_extension_results(&test_public_key_credential)
             .await
             .is_ok());
@@ -470,13 +470,13 @@ mod tests {
 
     #[tokio::test]
     async fn json() -> Result<(), Box<dyn std::error::Error>> {
-        let test_registration = Register {};
+        let test_registration_ceremony = RegistrationCeremony {};
         let test_response = AuthenticatorAttestationResponse {
             client_data_json: Vec::with_capacity(0),
             attestation_object: Vec::with_capacity(0),
         };
 
-        let test_json = test_registration.json(&test_response).await?;
+        let test_json = test_registration_ceremony.json(&test_response).await?;
 
         assert!(test_json.is_empty());
 
@@ -485,7 +485,7 @@ mod tests {
 
     #[tokio::test]
     async fn client_data() -> Result<(), Box<dyn std::error::Error>> {
-        let test_registration = Register {};
+        let test_registration_ceremony = RegistrationCeremony {};
         let test_invalid_json = b"
         { 
             \"crossorigin\": true,
@@ -494,7 +494,9 @@ mod tests {
             \"challenge\": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,]
         }";
 
-        let test_client_data_error = test_registration.client_data(test_invalid_json).await;
+        let test_client_data_error = test_registration_ceremony
+            .client_data(test_invalid_json)
+            .await;
 
         assert!(test_client_data_error.is_err());
 
@@ -505,7 +507,9 @@ mod tests {
             \"origin\": \"some_test_origin\",
             \"challenge\": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         }";
-        let test_client_data_ok = test_registration.client_data(test_valid_json).await;
+        let test_client_data_ok = test_registration_ceremony
+            .client_data(test_valid_json)
+            .await;
 
         assert!(test_client_data_ok.is_ok());
 
@@ -514,7 +518,7 @@ mod tests {
 
     #[tokio::test]
     async fn verify_type() -> Result<(), Box<dyn std::error::Error>> {
-        let test_registration = Register {};
+        let test_registration_ceremony = RegistrationCeremony {};
         let mut test_client_data = CollectedClientData {
             r#type: String::from("webauthn.not_create"),
             challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
@@ -523,14 +527,14 @@ mod tests {
             token_binding: None,
         };
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_type(&test_client_data)
             .await
             .is_err());
 
         test_client_data.r#type = String::from("webauthn.create");
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_type(&test_client_data)
             .await
             .is_ok());
@@ -540,8 +544,8 @@ mod tests {
 
     #[tokio::test]
     async fn verify_challenge() -> Result<(), Box<dyn std::error::Error>> {
-        let test_registration = Register {};
-        let test_public_key_credential_creation_options = test_registration
+        let test_registration_ceremony = RegistrationCeremony {};
+        let test_public_key_credential_creation_options = test_registration_ceremony
             .public_key_credential_creation_options()
             .await?;
 
@@ -553,7 +557,7 @@ mod tests {
             token_binding: None,
         };
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_challenge(
                 &test_client_data,
                 &test_public_key_credential_creation_options
@@ -565,7 +569,7 @@ mod tests {
             .challenge
             .to_owned();
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_challenge(
                 &test_client_data,
                 &test_public_key_credential_creation_options,
@@ -578,7 +582,7 @@ mod tests {
 
     #[tokio::test]
     async fn verify_origin() -> Result<(), Box<dyn std::error::Error>> {
-        let test_registration = Register {};
+        let test_registration_ceremony = RegistrationCeremony {};
         let mut test_client_data = CollectedClientData {
             r#type: String::from("webauthn.create"),
             challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
@@ -587,14 +591,14 @@ mod tests {
             token_binding: None,
         };
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_origin(&test_client_data, "some_test_rp_origin")
             .await
             .is_err());
 
         test_client_data.origin = String::from("some_test_origin");
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_origin(&test_client_data, "some_test_origin")
             .await
             .is_ok());
@@ -604,7 +608,7 @@ mod tests {
 
     #[tokio::test]
     async fn verify_token_binding() -> Result<(), Box<dyn std::error::Error>> {
-        let test_registration = Register {};
+        let test_registration_ceremony = RegistrationCeremony {};
         let test_token_binding = TokenBinding {
             status: TokenBindingStatus::Present,
             id: String::from("some_token_binding_id"),
@@ -618,7 +622,7 @@ mod tests {
             token_binding: None,
         };
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_token_binding(&test_client_data, &test_token_binding)
             .await
             .is_ok());
@@ -628,7 +632,7 @@ mod tests {
             id: String::from("some_token_binding_id"),
         });
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_token_binding(&test_client_data, &test_token_binding)
             .await
             .is_err());
@@ -638,7 +642,7 @@ mod tests {
             id: String::from("some_token_binding_id"),
         });
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_token_binding(&test_client_data, &test_token_binding)
             .await
             .is_ok());
@@ -648,13 +652,16 @@ mod tests {
 
     #[tokio::test]
     async fn hash() -> Result<(), Box<dyn std::error::Error>> {
-        let test_registration = Register {};
+        let test_registration_ceremony = RegistrationCeremony {};
         let test_response = AuthenticatorAttestationResponse {
             client_data_json: b"some_test_data_to_hash".to_vec(),
             attestation_object: Vec::with_capacity(0),
         };
 
-        assert!(test_registration.hash(&test_response).await.is_ok());
+        assert!(test_registration_ceremony
+            .hash(&test_response)
+            .await
+            .is_ok());
 
         Ok(())
     }
@@ -682,8 +689,8 @@ mod tests {
             attestation_object: test_attestation_object,
         };
 
-        let test_registration = Register {};
-        let test_perform_decoding = test_registration
+        let test_registration_ceremony = RegistrationCeremony {};
+        let test_perform_decoding = test_registration_ceremony
             .perform_decoding(test_authenticator_attestation_response)
             .await?;
 
@@ -708,13 +715,13 @@ mod tests {
         let test_attested_credential_data = AttestedCredentialData::generate().await;
         let test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
-        let test_registration = Register {};
+        let test_registration_ceremony = RegistrationCeremony {};
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_rp_id_hash(&test_authenticator_data, "test_rp_identity")
             .await
             .is_err());
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_rp_id_hash(&test_authenticator_data, "test_rp_id")
             .await
             .is_ok());
@@ -727,16 +734,16 @@ mod tests {
         let test_attested_credential_data = AttestedCredentialData::generate().await;
         let mut test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
-        let test_registration = Register {};
+        let test_registration_ceremony = RegistrationCeremony {};
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_user_present(&test_authenticator_data)
             .await
             .is_err());
 
         test_authenticator_data.set_user_present().await;
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_user_present(&test_authenticator_data)
             .await
             .is_ok());
@@ -749,16 +756,16 @@ mod tests {
         let test_attested_credential_data = AttestedCredentialData::generate().await;
         let mut test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
-        let test_registration = Register {};
+        let test_registration_ceremony = RegistrationCeremony {};
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_user_verification(&test_authenticator_data)
             .await
             .is_err());
 
         test_authenticator_data.set_user_verifed().await;
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_user_verification(&test_authenticator_data)
             .await
             .is_ok());
@@ -771,12 +778,12 @@ mod tests {
         let test_attested_credential_data = AttestedCredentialData::generate().await;
         let test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
-        let test_registration = Register {};
-        let mut test_public_key_credential_creation_options = test_registration
+        let test_registration_ceremony = RegistrationCeremony {};
+        let mut test_public_key_credential_creation_options = test_registration_ceremony
             .public_key_credential_creation_options()
             .await?;
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_algorithm(
                 &test_authenticator_data,
                 &test_public_key_credential_creation_options
@@ -791,7 +798,7 @@ mod tests {
                 alg: -8,
             });
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_algorithm(
                 &test_authenticator_data,
                 &test_public_key_credential_creation_options
@@ -804,14 +811,14 @@ mod tests {
 
     #[tokio::test]
     async fn determine_attestation_statement_format() -> Result<(), Box<dyn std::error::Error>> {
-        let test_registration = Register {};
+        let test_registration_ceremony = RegistrationCeremony {};
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .determine_attestation_statement_format(&String::from("something_else"))
             .await
             .is_err());
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .determine_attestation_statement_format(&String::from("packed"))
             .await
             .is_ok());
@@ -828,9 +835,9 @@ mod tests {
         let test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_hash = Vec::with_capacity(0);
-        let test_registration = Register {};
+        let test_registration_ceremony = RegistrationCeremony {};
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_attestation_statement(
                 &test_attestation_statement_format,
                 &test_attestation_statement,
@@ -862,7 +869,7 @@ mod tests {
         let test_another_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_another_credential_data).await;
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_attestation_statement(
                 &test_attestation_statement_format,
                 &test_packed_attestation_statement_syntax_none,
@@ -879,7 +886,7 @@ mod tests {
                 x5c: None,
             });
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .verify_attestation_statement(
                 &test_attestation_statement_format,
                 &test_packed_attestation_statement_syntax_none_alg,
@@ -894,13 +901,13 @@ mod tests {
 
     #[tokio::test]
     async fn assess_attestation_trustworthiness() -> Result<(), Box<dyn std::error::Error>> {
-        let test_registration = Register {};
+        let test_registration_ceremony = RegistrationCeremony {};
         let test_attestation_verification_output = AttestationVerificationProcedureOutput {
             attestation_type: AttestationType::SelfAttestation,
             x5c: None,
         };
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .assess_attestation_trustworthiness(test_attestation_verification_output)
             .await
             .is_ok());
@@ -913,7 +920,7 @@ mod tests {
         let test_attested_credential_data = AttestedCredentialData::generate().await;
         let test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
-        let test_registration = Register {};
+        let test_registration_ceremony = RegistrationCeremony {};
         let mut test_store = Store::init().await;
 
         tokio::spawn(async move {
@@ -934,7 +941,7 @@ mod tests {
             )
             .await?;
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .check_credential_id(&test_store.1, &test_authenticator_data)
             .await
             .is_err());
@@ -947,8 +954,8 @@ mod tests {
         let test_attested_credential_data = AttestedCredentialData::generate().await;
         let test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
-        let test_registration = Register {};
-        let test_options = test_registration
+        let test_registration_ceremony = RegistrationCeremony {};
+        let test_options = test_registration_ceremony
             .public_key_credential_creation_options()
             .await?;
         let mut test_store = Store::init().await;
@@ -959,7 +966,7 @@ mod tests {
             }
         });
 
-        assert!(test_registration
+        assert!(test_registration_ceremony
             .register(&test_store.1, test_options, test_authenticator_data)
             .await
             .is_ok());

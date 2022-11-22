@@ -1,6 +1,6 @@
 use crate::api::supporting_data_structures::TokenBinding;
 use crate::error::AuthenticationError;
-use crate::relying_party::operation::{AuthenticationCeremony, Register};
+use crate::relying_party::operation::{AuthenticationCeremony, RegistrationCeremony};
 use crate::relying_party::store::{Store, StoreChannel};
 
 pub mod operation;
@@ -30,7 +30,7 @@ impl RelyingParty {
 
     pub async fn register_new_credential(
         &self,
-        operation: Register,
+        operation: RegistrationCeremony,
     ) -> Result<(), AuthenticationError> {
         let options = operation.public_key_credential_creation_options().await?;
         let credential = operation.call_credentials_create(&options).await?;
