@@ -1,5 +1,5 @@
 pub use authentication_ceremony::AuthenticationCeremony;
-pub use register::Register;
+pub use registration_ceremony::Register;
 
 mod authentication_ceremony;
-mod register;
+mod registration_ceremony;
