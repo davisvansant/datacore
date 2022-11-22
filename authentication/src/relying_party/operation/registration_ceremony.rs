@@ -425,11 +425,11 @@ mod tests {
             }),
         )
         .await;
-        let test_authenticator_attestation_response_err = test_registration_ceremony
-            .authenticator_attestation_response(&test_public_key_credential_assertion)
-            .await;
 
-        assert!(test_authenticator_attestation_response_err.is_err());
+        assert!(test_registration_ceremony
+            .authenticator_attestation_response(&test_public_key_credential_assertion)
+            .await
+            .is_err());
 
         let test_public_key_credential_attestation = PublicKeyCredential::generate(
             String::from("test_id"),
@@ -441,11 +441,11 @@ mod tests {
             ),
         )
         .await;
-        let test_authenticator_attestation_response_ok = test_registration_ceremony
-            .authenticator_attestation_response(&test_public_key_credential_attestation)
-            .await;
 
-        assert!(test_authenticator_attestation_response_ok.is_ok());
+        assert!(test_registration_ceremony
+            .authenticator_attestation_response(&test_public_key_credential_attestation)
+            .await
+            .is_ok());
 
         Ok(())
     }
@@ -494,11 +494,10 @@ mod tests {
             \"challenge\": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,]
         }";
 
-        let test_client_data_error = test_registration_ceremony
+        assert!(test_registration_ceremony
             .client_data(test_invalid_json)
-            .await;
-
-        assert!(test_client_data_error.is_err());
+            .await
+            .is_err());
 
         let test_valid_json = b"
         { 
@@ -507,11 +506,11 @@ mod tests {
             \"origin\": \"some_test_origin\",
             \"challenge\": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         }";
-        let test_client_data_ok = test_registration_ceremony
-            .client_data(test_valid_json)
-            .await;
 
-        assert!(test_client_data_ok.is_ok());
+        assert!(test_registration_ceremony
+            .client_data(test_valid_json)
+            .await
+            .is_ok());
 
         Ok(())
     }
