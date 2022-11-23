@@ -14,7 +14,7 @@ pub struct RelyingParty {
 impl RelyingParty {
     pub async fn init() -> RelyingParty {
         let identifier = String::from("some_identifier");
-        let (mut store, channel) = Store::init().await;
+        let (channel, mut store) = Store::init().await;
 
         tokio::spawn(async move {
             if let Err(error) = store.run().await {

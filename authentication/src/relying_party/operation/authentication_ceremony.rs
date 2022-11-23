@@ -467,18 +467,18 @@ mod tests {
         let mut test_store = Store::init().await;
 
         tokio::spawn(async move {
-            test_store.0.run().await.unwrap();
+            test_store.1.run().await.unwrap();
         });
 
         assert!(test_authentication_ceremony
-            .identify_user_and_verify(&test_store.1, &test_authenticator_assertion_response)
+            .identify_user_and_verify(&test_store.0, &test_authenticator_assertion_response)
             .await
             .is_err());
 
         test_authenticator_assertion_response.user_handle = b"some_other_id".to_vec();
 
         test_store
-            .1
+            .0
             .register(
                 b"some_other_id".to_vec(),
                 UserAccount {
@@ -490,7 +490,7 @@ mod tests {
             .await?;
 
         assert!(test_authentication_ceremony
-            .identify_user_and_verify(&test_store.1, &test_authenticator_assertion_response)
+            .identify_user_and_verify(&test_store.0, &test_authenticator_assertion_response)
             .await
             .is_ok());
 
@@ -510,13 +510,13 @@ mod tests {
         let mut test_store = Store::init().await;
 
         tokio::spawn(async move {
-            if let Err(error) = test_store.0.run().await {
+            if let Err(error) = test_store.1.run().await {
                 println!("test store error -> {:?}", error);
             }
         });
 
         test_store
-            .1
+            .0
             .register(
                 b"some_id".to_vec(),
                 UserAccount {
@@ -528,14 +528,14 @@ mod tests {
             .await?;
 
         assert!(test_authentication_ceremony
-            .credential_public_key(&test_store.1, &test_public_key_credential)
+            .credential_public_key(&test_store.0, &test_public_key_credential)
             .await
             .is_err());
 
         test_public_key_credential.id = String::from("some_id");
 
         assert!(test_authentication_ceremony
-            .credential_public_key(&test_store.1, &test_public_key_credential)
+            .credential_public_key(&test_store.0, &test_public_key_credential)
             .await
             .is_ok());
 
@@ -872,13 +872,13 @@ mod tests {
         let mut test_store = Store::init().await;
 
         tokio::spawn(async move {
-            if let Err(error) = test_store.0.run().await {
+            if let Err(error) = test_store.1.run().await {
                 println!("test store error -> {:?}", error);
             }
         });
 
         test_store
-            .1
+            .0
             .register(
                 b"some_key_id".to_vec(),
                 UserAccount {
@@ -891,7 +891,7 @@ mod tests {
 
         assert!(test_authentication_ceremony
             .stored_sign_count(
-                &test_store.1,
+                &test_store.0,
                 &test_public_key_credential,
                 &test_authenticator_data,
             )

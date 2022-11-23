@@ -171,16 +171,16 @@ pub struct Store {
 }
 
 impl Store {
-    pub async fn init() -> (Store, StoreChannel) {
+    pub async fn init() -> (StoreChannel, Store) {
         let credentials = HashMap::with_capacity(50);
         let (channel, receiver) = StoreChannel::init().await;
 
         (
+            channel,
             Store {
                 credentials,
                 request: receiver,
             },
-            channel,
         )
     }
 
@@ -286,5 +286,304 @@ impl Store {
                 error: AuthenticationErrorType::OperationError,
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::authenticator::attestation::COSEAlgorithm;
+
+    #[tokio::test]
+    async fn init() -> Result<(), Box<dyn std::error::Error>> {
+        let test_store = Store::init().await;
+
+        assert!(!test_store.0.request.is_closed());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn channel_check() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_store = Store::init().await;
+        let test_credential_id = [0; 16].to_vec();
+
+        tokio::spawn(async move {
+            test_store.1.run().await.unwrap();
+        });
+
+        assert!(test_store.0.check(test_credential_id).await.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn channel_register() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_store = Store::init().await;
+        let test_credential_id = [0; 16].to_vec();
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_user_account = UserAccount {
+            public_key: test_public_key.0,
+            signature_counter: 0,
+            transports: None,
+        };
+
+        tokio::spawn(async move {
+            test_store.1.run().await.unwrap();
+        });
+
+        assert!(test_store
+            .0
+            .register(test_credential_id, test_user_account)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn channel_identify() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_store = Store::init().await;
+        let test_credential_id = [0; 16].to_vec();
+
+        tokio::spawn(async move {
+            test_store.1.run().await.unwrap();
+        });
+
+        assert!(test_store
+            .0
+            .identify(test_credential_id.to_owned())
+            .await
+            .is_err());
+
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_user_account = UserAccount {
+            public_key: test_public_key.0,
+            signature_counter: 0,
+            transports: None,
+        };
+
+        test_store
+            .0
+            .register(test_credential_id.to_owned(), test_user_account)
+            .await?;
+
+        assert!(test_store
+            .0
+            .identify(test_credential_id.to_owned())
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn channel_lookup() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_store = Store::init().await;
+        let test_credential_id = [0; 16].to_vec();
+
+        tokio::spawn(async move {
+            test_store.1.run().await.unwrap();
+        });
+
+        assert!(test_store
+            .0
+            .lookup(test_credential_id.to_owned())
+            .await
+            .is_err());
+
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_user_account = UserAccount {
+            public_key: test_public_key.0,
+            signature_counter: 0,
+            transports: None,
+        };
+
+        test_store
+            .0
+            .register(test_credential_id.to_owned(), test_user_account)
+            .await?;
+
+        assert!(test_store
+            .0
+            .lookup(test_credential_id.to_owned())
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn channel_sign_count() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_store = Store::init().await;
+        let test_credential_id = [0; 16].to_vec();
+
+        tokio::spawn(async move {
+            test_store.1.run().await.unwrap();
+        });
+
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_user_account = UserAccount {
+            public_key: test_public_key.0,
+            signature_counter: 0,
+            transports: None,
+        };
+
+        test_store
+            .0
+            .register(test_credential_id.to_owned(), test_user_account)
+            .await?;
+
+        assert!(test_store
+            .0
+            .sign_count(test_credential_id.to_owned(), 0)
+            .await
+            .is_err());
+
+        assert!(test_store
+            .0
+            .sign_count(test_credential_id.to_owned(), 1)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check() -> Result<(), Box<dyn std::error::Error>> {
+        let test_store = Store::init().await;
+        let test_credential_id = [0; 16].to_vec();
+
+        assert!(test_store.1.check(test_credential_id).await.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn register() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_store = Store::init().await;
+        let test_credential_id = [0; 16].to_vec();
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_user_account = UserAccount {
+            public_key: test_public_key.0,
+            signature_counter: 0,
+            transports: None,
+        };
+
+        assert!(test_store
+            .1
+            .register(test_credential_id, test_user_account)
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn identify() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_store = Store::init().await;
+        let test_credential_id = [0; 16].to_vec();
+
+        assert!(test_store
+            .1
+            .identify(test_credential_id.to_owned())
+            .await
+            .is_err());
+
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_user_account = UserAccount {
+            public_key: test_public_key.0,
+            signature_counter: 0,
+            transports: None,
+        };
+
+        test_store
+            .1
+            .register(test_credential_id.to_owned(), test_user_account)
+            .await?;
+
+        assert!(test_store
+            .1
+            .identify(test_credential_id.to_owned())
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn lookup() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_store = Store::init().await;
+        let test_credential_id = [0; 16].to_vec();
+
+        assert!(test_store
+            .1
+            .lookup(test_credential_id.to_owned())
+            .await
+            .is_err());
+
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_user_account = UserAccount {
+            public_key: test_public_key.0,
+            signature_counter: 0,
+            transports: None,
+        };
+
+        test_store
+            .1
+            .register(test_credential_id.to_owned(), test_user_account)
+            .await?;
+
+        assert!(test_store
+            .1
+            .lookup(test_credential_id.to_owned())
+            .await
+            .is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn sign_count() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_store = Store::init().await;
+        let test_credential_id = [0; 16].to_vec();
+
+        assert!(test_store
+            .1
+            .sign_count(test_credential_id.to_owned(), 0)
+            .await
+            .is_err());
+
+        assert!(test_store
+            .1
+            .sign_count(test_credential_id.to_owned(), 1)
+            .await
+            .is_err());
+
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_user_account = UserAccount {
+            public_key: test_public_key.0,
+            signature_counter: 0,
+            transports: None,
+        };
+
+        test_store
+            .1
+            .register(test_credential_id.to_owned(), test_user_account)
+            .await?;
+
+        assert!(test_store
+            .1
+            .sign_count(test_credential_id.to_owned(), 0)
+            .await
+            .is_err());
+
+        assert!(test_store
+            .1
+            .sign_count(test_credential_id.to_owned(), 1)
+            .await
+            .is_ok());
+
+        Ok(())
     }
 }

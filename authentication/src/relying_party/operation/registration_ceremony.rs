@@ -923,13 +923,13 @@ mod tests {
         let mut test_store = Store::init().await;
 
         tokio::spawn(async move {
-            if let Err(error) = test_store.0.run().await {
+            if let Err(error) = test_store.1.run().await {
                 println!("test store error -> {:?}", error);
             }
         });
 
         test_store
-            .1
+            .0
             .register(
                 b"".to_vec(),
                 UserAccount {
@@ -941,7 +941,7 @@ mod tests {
             .await?;
 
         assert!(test_registration_ceremony
-            .check_credential_id(&test_store.1, &test_authenticator_data)
+            .check_credential_id(&test_store.0, &test_authenticator_data)
             .await
             .is_err());
 
@@ -960,13 +960,13 @@ mod tests {
         let mut test_store = Store::init().await;
 
         tokio::spawn(async move {
-            if let Err(error) = test_store.0.run().await {
+            if let Err(error) = test_store.1.run().await {
                 println!("test store error -> {:?}", error);
             }
         });
 
         assert!(test_registration_ceremony
-            .register(&test_store.1, test_options, test_authenticator_data)
+            .register(&test_store.0, test_options, test_authenticator_data)
             .await
             .is_ok());
 
