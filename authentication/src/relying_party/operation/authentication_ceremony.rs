@@ -284,7 +284,7 @@ impl AuthenticationCeremony {
         store
             .sign_count(
                 credential.id.as_bytes().to_vec(),
-                authenticator_data.signcount,
+                u32::from_be_bytes(authenticator_data.signcount),
             )
             .await?;
 
@@ -867,7 +867,8 @@ mod tests {
         let mut test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
 
-        test_authenticator_data.signcount = 1;
+        // test_authenticator_data.signcount = 1;
+        test_authenticator_data.signcount = 1_u32.to_be_bytes();
 
         let mut test_store = Store::init().await;
 

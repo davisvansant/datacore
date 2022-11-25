@@ -359,7 +359,7 @@ impl RegistrationCeremony {
         let signature_counter = authenticator_data.signcount;
         let new_account = UserAccount {
             public_key,
-            signature_counter,
+            signature_counter: u32::from_be_bytes(signature_counter),
             transports: None,
         };
 
@@ -698,7 +698,8 @@ mod tests {
             AttestationStatementFormat::Packed,
         );
         assert!(!test_perform_decoding.1.user_present().await);
-        assert_eq!(test_perform_decoding.1.signcount, 0);
+        // assert_eq!(test_perform_decoding.1.signcount, 0);
+        assert_eq!(test_perform_decoding.1.signcount, [0; 4]);
 
         match test_perform_decoding.2 {
             AttestationStatement::Packed(test_packed_attestation_statement) => {

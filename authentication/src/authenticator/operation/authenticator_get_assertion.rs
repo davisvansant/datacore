@@ -119,7 +119,7 @@ impl AuthenticatorGetAssertion {
         let mut authenticator_data = AuthenticatorData {
             rp_id_hash,
             flags: 0b0000_0000,
-            signcount,
+            signcount: signcount.to_be_bytes(),
             attestedcredentialdata: None,
             extensions: None,
         };
@@ -441,7 +441,8 @@ mod tests {
         );
         assert!(!test_authenticator_data.user_present().await);
         assert!(!test_authenticator_data.user_verified().await);
-        assert_eq!(test_authenticator_data.signcount, 0);
+        // assert_eq!(test_authenticator_data.signcount, 0);
+        assert_eq!(test_authenticator_data.signcount, [0; 4]);
         assert!(test_authenticator_data.attestedcredentialdata.is_none());
         assert!(test_authenticator_data.extensions.is_none());
 
@@ -459,7 +460,8 @@ mod tests {
         );
         assert!(test_authenticator_data.user_present().await);
         assert!(test_authenticator_data.user_verified().await);
-        assert_eq!(test_authenticator_data.signcount, 0);
+        // assert_eq!(test_authenticator_data.signcount, 0);
+        assert_eq!(test_authenticator_data.signcount, [0; 4]);
         assert!(test_authenticator_data.attestedcredentialdata.is_none());
         assert!(test_authenticator_data.extensions.is_none());
 
