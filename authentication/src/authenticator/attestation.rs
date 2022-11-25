@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 pub use crate::authenticator::attestation::cose_key_format::{COSEAlgorithm, COSEKey};
 pub use crate::authenticator::attestation::statement_format::{
@@ -45,22 +46,23 @@ impl AttestationObject {
 
 #[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct AttestedCredentialData {
-    pub aaguid: Vec<u8>,
-    pub credential_id_length: [u8; 8],
-    pub credential_id: Vec<u8>,
+    pub aaguid: [u8; 16],
+    pub credential_id_length: [u8; 2],
+    pub credential_id: [u8; 16],
     pub credential_public_key: COSEKey,
 }
 
 impl AttestedCredentialData {
     pub async fn generate() -> AttestedCredentialData {
-        let aaguid = Vec::with_capacity(0);
-        let credential_id = Vec::with_capacity(0);
-        let credential_id_length = credential_id.len().to_be_bytes();
+        let aaguid = Uuid::new_v4().simple().into_uuid().into_bytes();
+        let credential_id = [0; 16];
+        let credential_id_length = credential_id.len() as u16;
+        let credential_id_length_bytes = credential_id_length.to_be_bytes();
         let credential_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await.0;
 
         AttestedCredentialData {
             aaguid,
-            credential_id_length,
+            credential_id_length: credential_id_length_bytes,
             credential_id,
             credential_public_key,
         }
