@@ -213,14 +213,18 @@ impl AuthenticatorMakeCrendential {
     pub async fn attested_credential_data(
         &self,
     ) -> Result<AttestedCredentialData, AuthenticationError> {
-        let aaguid = [0; 128].to_vec();
+        // let aaguid = [0; 128].to_vec();
+        let aaguid = [0; 16];
         let credential_id = [0; 16];
+        let credential_id_length = credential_id.len() as u16;
+        let credential_id_length_bytes = credential_id_length.to_be_bytes();
         let public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
 
         let attested_credential_data = AttestedCredentialData {
             aaguid,
-            credential_id_length: credential_id.len().to_be_bytes(),
-            credential_id: credential_id.to_vec(),
+            credential_id_length: credential_id_length_bytes,
+            // credential_id: credential_id.to_vec(),
+            credential_id,
             credential_public_key: public_key.0,
         };
 

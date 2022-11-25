@@ -331,7 +331,7 @@ impl RegistrationCeremony {
     ) -> Result<(), AuthenticationError> {
         if let Some(attested_credential_data) = &authenticator_data.attestedcredentialdata {
             store
-                .check(attested_credential_data.credential_id.to_owned())
+                .check(attested_credential_data.credential_id.to_vec())
                 .await?;
 
             Ok(())
@@ -860,9 +860,12 @@ mod tests {
             });
 
         let test_another_credential_data = AttestedCredentialData {
-            aaguid: Vec::with_capacity(0),
-            credential_id_length: Vec::<[u8; 8]>::with_capacity(0).len().to_be_bytes(),
-            credential_id: Vec::with_capacity(0),
+            // aaguid: Vec::with_capacity(0),
+            aaguid: [0; 16],
+            // credential_id_length: Vec::<[u8; 8]>::with_capacity(0).len().to_be_bytes(),
+            credential_id_length: 0u16.to_be_bytes(),
+            // credential_id: Vec::with_capacity(0),
+            credential_id: [0; 16],
             credential_public_key: test_cose_key.0,
         };
 
@@ -918,7 +921,7 @@ mod tests {
     #[tokio::test]
     async fn check_credential_id() -> Result<(), Box<dyn std::error::Error>> {
         let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_authenticator_data =
+        let mut test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_registration_ceremony = RegistrationCeremony {};
         let mut test_store = Store::init().await;
@@ -932,7 +935,7 @@ mod tests {
         test_store
             .0
             .register(
-                b"".to_vec(),
+                [0; 16].to_vec(),
                 UserAccount {
                     public_key: COSEKey::generate(COSEAlgorithm::EdDSA).await.0,
                     signature_counter: 0,
@@ -945,6 +948,17 @@ mod tests {
             .check_credential_id(&test_store.0, &test_authenticator_data)
             .await
             .is_err());
+
+        if let Some(ref mut attested_credential_data) =
+            test_authenticator_data.attestedcredentialdata
+        {
+            attested_credential_data.credential_id = [1; 16];
+        }
+
+        assert!(test_registration_ceremony
+            .check_credential_id(&test_store.0, &test_authenticator_data)
+            .await
+            .is_ok());
 
         Ok(())
     }
