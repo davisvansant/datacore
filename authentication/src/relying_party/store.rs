@@ -47,21 +47,22 @@ impl StoreChannel {
             error: AuthenticationErrorType::OperationError,
         };
 
-        if let Ok(()) = self
+        match self
             .request
             .send((Request::Check(credential_id), request))
             .await
         {
-            if let Ok(Response::FailCeremony(fail_ceremony)) = response.await {
-                match fail_ceremony {
-                    true => Err(error),
-                    false => Ok(()),
+            Ok(()) => {
+                if let Ok(Response::FailCeremony(fail_ceremony)) = response.await {
+                    match fail_ceremony {
+                        true => Err(error),
+                        false => Ok(()),
+                    }
+                } else {
+                    Err(error)
                 }
-            } else {
-                Err(error)
             }
-        } else {
-            Err(error)
+            Err(_) => Err(error),
         }
     }
 
@@ -94,21 +95,22 @@ impl StoreChannel {
             error: AuthenticationErrorType::OperationError,
         };
 
-        if let Ok(()) = self
+        match self
             .request
             .send((Request::Identify(credential_id), request))
             .await
         {
-            if let Ok(Response::FailCeremony(fail_ceremony)) = response.await {
-                match fail_ceremony {
-                    true => Err(error),
-                    false => Ok(()),
+            Ok(()) => {
+                if let Ok(Response::FailCeremony(fail_ceremony)) = response.await {
+                    match fail_ceremony {
+                        true => Err(error),
+                        false => Ok(()),
+                    }
+                } else {
+                    Err(error)
                 }
-            } else {
-                Err(error)
             }
-        } else {
-            Err(error)
+            Err(_) => Err(error),
         }
     }
 
@@ -118,18 +120,19 @@ impl StoreChannel {
             error: AuthenticationErrorType::OperationError,
         };
 
-        if let Ok(()) = self
+        match self
             .request
             .send((Request::Lookup(credential_id), request))
             .await
         {
-            if let Ok(Response::PublicKey(public_key)) = response.await {
-                Ok(public_key)
-            } else {
-                Err(error)
+            Ok(()) => {
+                if let Ok(Response::PublicKey(public_key)) = response.await {
+                    Ok(public_key)
+                } else {
+                    Err(error)
+                }
             }
-        } else {
-            Err(error)
+            Err(_) => Err(error),
         }
     }
 
@@ -143,7 +146,7 @@ impl StoreChannel {
             error: AuthenticationErrorType::OperationError,
         };
 
-        if let Ok(()) = self
+        match self
             .request
             .send((
                 Request::SignCount((credential_id, authenticator_data_sign_count)),
@@ -151,16 +154,17 @@ impl StoreChannel {
             ))
             .await
         {
-            if let Ok(Response::FailCeremony(fail_ceremony)) = response.await {
-                match fail_ceremony {
-                    true => Err(error),
-                    false => Ok(()),
+            Ok(()) => {
+                if let Ok(Response::FailCeremony(fail_ceremony)) = response.await {
+                    match fail_ceremony {
+                        true => Err(error),
+                        false => Ok(()),
+                    }
+                } else {
+                    Err(error)
                 }
-            } else {
-                Err(error)
             }
-        } else {
-            Err(error)
+            Err(_) => Err(error),
         }
     }
 }
