@@ -12,7 +12,7 @@ use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::{
     AttestationObject, AttestationStatement, AttestationStatementFormat,
     AttestationStatementFormatIdentifier, AttestationType, AttestationVerificationProcedureOutput,
-    PackedAttestationStatementSyntax,
+    AttestedCredentialData, PackedAttestationStatementSyntax,
 };
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
@@ -236,8 +236,10 @@ impl RegistrationCeremony {
         options: &PublicKeyCredentialCreationOptions,
     ) -> Result<(), AuthenticationError> {
         let mut algorithm_match = Vec::with_capacity(1);
-        let public_key_alg = match &authenticator_data.attestedcredentialdata {
-            Some(attested_credential_data) => {
+        let public_key_alg = match &authenticator_data.attested_credential_data {
+            Some(data) => {
+                let attested_credential_data = AttestedCredentialData::from_byte_array(data).await;
+
                 attested_credential_data
                     .credential_public_key
                     .algorithm()
@@ -329,7 +331,9 @@ impl RegistrationCeremony {
         store: &StoreChannel,
         authenticator_data: &AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
-        if let Some(attested_credential_data) = &authenticator_data.attestedcredentialdata {
+        if let Some(data) = &authenticator_data.attested_credential_data {
+            let attested_credential_data = AttestedCredentialData::from_byte_array(data).await;
+
             store
                 .check(attested_credential_data.credential_id.to_vec())
                 .await?;
@@ -348,14 +352,15 @@ impl RegistrationCeremony {
         options: PublicKeyCredentialCreationOptions,
         authenticator_data: AuthenticatorData,
     ) -> Result<(), AuthenticationError> {
-        let public_key =
-            if let Some(attested_credential_data) = authenticator_data.attestedcredentialdata {
-                attested_credential_data.credential_public_key
-            } else {
-                return Err(AuthenticationError {
-                    error: AuthenticationErrorType::OperationError,
-                });
-            };
+        let public_key = if let Some(data) = authenticator_data.attested_credential_data {
+            let attested_credential_data = AttestedCredentialData::from_byte_array(&data).await;
+
+            attested_credential_data.credential_public_key
+        } else {
+            return Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            });
+        };
         let signature_counter = authenticator_data.signcount;
         let new_account = UserAccount {
             public_key,
@@ -668,8 +673,11 @@ mod tests {
     #[tokio::test]
     async fn perform_decoding() -> Result<(), Box<dyn std::error::Error>> {
         let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
         let test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
+                .await;
         let test_attestation_statement =
             AttestationStatement::Packed(PackedAttestationStatementSyntax::generate().await);
 
@@ -713,8 +721,11 @@ mod tests {
     #[tokio::test]
     async fn verify_rp_id_hash() -> Result<(), Box<dyn std::error::Error>> {
         let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
         let test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
+                .await;
         let test_registration_ceremony = RegistrationCeremony {};
 
         assert!(test_registration_ceremony
@@ -732,8 +743,11 @@ mod tests {
     #[tokio::test]
     async fn verify_user_present() -> Result<(), Box<dyn std::error::Error>> {
         let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
         let mut test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
+                .await;
         let test_registration_ceremony = RegistrationCeremony {};
 
         assert!(test_registration_ceremony
@@ -754,8 +768,11 @@ mod tests {
     #[tokio::test]
     async fn verify_user_verification() -> Result<(), Box<dyn std::error::Error>> {
         let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
         let mut test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
+                .await;
         let test_registration_ceremony = RegistrationCeremony {};
 
         assert!(test_registration_ceremony
@@ -776,8 +793,11 @@ mod tests {
     #[tokio::test]
     async fn verify_algorithm() -> Result<(), Box<dyn std::error::Error>> {
         let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
         let test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
+                .await;
         let test_registration_ceremony = RegistrationCeremony {};
         let mut test_public_key_credential_creation_options = test_registration_ceremony
             .public_key_credential_creation_options()
@@ -832,8 +852,11 @@ mod tests {
         let test_attestation_statement =
             AttestationStatement::Packed(PackedAttestationStatementSyntax::generate().await);
         let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
         let test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
+                .await;
         let test_hash = Vec::with_capacity(0);
         let test_registration_ceremony = RegistrationCeremony {};
 
@@ -859,18 +882,22 @@ mod tests {
                 x5c: None,
             });
 
+        let test_credential_id = [0; 16];
+        let test_credential_id_length = test_credential_id.len() as u16;
+        let test_credential_id_length_bytes = test_credential_id_length.to_be_bytes();
+
         let test_another_credential_data = AttestedCredentialData {
-            // aaguid: Vec::with_capacity(0),
             aaguid: [0; 16],
-            // credential_id_length: Vec::<[u8; 8]>::with_capacity(0).len().to_be_bytes(),
-            credential_id_length: 0u16.to_be_bytes(),
-            // credential_id: Vec::with_capacity(0),
-            credential_id: [0; 16],
+            credential_id_length: test_credential_id_length_bytes,
+            credential_id: test_credential_id,
             credential_public_key: test_cose_key.0,
         };
 
+        let test_another_credential_data_byte_array =
+            test_another_credential_data.to_byte_array().await;
         let test_another_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_another_credential_data).await;
+            AuthenticatorData::generate("test_rp_id", test_another_credential_data_byte_array)
+                .await;
 
         assert!(test_registration_ceremony
             .verify_attestation_statement(
@@ -920,9 +947,12 @@ mod tests {
 
     #[tokio::test]
     async fn check_credential_id() -> Result<(), Box<dyn std::error::Error>> {
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let mut test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
         let mut test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
+                .await;
         let test_registration_ceremony = RegistrationCeremony {};
         let mut test_store = Store::init().await;
 
@@ -949,11 +979,14 @@ mod tests {
             .await
             .is_err());
 
-        if let Some(ref mut attested_credential_data) =
-            test_authenticator_data.attestedcredentialdata
-        {
-            attested_credential_data.credential_id = [1; 16];
-        }
+        // if let Some(ref mut attested_credential_data) =
+        //     test_authenticator_data.attested_credential_data
+        // {
+        //     attested_credential_data.credential_id = [1; 16];
+        // }
+        test_attested_credential_data.credential_id = [1; 16];
+        let test_byte_array = test_attested_credential_data.to_byte_array().await;
+        test_authenticator_data.attested_credential_data = Some(test_byte_array);
 
         assert!(test_registration_ceremony
             .check_credential_id(&test_store.0, &test_authenticator_data)
@@ -966,8 +999,11 @@ mod tests {
     #[tokio::test]
     async fn register() -> Result<(), Box<dyn std::error::Error>> {
         let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
         let test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
+                .await;
         let test_registration_ceremony = RegistrationCeremony {};
         let test_options = test_registration_ceremony
             .public_key_credential_creation_options()

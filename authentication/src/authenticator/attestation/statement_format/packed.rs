@@ -2,7 +2,9 @@ use ed25519_dalek::{PublicKey, Signature};
 use serde::{Deserialize, Serialize};
 
 use crate::api::supporting_data_structures::COSEAlgorithmIdentifier;
-use crate::authenticator::attestation::{AttestationType, AttestationVerificationProcedureOutput};
+use crate::authenticator::attestation::{
+    AttestationType, AttestationVerificationProcedureOutput, AttestedCredentialData,
+};
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 
@@ -51,8 +53,9 @@ impl PackedAttestationStatementSyntax {
 
         println!("{:?}", attest);
 
-        let alg = if let Some(attested_credential_data) = &authenticator_data.attestedcredentialdata
-        {
+        let alg = if let Some(data) = &authenticator_data.attested_credential_data {
+            let attested_credential_data = AttestedCredentialData::from_byte_array(data).await;
+
             attested_credential_data
                 .credential_public_key
                 .algorithm()
@@ -77,7 +80,9 @@ impl PackedAttestationStatementSyntax {
         client_data_hash: &[u8],
     ) -> Result<AttestationVerificationProcedureOutput, AuthenticationError> {
         let (public_key_alg, public_key) =
-            if let Some(attested_credential_data) = &authenticator_data.attestedcredentialdata {
+            if let Some(data) = &authenticator_data.attested_credential_data {
+                let attested_credential_data = AttestedCredentialData::from_byte_array(data).await;
+
                 let alg = attested_credential_data
                     .credential_public_key
                     .algorithm()
@@ -195,8 +200,11 @@ mod tests {
     #[tokio::test]
     async fn signing_procedure() -> Result<(), Box<dyn std::error::Error>> {
         let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
         let test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
+                .await;
         let test_hash = b"test_client_data".to_vec();
         let test_output = PackedAttestationStatementSyntax::signing_procedure(
             &test_authenticator_data,

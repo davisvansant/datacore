@@ -120,7 +120,8 @@ impl AuthenticatorGetAssertion {
             rp_id_hash,
             flags: 0b0000_0000,
             signcount: signcount.to_be_bytes(),
-            attestedcredentialdata: None,
+            // attestedcredentialdata: None,
+            attested_credential_data: None,
             extensions: None,
         };
 
@@ -443,7 +444,7 @@ mod tests {
         assert!(!test_authenticator_data.user_verified().await);
         // assert_eq!(test_authenticator_data.signcount, 0);
         assert_eq!(test_authenticator_data.signcount, [0; 4]);
-        assert!(test_authenticator_data.attestedcredentialdata.is_none());
+        assert!(test_authenticator_data.attested_credential_data.is_none());
         assert!(test_authenticator_data.extensions.is_none());
 
         test_get_assertion.rpid = String::from("some_other_rp_id");
@@ -462,7 +463,7 @@ mod tests {
         assert!(test_authenticator_data.user_verified().await);
         // assert_eq!(test_authenticator_data.signcount, 0);
         assert_eq!(test_authenticator_data.signcount, [0; 4]);
-        assert!(test_authenticator_data.attestedcredentialdata.is_none());
+        assert!(test_authenticator_data.attested_credential_data.is_none());
         assert!(test_authenticator_data.extensions.is_none());
 
         Ok(())
