@@ -210,30 +210,16 @@ impl AuthenticatorMakeCrendential {
         Ok(())
     }
 
-    pub async fn attested_credential_data(
-        &self,
-    ) -> Result<AttestedCredentialData, AuthenticationError> {
-        // let aaguid = [0; 128].to_vec();
-        let aaguid = [0; 16];
-        let credential_id = [0; 16];
-        let credential_id_length = credential_id.len() as u16;
-        let credential_id_length_bytes = credential_id_length.to_be_bytes();
-        let public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+    pub async fn attested_credential_data(&self) -> Result<Vec<u8>, AuthenticationError> {
+        let attested_credential_data = AttestedCredentialData::generate().await;
+        let byte_array = attested_credential_data.to_byte_array().await;
 
-        let attested_credential_data = AttestedCredentialData {
-            aaguid,
-            credential_id_length: credential_id_length_bytes,
-            // credential_id: credential_id.to_vec(),
-            credential_id,
-            credential_public_key: public_key.0,
-        };
-
-        Ok(attested_credential_data)
+        Ok(byte_array)
     }
 
     pub async fn authenticator_data(
         &self,
-        attested_credential_data: AttestedCredentialData,
+        attested_credential_data: Vec<u8>,
     ) -> Result<AuthenticatorData, AuthenticationError> {
         let authenticator_data =
             AuthenticatorData::generate(&self.rp_entity.id, attested_credential_data).await;
