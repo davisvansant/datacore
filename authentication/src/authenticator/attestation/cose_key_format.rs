@@ -141,13 +141,13 @@ pub struct OctetKeyPair {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub key_ops: Option<Vec<COSEKeyOperation>>,
     #[serde(rename = "-1")]
-    crv: COSEEllipticCurve,
+    pub crv: COSEEllipticCurve,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "-2")]
-    x: Option<[u8; 32]>,
+    pub x: Option<[u8; 32]>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "-4")]
-    d: Option<[u8; 32]>,
+    pub d: Option<[u8; 32]>,
 }
 
 #[derive(Debug, Deserialize, Clone, Eq, PartialEq, Serialize)]
