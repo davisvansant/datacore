@@ -88,6 +88,8 @@ impl AttestedCredentialData {
         ciborium::ser::into_writer(&self.credential_public_key, &mut credential_public_key_cbor)
             .expect("some cbor");
 
+        credential_public_key_cbor.shrink_to_fit();
+
         for element in credential_public_key_cbor {
             byte_array.push(element);
         }
@@ -96,7 +98,7 @@ impl AttestedCredentialData {
         byte_array
     }
 
-    pub async fn from_byte_array(data: Vec<u8>) -> AttestedCredentialData {
+    pub async fn from_byte_array(data: &[u8]) -> AttestedCredentialData {
         let mut aaguid: [u8; 16] = [0; 16];
         let mut credential_id_length: [u8; 2] = [0; 2];
         let mut credential_id: [u8; 16] = [0; 16];
@@ -149,7 +151,7 @@ mod tests {
         assert!(test_byte_array.capacity() >= 18);
         assert!(std::mem::size_of_val(&*test_byte_array) >= 18);
 
-        let test_from_byte_array = AttestedCredentialData::from_byte_array(test_byte_array).await;
+        let test_from_byte_array = AttestedCredentialData::from_byte_array(&test_byte_array).await;
 
         assert_eq!(test_from_byte_array.aaguid.len(), 16);
         assert_eq!(test_from_byte_array.credential_id.len(), 16);
