@@ -15,15 +15,12 @@ pub struct AuthenticatorData {
     pub rp_id_hash: RpIdHash,
     pub flags: u8,
     pub signcount: SignCount,
-    pub attestedcredentialdata: Option<AttestedCredentialData>,
+    pub attested_credential_data: Option<Vec<u8>>,
     pub extensions: Option<String>,
 }
 
 impl AuthenticatorData {
-    pub async fn generate(
-        rp_id: &str,
-        attestedcredentialdata: AttestedCredentialData,
-    ) -> AuthenticatorData {
+    pub async fn generate(rp_id: &str, attested_credential_data: Vec<u8>) -> AuthenticatorData {
         let rp_id_hash = generate_hash(rp_id.as_bytes()).await;
         let flags = 0b0000_0000;
         let signcount = 0_u32.to_be_bytes();
@@ -33,7 +30,7 @@ impl AuthenticatorData {
             rp_id_hash,
             flags,
             signcount,
-            attestedcredentialdata: Some(attestedcredentialdata),
+            attested_credential_data: Some(attested_credential_data),
             extensions: None,
         }
     }
@@ -109,7 +106,7 @@ impl AuthenticatorData {
                 rp_id_hash: rp_id_hash.to_vec(),
                 flags: flags[0],
                 signcount,
-                attestedcredentialdata: None,
+                attested_credential_data: None,
                 extensions: None,
             }
         } else {
@@ -126,8 +123,10 @@ mod tests {
     async fn init() -> Result<(), Box<dyn std::error::Error>> {
         let test_rp_id = "test_rp_id";
         let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
         let mut test_authenticator_data =
-            AuthenticatorData::generate(test_rp_id, test_attested_credential_data).await;
+            AuthenticatorData::generate(test_rp_id, test_attested_credential_data_byte_array).await;
         let test_rp_hash = generate_hash(test_rp_id.as_bytes()).await;
 
         assert_eq!(test_authenticator_data.rp_id_hash, test_rp_hash);
@@ -150,8 +149,10 @@ mod tests {
     async fn flags_user_present() -> Result<(), Box<dyn std::error::Error>> {
         let test_rp_id = "test_rp_id";
         let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
         let mut test_authenticator_data =
-            AuthenticatorData::generate(test_rp_id, test_attested_credential_data).await;
+            AuthenticatorData::generate(test_rp_id, test_attested_credential_data_byte_array).await;
 
         assert_eq!(UP, 0);
         assert_eq!(std::mem::size_of_val(&test_authenticator_data.flags), 1);
@@ -174,8 +175,10 @@ mod tests {
     async fn flags_user_verified() -> Result<(), Box<dyn std::error::Error>> {
         let test_rp_id = "test_rp_id";
         let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
         let mut test_authenticator_data =
-            AuthenticatorData::generate(test_rp_id, test_attested_credential_data).await;
+            AuthenticatorData::generate(test_rp_id, test_attested_credential_data_byte_array).await;
 
         assert_eq!(UV, 2);
         assert_eq!(std::mem::size_of_val(&test_authenticator_data.flags), 1);
@@ -197,8 +200,10 @@ mod tests {
     async fn flags_attested_credential_data() -> Result<(), Box<dyn std::error::Error>> {
         let test_rp_id = "test_rp_id";
         let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
         let mut test_authenticator_data =
-            AuthenticatorData::generate(test_rp_id, test_attested_credential_data).await;
+            AuthenticatorData::generate(test_rp_id, test_attested_credential_data_byte_array).await;
 
         assert_eq!(AT, 6);
         assert_eq!(std::mem::size_of_val(&test_authenticator_data.flags), 1);
@@ -226,8 +231,10 @@ mod tests {
     async fn flags_extension_data() -> Result<(), Box<dyn std::error::Error>> {
         let test_rp_id = "test_rp_id";
         let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
         let mut test_authenticator_data =
-            AuthenticatorData::generate(test_rp_id, test_attested_credential_data).await;
+            AuthenticatorData::generate(test_rp_id, test_attested_credential_data_byte_array).await;
 
         assert_eq!(ED, 7);
         assert_eq!(std::mem::size_of_val(&test_authenticator_data.flags), 1);
@@ -245,8 +252,10 @@ mod tests {
     async fn to_byte_array() -> Result<(), Box<dyn std::error::Error>> {
         let test_rp_id = "test_rp_id";
         let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
         let mut test_authenticator_data =
-            AuthenticatorData::generate(test_rp_id, test_attested_credential_data).await;
+            AuthenticatorData::generate(test_rp_id, test_attested_credential_data_byte_array).await;
 
         let test_byte_array = test_authenticator_data.to_byte_array().await;
 
@@ -281,8 +290,10 @@ mod tests {
     async fn from_byte_array() -> Result<(), Box<dyn std::error::Error>> {
         let test_rp_id = "test_rp_id";
         let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
         let mut test_authenticator_data =
-            AuthenticatorData::generate(test_rp_id, test_attested_credential_data).await;
+            AuthenticatorData::generate(test_rp_id, test_attested_credential_data_byte_array).await;
 
         test_authenticator_data
             .set_attested_credential_data_included()
@@ -304,7 +315,8 @@ mod tests {
         );
         assert!(test_from_byte_array.includes_extension_data().await);
         assert_eq!(test_from_byte_array.signcount, 1000_u32.to_be_bytes());
-        assert!(test_from_byte_array.attestedcredentialdata.is_none());
+        // assert!(test_from_byte_array.attestedcredentialdata.is_none());
+        assert!(test_from_byte_array.attested_credential_data.is_none());
         assert!(test_from_byte_array.extensions.is_none());
 
         Ok(())
