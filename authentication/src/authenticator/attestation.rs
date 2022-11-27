@@ -15,7 +15,7 @@ mod statement_format;
 #[derive(Deserialize, Clone, Serialize)]
 pub struct AttestationObject {
     #[serde(rename = "authData")]
-    pub authenticator_data: AuthenticatorData,
+    pub authenticator_data: Vec<u8>,
     #[serde(rename = "fmt")]
     pub format: AttestationStatementFormatIdentifier,
     #[serde(rename = "attStmt")]
@@ -25,7 +25,7 @@ pub struct AttestationObject {
 impl AttestationObject {
     pub async fn generate(
         attestation_format: AttestationStatementFormat,
-        authenticator_data: AuthenticatorData,
+        authenticator_data: Vec<u8>,
         hash: &[u8],
     ) -> Result<AttestationObject, AuthenticationError> {
         let format = attestation_format.identifier().await;
