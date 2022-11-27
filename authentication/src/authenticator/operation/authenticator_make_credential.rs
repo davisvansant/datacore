@@ -220,16 +220,18 @@ impl AuthenticatorMakeCrendential {
     pub async fn authenticator_data(
         &self,
         attested_credential_data: Vec<u8>,
-    ) -> Result<AuthenticatorData, AuthenticationError> {
+    ) -> Result<Vec<u8>, AuthenticationError> {
         let authenticator_data =
             AuthenticatorData::generate(&self.rp_entity.id, attested_credential_data).await;
+        let byte_array = authenticator_data.to_byte_array().await;
 
-        Ok(authenticator_data)
+        Ok(byte_array)
     }
 
     pub async fn create_attestation_object(
         &self,
-        authenticator_data: AuthenticatorData,
+        // authenticator_data: AuthenticatorData,
+        authenticator_data: Vec<u8>,
     ) -> Result<AttestationObject, AuthenticationError> {
         let attestation_format = AttestationStatementFormat::Packed;
         let attestation_object =

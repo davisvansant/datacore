@@ -181,7 +181,9 @@ impl RegistrationCeremony {
         };
 
         let attestation_statement_format_identifier = attestation_object.format;
-        let authenticator_data = attestation_object.authenticator_data;
+        // let authenticator_data = attestation_object.authenticator_data;
+        let authenticator_data =
+            AuthenticatorData::from_byte_array(&attestation_object.authenticator_data).await;
         let attestation_statement = attestation_object.attestation_statement;
 
         Ok((
@@ -678,12 +680,13 @@ mod tests {
         let test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
                 .await;
+        let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
         let test_attestation_statement =
             AttestationStatement::Packed(PackedAttestationStatementSyntax::generate().await);
 
         let test_client_data_json = Vec::with_capacity(0);
         let test_attestation_object_cbor = cbor!({
-            "authData" => test_authenticator_data,
+            "authData" => test_authenticator_data_byte_array,
             "fmt" => "packed",
             "attStmt" => test_attestation_statement,
         })?;

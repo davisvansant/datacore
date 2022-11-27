@@ -32,27 +32,22 @@ impl PackedAttestationStatementSyntax {
     }
 
     pub async fn signing_procedure(
-        authenticator_data: &AuthenticatorData,
+        authenticator_data: &[u8],
         client_data_hash: &[u8],
     ) -> Result<PackedAttestationStatementSyntax, AuthenticationError> {
         let mut attest = Vec::with_capacity(500);
-        let Ok(serialized_authenticator_data) = bincode::serialize(authenticator_data) else {
-            return Err(AuthenticationError {
-                error: AuthenticationErrorType::OperationError,
-            });
-        };
 
-        for element in serialized_authenticator_data {
-            attest.push(element);
+        for element in authenticator_data {
+            attest.push(*element);
         }
+
         for element in client_data_hash {
             attest.push(*element);
         }
 
         attest.shrink_to_fit();
 
-        println!("{:?}", attest);
-
+        let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
         let alg = if let Some(data) = &authenticator_data.attested_credential_data {
             let attested_credential_data = AttestedCredentialData::from_byte_array(data).await;
 
@@ -205,9 +200,10 @@ mod tests {
         let test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
                 .await;
+        let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
         let test_hash = b"test_client_data".to_vec();
         let test_output = PackedAttestationStatementSyntax::signing_procedure(
-            &test_authenticator_data,
+            &test_authenticator_data_byte_array,
             &test_hash,
         )
         .await?;
