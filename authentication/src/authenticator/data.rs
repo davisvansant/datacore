@@ -88,19 +88,24 @@ impl AuthenticatorData {
             authenticator_data.push(element);
         }
 
-        authenticator_data.shrink_to_fit();
+        if let Some(attested_credential_data) = &self.attested_credential_data {
+            for element in attested_credential_data {
+                authenticator_data.push(*element);
+            }
+        }
 
+        authenticator_data.shrink_to_fit();
         authenticator_data
     }
 
-    pub async fn from_byte_array(data: Vec<u8>) -> AuthenticatorData {
+    pub async fn from_byte_array(data: &[u8]) -> AuthenticatorData {
         if data.len() == 37 {
             let (rp_id_hash, remaining) = data.split_at(32);
             let (flags, sign_count_data) = remaining.split_at(1);
 
             let mut signcount: [u8; 4] = [0; 4];
 
-            signcount[..4].copy_from_slice(&sign_count_data[..4]);
+            signcount.copy_from_slice(sign_count_data);
 
             AuthenticatorData {
                 rp_id_hash: rp_id_hash.to_vec(),
@@ -110,7 +115,21 @@ impl AuthenticatorData {
                 extensions: None,
             }
         } else {
-            panic!("more to come here...");
+            let (rp_id_hash, remaining) = data.split_at(32);
+            let (flags, remaining) = remaining.split_at(1);
+            let (sign_count_data, attested_credential_data) = remaining.split_at(4);
+
+            let mut signcount: [u8; 4] = [0; 4];
+
+            signcount.copy_from_slice(sign_count_data);
+
+            AuthenticatorData {
+                rp_id_hash: rp_id_hash.to_vec(),
+                flags: flags[0],
+                signcount,
+                attested_credential_data: Some(attested_credential_data.to_vec()),
+                extensions: None,
+            }
         }
     }
 }
@@ -264,8 +283,8 @@ mod tests {
         }
 
         assert!(test_byte_array.len() >= 37);
-        assert_eq!(test_byte_array.capacity(), 37);
-        assert_eq!(std::mem::size_of_val(&*test_byte_array), 37);
+        assert!(test_byte_array.capacity() >= 37);
+        assert!(std::mem::size_of_val(&*test_byte_array) >= 37);
 
         test_authenticator_data
             .set_attested_credential_data_included()
@@ -280,8 +299,8 @@ mod tests {
         }
 
         assert!(test_other_byte_array.len() >= 37);
-        assert_eq!(test_other_byte_array.capacity(), 37);
-        assert_eq!(std::mem::size_of_val(&*test_other_byte_array), 37);
+        assert!(test_other_byte_array.capacity() >= 37);
+        assert!(std::mem::size_of_val(&*test_other_byte_array) >= 37);
 
         Ok(())
     }
@@ -302,7 +321,7 @@ mod tests {
         test_authenticator_data.signcount = 1000_u32.to_be_bytes();
 
         let test_byte_array = test_authenticator_data.to_byte_array().await;
-        let test_from_byte_array = AuthenticatorData::from_byte_array(test_byte_array).await;
+        let test_from_byte_array = AuthenticatorData::from_byte_array(&test_byte_array).await;
 
         assert_eq!(
             test_from_byte_array.rp_id_hash,
@@ -316,7 +335,7 @@ mod tests {
         assert!(test_from_byte_array.includes_extension_data().await);
         assert_eq!(test_from_byte_array.signcount, 1000_u32.to_be_bytes());
         // assert!(test_from_byte_array.attestedcredentialdata.is_none());
-        assert!(test_from_byte_array.attested_credential_data.is_none());
+        assert!(test_from_byte_array.attested_credential_data.is_some());
         assert!(test_from_byte_array.extensions.is_none());
 
         Ok(())
