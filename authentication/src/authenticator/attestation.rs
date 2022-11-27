@@ -7,7 +7,7 @@ pub use crate::authenticator::attestation::statement_format::{
     AttestationVerificationProcedureOutput, PackedAttestationStatementSyntax,
 };
 use crate::authenticator::data::AuthenticatorData;
-use crate::error::AuthenticationError;
+use crate::error::{AuthenticationError, AuthenticationErrorType};
 
 mod cose_key_format;
 mod statement_format;
@@ -27,7 +27,7 @@ impl AttestationObject {
         attestation_format: AttestationStatementFormat,
         authenticator_data: Vec<u8>,
         hash: &[u8],
-    ) -> Result<AttestationObject, AuthenticationError> {
+    ) -> Result<Vec<u8>, AuthenticationError> {
         let format = attestation_format.identifier().await;
         let attestation_statement = match attestation_format {
             AttestationStatementFormat::Packed => AttestationStatement::Packed(
@@ -36,11 +36,24 @@ impl AttestationObject {
             ),
         };
 
-        Ok(AttestationObject {
+        let attestation_object = AttestationObject {
             format,
             attestation_statement,
             authenticator_data,
-        })
+        };
+
+        let mut cbor = Vec::with_capacity(500);
+
+        match ciborium::ser::into_writer(&attestation_object, &mut cbor) {
+            Ok(()) => {
+                cbor.shrink_to_fit();
+
+                Ok(cbor)
+            }
+            Err(_) => Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            }),
+        }
     }
 }
 
@@ -137,6 +150,49 @@ pub enum AttestationType {
 mod tests {
     use super::*;
     use crate::authenticator::attestation::cose_key_format::COSEEllipticCurve;
+    use ciborium::cbor;
+
+    #[tokio::test]
+    async fn attestation_object() -> Result<(), Box<dyn std::error::Error>> {
+        let test_attestation_format = AttestationStatementFormat::Packed;
+        let test_rp_id = "test_rp_id";
+        let test_attested_credential_data = AttestedCredentialData::generate().await;
+        let test_attested_credential_data_byte_array =
+            test_attested_credential_data.to_byte_array().await;
+        let test_authenticator_data =
+            AuthenticatorData::generate(test_rp_id, test_attested_credential_data_byte_array).await;
+        let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
+        let test_hash = Vec::with_capacity(0);
+        let test_attestation_object = AttestationObject::generate(
+            test_attestation_format,
+            test_authenticator_data_byte_array.to_owned(),
+            &test_hash,
+        )
+        .await?;
+
+        let test_attestation_statement = AttestationStatement::Packed(
+            PackedAttestationStatementSyntax::signing_procedure(
+                &test_authenticator_data_byte_array,
+                &test_hash,
+            )
+            .await?,
+        );
+
+        let mut test_cbor = Vec::with_capacity(500);
+        let test_assertion_cbor_value = cbor!({
+            "authData" => test_authenticator_data_byte_array,
+            "fmt" => "packed",
+            "attStmt" => test_attestation_statement,
+        })?;
+
+        ciborium::ser::into_writer(&test_assertion_cbor_value, &mut test_cbor)?;
+
+        test_cbor.shrink_to_fit();
+
+        assert_eq!(test_attestation_object, test_cbor);
+
+        Ok(())
+    }
 
     #[tokio::test]
     async fn attested_credential_data_byte_array() -> Result<(), Box<dyn std::error::Error>> {
