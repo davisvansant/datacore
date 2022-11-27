@@ -18,6 +18,7 @@ pub struct AttestationVerificationProcedureOutput {
 }
 
 #[derive(Deserialize, Clone, Serialize)]
+#[serde(untagged)]
 pub enum AttestationStatement {
     Packed(PackedAttestationStatementSyntax),
 }

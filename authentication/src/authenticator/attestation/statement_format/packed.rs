@@ -12,6 +12,7 @@ use crate::error::{AuthenticationError, AuthenticationErrorType};
 pub struct PackedAttestationStatementSyntax {
     pub alg: COSEAlgorithmIdentifier,
     pub sig: Vec<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub x5c: Option<Vec<Vec<u8>>>,
 }
 

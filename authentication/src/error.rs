@@ -1,9 +1,11 @@
-#[derive(Clone, Copy, Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct AuthenticationError {
     pub error: AuthenticationErrorType,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum AuthenticationErrorType {
     UnknownError,
     NotSupportedError,
