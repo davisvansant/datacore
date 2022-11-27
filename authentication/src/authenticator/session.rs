@@ -19,7 +19,7 @@ impl Session {
     pub async fn authenticator_make_credential(
         &self,
         operation: AuthenticatorMakeCrendential,
-    ) -> Result<AttestationObject, AuthenticationError> {
+    ) -> Result<(), AuthenticationError> {
         operation.check_parameters().await?;
         operation.check_supported_combinations().await?;
         operation.authorize_disclosure(&self.store).await?;
@@ -39,11 +39,12 @@ impl Session {
         let authenticator_data = operation
             .authenticator_data(attested_credential_data)
             .await?;
-        let attestation_object = operation
+
+        operation
             .create_attestation_object(authenticator_data)
             .await?;
 
-        Ok(attestation_object)
+        Ok(())
     }
 
     pub async fn authenticator_get_assertion(

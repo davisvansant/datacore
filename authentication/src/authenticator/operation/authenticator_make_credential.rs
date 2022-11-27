@@ -230,14 +230,15 @@ impl AuthenticatorMakeCrendential {
 
     pub async fn create_attestation_object(
         &self,
-        // authenticator_data: AuthenticatorData,
         authenticator_data: Vec<u8>,
-    ) -> Result<AttestationObject, AuthenticationError> {
+    ) -> Result<(), AuthenticationError> {
         let attestation_format = AttestationStatementFormat::Packed;
         let attestation_object =
             AttestationObject::generate(attestation_format, authenticator_data, &self.hash).await?;
 
-        Ok(attestation_object)
+        println!("send this to the client -> {:?}", attestation_object);
+
+        Ok(())
     }
 }
 
@@ -656,11 +657,15 @@ mod tests {
             extensions: String::from("some_extensions"),
         };
 
-        let test_attested_credential_data = test_ok.attested_credential_data().await.unwrap();
+        let test_attested_credential_data = test_ok.attested_credential_data().await?;
         let test_authenticator_data = test_ok
             .authenticator_data(test_attested_credential_data)
-            .await
-            .unwrap();
+            .await?;
+
+        // assert!(test_ok
+        //     .create_attestation_object(test_authenticator_data)
+        //     .await
+        //     .is_ok());
 
         assert!(test_ok
             .create_attestation_object(test_authenticator_data)
