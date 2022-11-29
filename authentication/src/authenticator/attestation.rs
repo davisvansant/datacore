@@ -65,40 +65,49 @@ pub struct AttestedCredentialData {
 }
 
 impl AttestedCredentialData {
-    pub async fn generate() -> AttestedCredentialData {
+    pub async fn generate(
+        credential_id: [u8; 16],
+        credential_public_key: COSEKey,
+    ) -> Result<Vec<u8>, AuthenticationError> {
         let aaguid = Uuid::new_v4().simple().into_uuid().into_bytes();
-        let credential_id = [0; 16];
         let credential_id_length = credential_id.len() as u16;
         let credential_id_length_bytes = credential_id_length.to_be_bytes();
-        let credential_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await.0;
-
-        AttestedCredentialData {
+        let attested_credential_data = AttestedCredentialData {
             aaguid,
             credential_id_length: credential_id_length_bytes,
             credential_id,
             credential_public_key,
-        }
-    }
+        };
 
-    pub async fn to_byte_array(&self) -> Vec<u8> {
         let mut byte_array = Vec::with_capacity(1000);
 
-        for element in self.aaguid {
+        for element in attested_credential_data.aaguid {
             byte_array.push(element);
         }
 
-        for element in self.credential_id_length {
+        for element in attested_credential_data.credential_id_length {
             byte_array.push(element);
         }
 
-        for element in self.credential_id {
+        for element in attested_credential_data.credential_id {
             byte_array.push(element);
         }
 
         let mut credential_public_key_cbor = Vec::with_capacity(1000);
 
-        ciborium::ser::into_writer(&self.credential_public_key, &mut credential_public_key_cbor)
-            .expect("some cbor");
+        match ciborium::ser::into_writer(
+            &attested_credential_data.credential_public_key,
+            &mut credential_public_key_cbor,
+        ) {
+            Ok(()) => (),
+            Err(error) => {
+                println!("error serializing public key into CBOR -> {:?}", error);
+
+                return Err(AuthenticationError {
+                    error: AuthenticationErrorType::OperationError,
+                });
+            }
+        }
 
         credential_public_key_cbor.shrink_to_fit();
 
@@ -107,7 +116,8 @@ impl AttestedCredentialData {
         }
 
         byte_array.shrink_to_fit();
-        byte_array
+
+        Ok(byte_array)
     }
 
     pub async fn from_byte_array(data: &[u8]) -> AttestedCredentialData {
@@ -156,11 +166,12 @@ mod tests {
     async fn attestation_object() -> Result<(), Box<dyn std::error::Error>> {
         let test_attestation_format = AttestationStatementFormat::Packed;
         let test_rp_id = "test_rp_id";
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_attested_credential_data_byte_array =
-            test_attested_credential_data.to_byte_array().await;
+        let test_credential_id = [0u8; 16];
+        let test_keypair = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_attested_credential_data =
+            AttestedCredentialData::generate(test_credential_id, test_keypair.0).await?;
         let test_authenticator_data =
-            AuthenticatorData::generate(test_rp_id, test_attested_credential_data_byte_array).await;
+            AuthenticatorData::generate(test_rp_id, test_attested_credential_data).await;
         let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
         let test_hash = Vec::with_capacity(0);
         let test_attestation_object = AttestationObject::generate(
@@ -195,9 +206,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn attested_credential_data_byte_array() -> Result<(), Box<dyn std::error::Error>> {
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_byte_array = test_attested_credential_data.to_byte_array().await;
+    async fn attested_credential_data() -> Result<(), Box<dyn std::error::Error>> {
+        let test_credential_id = [0u8; 16];
+        let test_keypair = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_byte_array =
+            AttestedCredentialData::generate(test_credential_id, test_keypair.0).await?;
 
         for element in &test_byte_array {
             assert_eq!(std::mem::size_of_val(element), 1);
