@@ -124,13 +124,14 @@ impl AuthenticationCeremony {
     pub async fn response_values(
         &self,
         response: AuthenticatorAssertionResponse,
-    ) -> Result<(ClientDataJSON, AuthenticatorData, Signature), AuthenticationError> {
+    ) -> Result<(ClientDataJSON, Vec<u8>, Signature), AuthenticationError> {
         let client_data = response.client_data_json;
-        let rp_id = "some_rp_id";
-        let attested_credential_data = AttestedCredentialData::generate().await;
-        let attested_credential_data_byte_array = attested_credential_data.to_byte_array().await;
-        let authenticator_data =
-            AuthenticatorData::generate(rp_id, attested_credential_data_byte_array).await;
+        // let rp_id = "some_rp_id";
+        // let attested_credential_data = AttestedCredentialData::generate().await;
+        // let attested_credential_data_byte_array = attested_credential_data.to_byte_array().await;
+        // let authenticator_data =
+        //     AuthenticatorData::generate(rp_id, attested_credential_data_byte_array).await;
+        let authenticator_data = response.authenticator_data;
         let signature = response.signature;
 
         Ok((client_data, authenticator_data, signature))
@@ -205,9 +206,11 @@ impl AuthenticationCeremony {
 
     pub async fn verify_rp_id_hash(
         &self,
-        authenticator_data: &AuthenticatorData,
+        // authenticator_data: &AuthenticatorData,
+        authenticator_data: &[u8],
         rp_id: &str,
     ) -> Result<(), AuthenticationError> {
+        let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
         let rp_id_hash = generate_hash(rp_id.as_bytes()).await;
 
         match authenticator_data.rp_id_hash == rp_id_hash {
@@ -220,8 +223,11 @@ impl AuthenticationCeremony {
 
     pub async fn verify_user_present(
         &self,
-        authenticator_data: &AuthenticatorData,
+        // authenticator_data: &AuthenticatorData,
+        authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
+        let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
+
         match authenticator_data.user_present().await {
             true => Ok(()),
             false => Err(AuthenticationError {
@@ -232,8 +238,11 @@ impl AuthenticationCeremony {
 
     pub async fn verify_user_verification(
         &self,
-        authenticator_data: &AuthenticatorData,
+        // authenticator_data: &AuthenticatorData,
+        authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
+        let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
+
         match authenticator_data.user_verified().await {
             true => Ok(()),
             false => Err(AuthenticationError {
@@ -245,8 +254,11 @@ impl AuthenticationCeremony {
     pub async fn verify_client_extension_results(
         &self,
         _client_extension_results: &AuthenticationExtensionsClientOutputs,
-        authenticator_data: &AuthenticatorData,
+        // authenticator_data: &AuthenticatorData,
+        authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
+        let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
+
         if authenticator_data.includes_extension_data().await {
             todo!();
         } else {
@@ -267,7 +279,8 @@ impl AuthenticationCeremony {
         &self,
         credential_public_key: &COSEKey,
         signature: &Signature,
-        authenticator_data: &AuthenticatorData,
+        // authenticator_data: &AuthenticatorData,
+        authenticator_data: &[u8],
         hash: &[u8],
     ) -> Result<(), AuthenticationError> {
         credential_public_key
@@ -281,8 +294,11 @@ impl AuthenticationCeremony {
         &self,
         store: &StoreChannel,
         credential: &PublicKeyCredential,
-        authenticator_data: &AuthenticatorData,
+        // authenticator_data: &AuthenticatorData,
+        authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
+        let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
+
         store
             .sign_count(
                 credential.id.as_bytes().to_vec(),
@@ -737,13 +753,14 @@ mod tests {
         let test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
                 .await;
+        let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
 
         assert!(test_authentication_ceremony
-            .verify_rp_id_hash(&test_authenticator_data, "test_other_rp_id")
+            .verify_rp_id_hash(&test_authenticator_data_byte_array, "test_other_rp_id")
             .await
             .is_err());
         assert!(test_authentication_ceremony
-            .verify_rp_id_hash(&test_authenticator_data, "test_rp_id")
+            .verify_rp_id_hash(&test_authenticator_data_byte_array, "test_rp_id")
             .await
             .is_ok());
 
@@ -759,16 +776,19 @@ mod tests {
         let mut test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
                 .await;
+        let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
 
         assert!(test_authentication_ceremony
-            .verify_user_present(&test_authenticator_data)
+            .verify_user_present(&test_authenticator_data_byte_array)
             .await
             .is_err());
 
         test_authenticator_data.set_user_present().await;
 
+        let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
+
         assert!(test_authentication_ceremony
-            .verify_user_present(&test_authenticator_data)
+            .verify_user_present(&test_authenticator_data_byte_array)
             .await
             .is_ok());
 
@@ -784,16 +804,19 @@ mod tests {
         let mut test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
                 .await;
+        let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
 
         assert!(test_authentication_ceremony
-            .verify_user_verification(&test_authenticator_data)
+            .verify_user_verification(&test_authenticator_data_byte_array)
             .await
             .is_err());
 
         test_authenticator_data.set_user_verifed().await;
 
+        let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
+
         assert!(test_authentication_ceremony
-            .verify_user_verification(&test_authenticator_data)
+            .verify_user_verification(&test_authenticator_data_byte_array)
             .await
             .is_ok());
 
@@ -823,46 +846,37 @@ mod tests {
     async fn verify_signature() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
         let test_credential_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_credential_id = [0; 16];
+        let test_credential_id_length = test_credential_id.len() as u16;
+        let test_credential_id_length_bytes = test_credential_id_length.to_be_bytes();
         let test_attested_credential_data = AttestedCredentialData {
             // aaguid: Vec::with_capacity(0),
             aaguid: [0; 16],
             // credential_id_length: Vec::<[u8; 8]>::with_capacity(0).len().to_be_bytes(),
-            credential_id_length: 0u16.to_be_bytes(),
+            credential_id_length: test_credential_id_length_bytes,
             // credential_id: Vec::with_capacity(0),
-            credential_id: [0; 16],
+            credential_id: test_credential_id,
             credential_public_key: test_credential_public_key.0.to_owned(),
         };
         let test_attested_credential_data_byte_array =
             test_attested_credential_data.to_byte_array().await;
-        let test_authenticator_data =
+        let mut test_authenticator_data =
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
                 .await;
+        test_authenticator_data.attested_credential_data = None;
+        let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
         let test_hash = b"test_client_data".to_vec();
-        let test_serialized_authenticator_data =
-            bincode::serialize(&test_authenticator_data).expect("serialized_data");
-
-        let mut test_concatenation = Vec::with_capacity(500);
-
-        for element in test_serialized_authenticator_data {
-            test_concatenation.push(element.to_owned());
-        }
-
-        for element in &test_hash {
-            test_concatenation.push(element.to_owned());
-        }
-
-        test_concatenation.shrink_to_fit();
-
-        let test_signature = test_credential_public_key.1.sign(
-            &test_concatenation,
-            &PublicKey::from(&test_credential_public_key.1),
-        );
+        let test_signature = test_credential_public_key
+            .1
+            .sign(&test_authenticator_data_byte_array, &test_hash)
+            .await?;
 
         assert!(test_authentication_ceremony
             .verify_signature(
                 &test_credential_public_key.0,
-                &test_signature.to_bytes().to_vec(),
-                &test_authenticator_data,
+                // &test_signature.to_bytes().to_vec(),
+                &test_signature.to_vec(),
+                &test_authenticator_data_byte_array,
                 &test_hash,
             )
             .await
@@ -890,6 +904,7 @@ mod tests {
         // test_authenticator_data.signcount = 1;
         test_authenticator_data.signcount = 1_u32.to_be_bytes();
 
+        let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
         let mut test_store = Store::init().await;
 
         tokio::spawn(async move {
@@ -914,7 +929,7 @@ mod tests {
             .stored_sign_count(
                 &test_store.0,
                 &test_public_key_credential,
-                &test_authenticator_data,
+                &test_authenticator_data_byte_array,
             )
             .await
             .is_ok());
