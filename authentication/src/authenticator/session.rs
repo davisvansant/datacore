@@ -26,7 +26,7 @@ impl Session {
         operation.require_user_verification().await?;
         operation.collect_authorization_gesture().await?;
 
-        operation
+        let (credential_id, public_key) = operation
             .generate_new_credential_object(&self.store)
             .await?;
 
@@ -34,7 +34,9 @@ impl Session {
 
         operation.signature_counter(&self.store).await?;
 
-        let attested_credential_data = operation.attested_credential_data().await?;
+        let attested_credential_data = operation
+            .attested_credential_data(&credential_id, public_key)
+            .await?;
         let authenticator_data = operation
             .authenticator_data(attested_credential_data)
             .await?;

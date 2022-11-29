@@ -171,7 +171,7 @@ impl AuthenticatorMakeCrendential {
     pub async fn generate_new_credential_object(
         &self,
         store: &CredentialsChannel,
-    ) -> Result<(), AuthenticationError> {
+    ) -> Result<(Vec<u8>, COSEKey), AuthenticationError> {
         let algorithm = COSEAlgorithm::from(self.cred_types_and_pub_key_apis[0].alg).await;
         let new_credential = COSEKey::generate(algorithm).await;
         let credential_id = Uuid::new_v4().simple().into_uuid().into_bytes();
@@ -192,7 +192,7 @@ impl AuthenticatorMakeCrendential {
             )
             .await?;
 
-        Ok(())
+        Ok((credential_id.to_vec(), new_credential.0))
     }
 
     pub async fn process_extensions(&self) -> Result<(), AuthenticationError> {
@@ -210,7 +210,11 @@ impl AuthenticatorMakeCrendential {
         Ok(())
     }
 
-    pub async fn attested_credential_data(&self) -> Result<Vec<u8>, AuthenticationError> {
+    pub async fn attested_credential_data(
+        &self,
+        credential_id: &[u8],
+        public_key: COSEKey,
+    ) -> Result<Vec<u8>, AuthenticationError> {
         let attested_credential_data = AttestedCredentialData::generate().await;
         let byte_array = attested_credential_data.to_byte_array().await;
 
@@ -594,7 +598,20 @@ mod tests {
             extensions: String::from("some_extensions"),
         };
 
-        assert!(test_ok.attested_credential_data().await.is_ok());
+        let mut test_credentials_store = Credentials::init().await;
+
+        tokio::spawn(async move {
+            test_credentials_store.1.run().await.unwrap();
+        });
+
+        let (test_credential_id, test_public_key) = test_ok
+            .generate_new_credential_object(&test_credentials_store.0)
+            .await?;
+
+        assert!(test_ok
+            .attested_credential_data(&test_credential_id, test_public_key)
+            .await
+            .is_ok());
 
         Ok(())
     }
@@ -623,7 +640,18 @@ mod tests {
             extensions: String::from("some_extensions"),
         };
 
-        let test_attested_credential_data = test_ok.attested_credential_data().await?;
+        let mut test_credentials_store = Credentials::init().await;
+
+        tokio::spawn(async move {
+            test_credentials_store.1.run().await.unwrap();
+        });
+
+        let (test_credential_id, test_public_key) = test_ok
+            .generate_new_credential_object(&test_credentials_store.0)
+            .await?;
+        let test_attested_credential_data = test_ok
+            .attested_credential_data(&test_credential_id, test_public_key)
+            .await?;
 
         assert!(test_ok
             .authenticator_data(test_attested_credential_data)
@@ -657,7 +685,18 @@ mod tests {
             extensions: String::from("some_extensions"),
         };
 
-        let test_attested_credential_data = test_ok.attested_credential_data().await?;
+        let mut test_credentials_store = Credentials::init().await;
+
+        tokio::spawn(async move {
+            test_credentials_store.1.run().await.unwrap();
+        });
+
+        let (test_credential_id, test_public_key) = test_ok
+            .generate_new_credential_object(&test_credentials_store.0)
+            .await?;
+        let test_attested_credential_data = test_ok
+            .attested_credential_data(&test_credential_id, test_public_key)
+            .await?;
         let test_authenticator_data = test_ok
             .authenticator_data(test_attested_credential_data)
             .await?;
