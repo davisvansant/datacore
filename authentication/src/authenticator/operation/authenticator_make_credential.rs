@@ -178,7 +178,8 @@ impl AuthenticatorMakeCrendential {
         let credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
             id: credential_id,
-            private_key: new_credential.1.to_bytes().to_vec(),
+            // private_key: new_credential.1.to_bytes().to_vec(),
+            private_key: new_credential.1,
             rpid: self.rp_entity.id.to_owned(),
             user_handle: self.user_entity.id,
             other_ui: String::from("some_other_ui"),
@@ -331,7 +332,8 @@ mod tests {
         let test_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
             id: test_credential_id,
-            private_key: test_new_credential.1.to_bytes().to_vec(),
+            // private_key: test_new_credential.1.to_bytes().to_vec(),
+            private_key: test_new_credential.1,
             rpid: String::from("some_relying_party_id"),
             user_handle: [0; 16],
             other_ui: String::from("some_other_ui"),
