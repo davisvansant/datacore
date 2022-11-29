@@ -2,6 +2,7 @@ use crate::api::authenticator_responses::AuthenticatorAssertionResponse;
 use crate::api::supporting_data_structures::{
     PublicKeyCredentialDescriptor, PublicKeyCredentialType,
 };
+use crate::authenticator::attestation::{COSEAlgorithm, COSEKey};
 use crate::authenticator::data::AuthenticatorData;
 use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
 use crate::authenticator::store::CredentialsChannel;
@@ -83,10 +84,12 @@ impl AuthenticatorGetAssertion {
         &self,
         credential_options: Vec<PublicKeyCredentialSource>,
     ) -> Result<PublicKeyCredentialSource, AuthenticationError> {
+        let private_key = COSEKey::generate(COSEAlgorithm::EdDSA).await.1;
         let selected_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
             id: b"cred_identifier_".to_owned(),
-            private_key: Vec::with_capacity(0),
+            // private_key: Vec::with_capacity(0),
+            private_key,
             rpid: String::from("some_relying_party_id"),
             user_handle: [0; 16],
             other_ui: String::from("some_other_ui"),
@@ -113,7 +116,7 @@ impl AuthenticatorGetAssertion {
         &self,
         store: &CredentialsChannel,
         selected_credential: &PublicKeyCredentialSource,
-    ) -> Result<AuthenticatorData, AuthenticationError> {
+    ) -> Result<Vec<u8>, AuthenticationError> {
         let rp_id_hash = generate_hash(self.rpid.as_bytes()).await;
         let signcount = store.counter(selected_credential.id).await?;
         let mut authenticator_data = AuthenticatorData {
@@ -133,83 +136,40 @@ impl AuthenticatorGetAssertion {
             authenticator_data.set_user_verifed().await;
         }
 
-        Ok(authenticator_data)
+        let byte_array = authenticator_data.to_byte_array().await;
+
+        Ok(byte_array)
     }
 
     pub async fn assertion_signature(
         &self,
-        authenticator_data: &AuthenticatorData,
+        authenticator_data: &[u8],
         selected_credential: &PublicKeyCredentialSource,
-    ) -> Result<AuthenticatorAssertionResponse, AuthenticationError> {
-        let mut authenticator_data_byte_array = Vec::with_capacity(500);
-        let mut sign = Vec::with_capacity(500);
+    ) -> Result<Vec<u8>, AuthenticationError> {
+        let signature = selected_credential
+            .private_key
+            .sign(authenticator_data, &self.hash)
+            .await?;
 
-        let serialized_authenticator_data_rp_id_hash =
-            match bincode::serialize(&authenticator_data.rp_id_hash) {
-                Ok(rp_id_hash) => rp_id_hash,
-                Err(error) => {
-                    println!("error with serialization -> {:?}", error);
+        Ok(signature.to_vec())
+    }
 
-                    return Err(AuthenticationError {
-                        error: AuthenticationErrorType::UnknownError,
-                    });
-                }
-            };
-
-        let serialized_authenticator_data_flags =
-            match bincode::serialize(&authenticator_data.flags) {
-                Ok(flags) => flags,
-                Err(error) => {
-                    println!("error with serialization -> {:?}", error);
-
-                    return Err(AuthenticationError {
-                        error: AuthenticationErrorType::UnknownError,
-                    });
-                }
-            };
-
-        let serialized_authenticator_data_sign_count =
-            match bincode::serialize(&authenticator_data.signcount) {
-                Ok(sign_count) => sign_count,
-                Err(error) => {
-                    println!("error with serialization -> {:?}", error);
-
-                    return Err(AuthenticationError {
-                        error: AuthenticationErrorType::UnknownError,
-                    });
-                }
-            };
-
-        for element in serialized_authenticator_data_rp_id_hash {
-            authenticator_data_byte_array.push(element);
-        }
-
-        for element in serialized_authenticator_data_flags {
-            authenticator_data_byte_array.push(element);
-        }
-
-        for element in serialized_authenticator_data_sign_count {
-            authenticator_data_byte_array.push(element);
-        }
-
-        for element in &authenticator_data_byte_array {
-            sign.push(*element);
-        }
-
-        for element in &self.hash {
-            sign.push(*element);
-        }
-
-        sign.shrink_to_fit();
-
-        let assertion_response = AuthenticatorAssertionResponse {
-            client_data_json: self.hash.to_owned(),
-            authenticator_data: authenticator_data_byte_array,
-            signature: sign,
+    pub async fn response(
+        &self,
+        authenticator_data: Vec<u8>,
+        signature: Vec<u8>,
+        selected_credential: PublicKeyCredentialSource,
+    ) -> Result<(), AuthenticationError> {
+        let authenticator_assertion_response = AuthenticatorAssertionResponse {
+            client_data_json: self.hash.to_vec(),
+            authenticator_data,
+            signature,
             user_handle: selected_credential.user_handle.to_vec(),
         };
 
-        Ok(assertion_response)
+        println!("send to client -> {:?}", authenticator_assertion_response);
+
+        Ok(())
     }
 }
 
@@ -233,7 +193,8 @@ mod tests {
         let test_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
             id: test_credential_id,
-            private_key: test_new_credential.1.to_bytes().to_vec(),
+            // private_key: test_new_credential.1.to_bytes().to_vec(),
+            private_key: test_new_credential.1,
             rpid: String::from("some_relying_party_id"),
             user_handle: [0; 16],
             other_ui: String::from("some_other_ui"),
@@ -305,7 +266,8 @@ mod tests {
         let test_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
             id: test_credential_id,
-            private_key: test_new_credential.1.to_bytes().to_vec(),
+            // private_key: test_new_credential.1.to_bytes().to_vec(),
+            private_key: test_new_credential.1,
             rpid: String::from("some_relying_party_id"),
             user_handle: [0; 16],
             other_ui: String::from("some_other_ui"),
@@ -359,7 +321,8 @@ mod tests {
         let test_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
             id: test_credential_id,
-            private_key: test_new_credential.1.to_bytes().to_vec(),
+            // private_key: test_new_credential.1.to_bytes().to_vec(),
+            private_key: test_new_credential.1,
             rpid: String::from("some_relying_party_id"),
             user_handle: [0; 16],
             other_ui: String::from("some_other_ui"),
@@ -432,9 +395,11 @@ mod tests {
             .signature_counter(*b"cred_identifier_")
             .await?;
 
-        let test_authenticator_data = test_get_assertion
+        let test_authenticator_data_byte_array = test_get_assertion
             .authenticator_data(&test_credentials_store.0, &test_selected_credential)
             .await?;
+        let test_authenticator_data =
+            AuthenticatorData::from_byte_array(&test_authenticator_data_byte_array).await;
 
         assert_eq!(
             test_authenticator_data.rp_id_hash,
@@ -451,9 +416,11 @@ mod tests {
         test_get_assertion.require_user_presence = true;
         test_get_assertion.require_user_verification = true;
 
-        let test_authenticator_data = test_get_assertion
+        let test_authenticator_data_byte_array = test_get_assertion
             .authenticator_data(&test_credentials_store.0, &test_selected_credential)
             .await?;
+        let test_authenticator_data =
+            AuthenticatorData::from_byte_array(&test_authenticator_data_byte_array).await;
 
         assert_eq!(
             test_authenticator_data.rp_id_hash,
@@ -483,7 +450,8 @@ mod tests {
         let test_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
             id: test_credential_id,
-            private_key: test_new_credential.1.to_bytes().to_vec(),
+            // private_key: test_new_credential.1.to_bytes().to_vec(),
+            private_key: test_new_credential.1,
             rpid: String::from("some_relying_party_id"),
             user_handle: [0; 16],
             other_ui: String::from("some_other_ui"),
@@ -514,10 +482,10 @@ mod tests {
         let test_credential_options = test_ok
             .credential_options(&test_credentials_store.0)
             .await?;
-        let test_selected_credentaial = test_ok
+        let mut test_selected_credential = test_ok
             .collect_authorization_gesture(test_credential_options)
             .await?;
-        let mut test_selected_credential = PublicKeyCredentialSource::generate().await;
+        // let mut test_selected_credential = PublicKeyCredentialSource::generate().await;
 
         test_selected_credential.id = *b"cred_identifier_";
 
@@ -528,16 +496,12 @@ mod tests {
 
         let test_authenticator_data = test_ok
             .authenticator_data(&test_credentials_store.0, &test_selected_credential)
-            .await
-            .unwrap();
-        let test_assertion_signature = test_ok
-            .assertion_signature(&test_authenticator_data, &test_selected_credentaial)
             .await?;
 
-        assert_eq!(test_assertion_signature.client_data_json.len(), 21);
-        assert_eq!(test_assertion_signature.authenticator_data.len(), 45);
-        assert_eq!(test_assertion_signature.signature.len(), 66);
-        assert_eq!(test_assertion_signature.user_handle.len(), 16);
+        assert!(test_ok
+            .assertion_signature(&test_authenticator_data, &test_selected_credential)
+            .await
+            .is_ok());
 
         Ok(())
     }
