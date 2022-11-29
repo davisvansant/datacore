@@ -682,12 +682,15 @@ mod tests {
 
     #[tokio::test]
     async fn perform_decoding() -> Result<(), Box<dyn std::error::Error>> {
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_attested_credential_data_byte_array =
-            test_attested_credential_data.to_byte_array().await;
+        // let test_attested_credential_data = AttestedCredentialData::generate().await;
+        // let test_attested_credential_data_byte_array =
+        //     test_attested_credential_data.to_byte_array().await;
+        let test_credential_id = [0u8; 16];
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_attested_credential_data =
+            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
         let test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
-                .await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
         let test_attestation_statement =
             AttestationStatement::Packed(PackedAttestationStatementSyntax::generate().await);
@@ -718,12 +721,15 @@ mod tests {
 
     #[tokio::test]
     async fn verify_rp_id_hash() -> Result<(), Box<dyn std::error::Error>> {
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_attested_credential_data_byte_array =
-            test_attested_credential_data.to_byte_array().await;
+        // let test_attested_credential_data = AttestedCredentialData::generate().await;
+        // let test_attested_credential_data_byte_array =
+        //     test_attested_credential_data.to_byte_array().await;
+        let test_credential_id = [0u8; 16];
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_attested_credential_data =
+            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
         let test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
-                .await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
         let test_registration_ceremony = RegistrationCeremony {};
 
@@ -741,12 +747,15 @@ mod tests {
 
     #[tokio::test]
     async fn verify_user_present() -> Result<(), Box<dyn std::error::Error>> {
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_attested_credential_data_byte_array =
-            test_attested_credential_data.to_byte_array().await;
+        // let test_attested_credential_data = AttestedCredentialData::generate().await;
+        // let test_attested_credential_data_byte_array =
+        //     test_attested_credential_data.to_byte_array().await;
+        let test_credential_id = [0u8; 16];
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_attested_credential_data =
+            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
         let mut test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
-                .await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
         let test_registration_ceremony = RegistrationCeremony {};
 
@@ -769,12 +778,15 @@ mod tests {
 
     #[tokio::test]
     async fn verify_user_verification() -> Result<(), Box<dyn std::error::Error>> {
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_attested_credential_data_byte_array =
-            test_attested_credential_data.to_byte_array().await;
+        // let test_attested_credential_data = AttestedCredentialData::generate().await;
+        // let test_attested_credential_data_byte_array =
+        //     test_attested_credential_data.to_byte_array().await;
+        let test_credential_id = [0u8; 16];
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_attested_credential_data =
+            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
         let mut test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
-                .await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
         let test_registration_ceremony = RegistrationCeremony {};
 
@@ -797,12 +809,15 @@ mod tests {
 
     #[tokio::test]
     async fn verify_algorithm() -> Result<(), Box<dyn std::error::Error>> {
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_attested_credential_data_byte_array =
-            test_attested_credential_data.to_byte_array().await;
+        // let test_attested_credential_data = AttestedCredentialData::generate().await;
+        // let test_attested_credential_data_byte_array =
+        //     test_attested_credential_data.to_byte_array().await;
+        let test_credential_id = [0u8; 16];
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_attested_credential_data =
+            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
         let test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
-                .await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
         let test_registration_ceremony = RegistrationCeremony {};
         let mut test_public_key_credential_creation_options = test_registration_ceremony
@@ -857,12 +872,15 @@ mod tests {
         let test_attestation_statement_format = AttestationStatementFormat::Packed;
         let test_attestation_statement =
             AttestationStatement::Packed(PackedAttestationStatementSyntax::generate().await);
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_attested_credential_data_byte_array =
-            test_attested_credential_data.to_byte_array().await;
+        // let test_attested_credential_data = AttestedCredentialData::generate().await;
+        // let test_attested_credential_data_byte_array =
+        //     test_attested_credential_data.to_byte_array().await;
+        let test_credential_id = [0u8; 16];
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_attested_credential_data =
+            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
         let test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
-                .await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
         let test_hash = Vec::with_capacity(0);
         let test_registration_ceremony = RegistrationCeremony {};
@@ -877,24 +895,28 @@ mod tests {
             .await
             .is_ok());
 
-        let test_cose_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
-        let test_credential_id = [0; 16];
-        let test_credential_id_length = test_credential_id.len() as u16;
-        let test_credential_id_length_bytes = test_credential_id_length.to_be_bytes();
-        let test_another_credential_data = AttestedCredentialData {
-            aaguid: [0; 16],
-            credential_id_length: test_credential_id_length_bytes,
-            credential_id: test_credential_id,
-            credential_public_key: test_cose_key.0,
-        };
-        let test_another_credential_data_byte_array =
-            test_another_credential_data.to_byte_array().await;
+        // let test_cose_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        // let test_credential_id = [0; 16];
+        // let test_credential_id_length = test_credential_id.len() as u16;
+        // let test_credential_id_length_bytes = test_credential_id_length.to_be_bytes();
+        // let test_another_credential_data = AttestedCredentialData {
+        //     aaguid: [0; 16],
+        //     credential_id_length: test_credential_id_length_bytes,
+        //     credential_id: test_credential_id,
+        //     credential_public_key: test_cose_key.0,
+        // };
+        // let test_another_credential_data_byte_array =
+        //     test_another_credential_data.to_byte_array().await;
+        let test_another_credential_id = [1u8; 16];
+        let test_another_keypair = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_another_attested_credential_data =
+            AttestedCredentialData::generate(test_another_credential_id, test_another_keypair.0)
+                .await?;
         let test_another_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_another_credential_data_byte_array)
-                .await;
+            AuthenticatorData::generate("test_rp_id", test_another_attested_credential_data).await;
         let test_another_authenticator_data_byte_array =
             test_another_authenticator_data.to_byte_array().await;
-        let test_signature = test_cose_key
+        let test_signature = test_another_keypair
             .1
             .sign(&test_another_authenticator_data_byte_array, &test_hash)
             .await?;
@@ -954,12 +976,15 @@ mod tests {
 
     #[tokio::test]
     async fn check_credential_id() -> Result<(), Box<dyn std::error::Error>> {
-        let mut test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_attested_credential_data_byte_array =
-            test_attested_credential_data.to_byte_array().await;
+        // let mut test_attested_credential_data = AttestedCredentialData::generate().await;
+        // let test_attested_credential_data_byte_array =
+        //     test_attested_credential_data.to_byte_array().await;
+        let test_credential_id = [0u8; 16];
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_attested_credential_data =
+            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
         let mut test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
-                .await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
         let test_registration_ceremony = RegistrationCeremony {};
         let mut test_store = Store::init().await;
@@ -987,8 +1012,12 @@ mod tests {
             .await
             .is_err());
 
-        test_attested_credential_data.credential_id = [1; 16];
-        let test_byte_array = test_attested_credential_data.to_byte_array().await;
+        // test_attested_credential_data.credential_id = [1; 16];
+        // let test_byte_array = test_attested_credential_data.to_byte_array().await;
+        let test_credential_id = [1u8; 16];
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_byte_array =
+            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
         test_authenticator_data.attested_credential_data = Some(test_byte_array);
 
         let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
@@ -1003,12 +1032,15 @@ mod tests {
 
     #[tokio::test]
     async fn register() -> Result<(), Box<dyn std::error::Error>> {
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_attested_credential_data_byte_array =
-            test_attested_credential_data.to_byte_array().await;
+        // let test_attested_credential_data = AttestedCredentialData::generate().await;
+        // let test_attested_credential_data_byte_array =
+        //     test_attested_credential_data.to_byte_array().await;
+        let test_credential_id = [0u8; 16];
+        let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_attested_credential_data =
+            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
         let test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
-                .await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
         let test_registration_ceremony = RegistrationCeremony {};
         let test_options = test_registration_ceremony

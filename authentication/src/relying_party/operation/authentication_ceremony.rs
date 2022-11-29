@@ -735,12 +735,12 @@ mod tests {
     #[tokio::test]
     async fn verify_rp_id_hash() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_attested_credential_data_byte_array =
-            test_attested_credential_data.to_byte_array().await;
+        let test_credential_id = [0u8; 16];
+        let test_keypair = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_attested_credential_data =
+            AttestedCredentialData::generate(test_credential_id, test_keypair.0).await?;
         let test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
-                .await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
 
         assert!(test_authentication_ceremony
@@ -758,12 +758,12 @@ mod tests {
     #[tokio::test]
     async fn verify_user_present() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_attested_credential_data_byte_array =
-            test_attested_credential_data.to_byte_array().await;
+        let test_credential_id = [0u8; 16];
+        let test_keypair = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_attested_credential_data =
+            AttestedCredentialData::generate(test_credential_id, test_keypair.0).await?;
         let mut test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
-                .await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
 
         assert!(test_authentication_ceremony
@@ -786,12 +786,12 @@ mod tests {
     #[tokio::test]
     async fn verify_user_verification() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_attested_credential_data_byte_array =
-            test_attested_credential_data.to_byte_array().await;
+        let test_credential_id = [0u8; 16];
+        let test_keypair = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_attested_credential_data =
+            AttestedCredentialData::generate(test_credential_id, test_keypair.0).await?;
         let mut test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
-                .await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
 
         assert!(test_authentication_ceremony
@@ -833,32 +833,23 @@ mod tests {
     #[tokio::test]
     async fn verify_signature() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
-        let test_credential_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
-        let test_credential_id = [0; 16];
-        let test_credential_id_length = test_credential_id.len() as u16;
-        let test_credential_id_length_bytes = test_credential_id_length.to_be_bytes();
-        let test_attested_credential_data = AttestedCredentialData {
-            aaguid: [0; 16],
-            credential_id_length: test_credential_id_length_bytes,
-            credential_id: test_credential_id,
-            credential_public_key: test_credential_public_key.0.to_owned(),
-        };
-        let test_attested_credential_data_byte_array =
-            test_attested_credential_data.to_byte_array().await;
+        let test_credential_id = [0u8; 16];
+        let test_keypair = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_attested_credential_data =
+            AttestedCredentialData::generate(test_credential_id, test_keypair.0.to_owned()).await?;
         let mut test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
-                .await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         test_authenticator_data.attested_credential_data = None;
         let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
         let test_hash = b"test_client_data".to_vec();
-        let test_signature = test_credential_public_key
+        let test_signature = test_keypair
             .1
             .sign(&test_authenticator_data_byte_array, &test_hash)
             .await?;
 
         assert!(test_authentication_ceremony
             .verify_signature(
-                &test_credential_public_key.0,
+                &test_keypair.0,
                 &test_signature.to_vec(),
                 &test_authenticator_data_byte_array,
                 &test_hash,
@@ -878,12 +869,12 @@ mod tests {
         let test_public_key_credential = test_authentication_ceremony
             .call_credentials_get(&test_public_key_credential_request_options)
             .await?;
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_attested_credential_data_byte_array =
-            test_attested_credential_data.to_byte_array().await;
+        let test_credential_id = [0u8; 16];
+        let test_keypair = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_attested_credential_data =
+            AttestedCredentialData::generate(test_credential_id, test_keypair.0).await?;
         let mut test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
-                .await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
 
         test_authenticator_data.signcount = 1_u32.to_be_bytes();
 

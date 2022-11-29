@@ -171,7 +171,7 @@ impl AuthenticatorMakeCrendential {
     pub async fn generate_new_credential_object(
         &self,
         store: &CredentialsChannel,
-    ) -> Result<(Vec<u8>, COSEKey), AuthenticationError> {
+    ) -> Result<([u8; 16], COSEKey), AuthenticationError> {
         let algorithm = COSEAlgorithm::from(self.cred_types_and_pub_key_apis[0].alg).await;
         let new_credential = COSEKey::generate(algorithm).await;
         let credential_id = Uuid::new_v4().simple().into_uuid().into_bytes();
@@ -192,7 +192,7 @@ impl AuthenticatorMakeCrendential {
             )
             .await?;
 
-        Ok((credential_id.to_vec(), new_credential.0))
+        Ok((credential_id, new_credential.0))
     }
 
     pub async fn process_extensions(&self) -> Result<(), AuthenticationError> {
@@ -212,13 +212,13 @@ impl AuthenticatorMakeCrendential {
 
     pub async fn attested_credential_data(
         &self,
-        credential_id: &[u8],
+        credential_id: [u8; 16],
         public_key: COSEKey,
     ) -> Result<Vec<u8>, AuthenticationError> {
-        let attested_credential_data = AttestedCredentialData::generate().await;
-        let byte_array = attested_credential_data.to_byte_array().await;
+        let attested_credential_data =
+            AttestedCredentialData::generate(credential_id, public_key).await?;
 
-        Ok(byte_array)
+        Ok(attested_credential_data)
     }
 
     pub async fn authenticator_data(
@@ -609,7 +609,7 @@ mod tests {
             .await?;
 
         assert!(test_ok
-            .attested_credential_data(&test_credential_id, test_public_key)
+            .attested_credential_data(test_credential_id, test_public_key)
             .await
             .is_ok());
 
@@ -650,7 +650,7 @@ mod tests {
             .generate_new_credential_object(&test_credentials_store.0)
             .await?;
         let test_attested_credential_data = test_ok
-            .attested_credential_data(&test_credential_id, test_public_key)
+            .attested_credential_data(test_credential_id, test_public_key)
             .await?;
 
         assert!(test_ok
@@ -695,7 +695,7 @@ mod tests {
             .generate_new_credential_object(&test_credentials_store.0)
             .await?;
         let test_attested_credential_data = test_ok
-            .attested_credential_data(&test_credential_id, test_public_key)
+            .attested_credential_data(test_credential_id, test_public_key)
             .await?;
         let test_authenticator_data = test_ok
             .authenticator_data(test_attested_credential_data)

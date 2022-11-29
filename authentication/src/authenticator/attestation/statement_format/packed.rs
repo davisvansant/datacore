@@ -167,7 +167,7 @@ impl PackedAttestationStatementSyntax {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::authenticator::attestation::AttestedCredentialData;
+    use crate::authenticator::attestation::{AttestedCredentialData, COSEAlgorithm, COSEKey};
     use ciborium::cbor;
 
     #[tokio::test]
@@ -212,12 +212,12 @@ mod tests {
 
     #[tokio::test]
     async fn signing_procedure() -> Result<(), Box<dyn std::error::Error>> {
-        let test_attested_credential_data = AttestedCredentialData::generate().await;
-        let test_attested_credential_data_byte_array =
-            test_attested_credential_data.to_byte_array().await;
+        let test_credential_id = [0u8; 16];
+        let test_keypair = COSEKey::generate(COSEAlgorithm::EdDSA).await;
+        let test_attested_credential_data =
+            AttestedCredentialData::generate(test_credential_id, test_keypair.0).await?;
         let test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
-                .await;
+            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
         let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
         let test_hash = b"test_client_data".to_vec();
         let test_output = PackedAttestationStatementSyntax::signing_procedure(
