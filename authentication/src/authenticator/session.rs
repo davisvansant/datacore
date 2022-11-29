@@ -67,7 +67,8 @@ impl Session {
         let authenticator_data = operation
             .authenticator_data(&self.store, &selected_credential)
             .await?;
-        let _signature = operation
+
+        operation
             .assertion_signature(&authenticator_data, &selected_credential)
             .await?;
 
