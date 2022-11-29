@@ -72,11 +72,14 @@ impl PackedAttestationStatementSyntax {
 
     pub async fn verification_procedure(
         attestation_statement: &PackedAttestationStatementSyntax,
-        authenticator_data: &AuthenticatorData,
+        // authenticator_data: &AuthenticatorData,
+        authenticator_data: &[u8],
         client_data_hash: &[u8],
     ) -> Result<AttestationVerificationProcedureOutput, AuthenticationError> {
+        let authenticator_data_byte_array =
+            AuthenticatorData::from_byte_array(authenticator_data).await;
         let (public_key_alg, public_key) =
-            if let Some(data) = &authenticator_data.attested_credential_data {
+            if let Some(data) = &authenticator_data_byte_array.attested_credential_data {
                 let attested_credential_data = AttestedCredentialData::from_byte_array(data).await;
 
                 let alg = attested_credential_data
@@ -115,7 +118,21 @@ impl PackedAttestationStatementSyntax {
                                 let signature = Signature::from_bytes(&attestation_statement.sig)
                                     .expect("signature::from_bytes failed");
 
-                                match public_key.verify_strict(client_data_hash, &signature) {
+                                let mut message = Vec::with_capacity(500);
+
+                                for element in authenticator_data {
+                                    message.push(*element);
+                                }
+
+                                for element in client_data_hash {
+                                    message.push(*element);
+                                }
+
+                                message.shrink_to_fit();
+
+                                println!("verify this message -> {:?}", &message);
+
+                                match public_key.verify_strict(&message, &signature) {
                                     Ok(()) => (),
                                     Err(error) => {
                                         println!("error -> {:?}", error);
