@@ -4,7 +4,6 @@ use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::api::supporting_data_structures::COSEAlgorithmIdentifier;
-use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 
 #[derive(Debug, Deserialize, Clone, Serialize)]
@@ -37,7 +36,6 @@ impl COSEKey {
                         x: None,
                         d: Some(keypair.secret.to_bytes()),
                     }),
-                    // ExpandedSecretKey::from(&keypair.secret),
                 )
             }
             COSEAlgorithm::ES256 => unimplemented!(),
@@ -108,7 +106,6 @@ impl COSEKey {
     pub async fn verify_signature(
         &self,
         signature: &[u8],
-        // authenticator_data: &AuthenticatorData,
         authenticator_data: &[u8],
         hash: &[u8],
     ) -> Result<(), AuthenticationError> {

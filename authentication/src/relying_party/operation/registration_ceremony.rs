@@ -182,8 +182,6 @@ impl RegistrationCeremony {
 
         let attestation_statement_format_identifier = attestation_object.format;
         let authenticator_data = attestation_object.authenticator_data;
-        // let authenticator_data =
-        //     AuthenticatorData::from_byte_array(&attestation_object.authenticator_data).await;
         let attestation_statement = attestation_object.attestation_statement;
 
         Ok((
@@ -195,7 +193,6 @@ impl RegistrationCeremony {
 
     pub async fn verify_rp_id_hash(
         &self,
-        // authenticator_data: &AuthenticatorData,
         authenticator_data: &[u8],
         rp_id: &str,
     ) -> Result<(), AuthenticationError> {
@@ -212,7 +209,6 @@ impl RegistrationCeremony {
 
     pub async fn verify_user_present(
         &self,
-        // authenticator_data: &AuthenticatorData,
         authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
         let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
@@ -227,7 +223,6 @@ impl RegistrationCeremony {
 
     pub async fn verify_user_verification(
         &self,
-        // authenticator_data: &AuthenticatorData,
         authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
         let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
@@ -242,7 +237,6 @@ impl RegistrationCeremony {
 
     pub async fn verify_algorithm(
         &self,
-        // authenticator_data: &AuthenticatorData,
         authenticator_data: &[u8],
         options: &PublicKeyCredentialCreationOptions,
     ) -> Result<(), AuthenticationError> {
@@ -286,7 +280,6 @@ impl RegistrationCeremony {
     pub async fn verify_extension_outputs(
         &self,
         _client_extension_results: &AuthenticationExtensionsClientOutputs,
-        // authenticator_data: &AuthenticatorData,
         authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
         let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
@@ -311,7 +304,6 @@ impl RegistrationCeremony {
         &self,
         attestation_statement_format: &AttestationStatementFormat,
         attestation_statement: &AttestationStatement,
-        // authenticator_data: &AuthenticatorData,
         authenticator_data: &[u8],
         hash: &[u8],
     ) -> Result<AttestationVerificationProcedureOutput, AuthenticationError> {
@@ -345,7 +337,6 @@ impl RegistrationCeremony {
     pub async fn check_credential_id(
         &self,
         store: &StoreChannel,
-        // authenticator_data: &AuthenticatorData,
         authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
         let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
@@ -369,7 +360,6 @@ impl RegistrationCeremony {
         &self,
         store: &StoreChannel,
         options: PublicKeyCredentialCreationOptions,
-        // authenticator_data: AuthenticatorData,
         authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
         let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
@@ -409,7 +399,6 @@ mod tests {
     };
     use crate::relying_party::Store;
     use ciborium::cbor;
-    use ed25519_dalek::PublicKey;
 
     #[tokio::test]
     async fn public_key_credential_creation_options() -> Result<(), Box<dyn std::error::Error>> {
@@ -723,23 +712,6 @@ mod tests {
             .perform_decoding(test_authenticator_attestation_response)
             .await
             .is_ok());
-        // let test_perform_decoding = test_registration_ceremony
-        //     .perform_decoding(test_authenticator_attestation_response)
-        //     .await?;
-
-        // assert_eq!(
-        //     AttestationStatementFormat::try_from(&test_perform_decoding.0)?,
-        //     AttestationStatementFormat::Packed,
-        // );
-        // assert!(!test_perform_decoding.1.user_present().await);
-        // assert_eq!(test_perform_decoding.1.signcount, 0);
-        // assert_eq!(test_perform_decoding.1.signcount, [0; 4]);
-
-        // match test_perform_decoding.2 {
-        //     AttestationStatement::Packed(test_packed_attestation_statement) => {
-        //         assert_eq!(test_packed_attestation_statement.alg, -8);
-        //     }
-        // }
 
         Ok(())
     }
@@ -906,33 +878,15 @@ mod tests {
             .is_ok());
 
         let test_cose_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
-        // let test_signature = test_cose_key
-        //     .1
-        //     .sign(&test_hash, &PublicKey::from(&test_cose_key.1));
-        // let test_signature = test_cose_key
-        //     .1
-        //     .sign(&test_authenticator_data_byte_array, &test_hash)
-        //     .await?;
-
-        // let test_packed_attestation_statement_syntax_none =
-        //     AttestationStatement::Packed(PackedAttestationStatementSyntax {
-        //         alg: -8,
-        //         // sig: test_signature.to_bytes().to_vec(),
-        //         sig: test_signature.to_vec(),
-        //         x5c: None,
-        //     });
-
         let test_credential_id = [0; 16];
         let test_credential_id_length = test_credential_id.len() as u16;
         let test_credential_id_length_bytes = test_credential_id_length.to_be_bytes();
-
         let test_another_credential_data = AttestedCredentialData {
             aaguid: [0; 16],
             credential_id_length: test_credential_id_length_bytes,
             credential_id: test_credential_id,
             credential_public_key: test_cose_key.0,
         };
-
         let test_another_credential_data_byte_array =
             test_another_credential_data.to_byte_array().await;
         let test_another_authenticator_data =
@@ -940,12 +894,10 @@ mod tests {
                 .await;
         let test_another_authenticator_data_byte_array =
             test_another_authenticator_data.to_byte_array().await;
-
         let test_signature = test_cose_key
             .1
             .sign(&test_another_authenticator_data_byte_array, &test_hash)
             .await?;
-
         let test_packed_attestation_statement_syntax_none =
             AttestationStatement::Packed(PackedAttestationStatementSyntax {
                 alg: -8,
@@ -1035,11 +987,6 @@ mod tests {
             .await
             .is_err());
 
-        // if let Some(ref mut attested_credential_data) =
-        //     test_authenticator_data.attested_credential_data
-        // {
-        //     attested_credential_data.credential_id = [1; 16];
-        // }
         test_attested_credential_data.credential_id = [1; 16];
         let test_byte_array = test_attested_credential_data.to_byte_array().await;
         test_authenticator_data.attested_credential_data = Some(test_byte_array);

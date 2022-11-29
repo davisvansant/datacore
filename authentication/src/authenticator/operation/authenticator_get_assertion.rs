@@ -88,7 +88,6 @@ impl AuthenticatorGetAssertion {
         let selected_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
             id: b"cred_identifier_".to_owned(),
-            // private_key: Vec::with_capacity(0),
             private_key,
             rpid: String::from("some_relying_party_id"),
             user_handle: [0; 16],
@@ -123,7 +122,6 @@ impl AuthenticatorGetAssertion {
             rp_id_hash,
             flags: 0b0000_0000,
             signcount: signcount.to_be_bytes(),
-            // attestedcredentialdata: None,
             attested_credential_data: None,
             extensions: None,
         };
@@ -193,7 +191,6 @@ mod tests {
         let test_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
             id: test_credential_id,
-            // private_key: test_new_credential.1.to_bytes().to_vec(),
             private_key: test_new_credential.1,
             rpid: String::from("some_relying_party_id"),
             user_handle: [0; 16],
@@ -266,7 +263,6 @@ mod tests {
         let test_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
             id: test_credential_id,
-            // private_key: test_new_credential.1.to_bytes().to_vec(),
             private_key: test_new_credential.1,
             rpid: String::from("some_relying_party_id"),
             user_handle: [0; 16],
@@ -321,7 +317,6 @@ mod tests {
         let test_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
             id: test_credential_id,
-            // private_key: test_new_credential.1.to_bytes().to_vec(),
             private_key: test_new_credential.1,
             rpid: String::from("some_relying_party_id"),
             user_handle: [0; 16],
@@ -407,7 +402,6 @@ mod tests {
         );
         assert!(!test_authenticator_data.user_present().await);
         assert!(!test_authenticator_data.user_verified().await);
-        // assert_eq!(test_authenticator_data.signcount, 0);
         assert_eq!(test_authenticator_data.signcount, [0; 4]);
         assert!(test_authenticator_data.attested_credential_data.is_none());
         assert!(test_authenticator_data.extensions.is_none());
@@ -428,7 +422,6 @@ mod tests {
         );
         assert!(test_authenticator_data.user_present().await);
         assert!(test_authenticator_data.user_verified().await);
-        // assert_eq!(test_authenticator_data.signcount, 0);
         assert_eq!(test_authenticator_data.signcount, [0; 4]);
         assert!(test_authenticator_data.attested_credential_data.is_none());
         assert!(test_authenticator_data.extensions.is_none());
@@ -450,7 +443,6 @@ mod tests {
         let test_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
             id: test_credential_id,
-            // private_key: test_new_credential.1.to_bytes().to_vec(),
             private_key: test_new_credential.1,
             rpid: String::from("some_relying_party_id"),
             user_handle: [0; 16],
@@ -485,7 +477,6 @@ mod tests {
         let mut test_selected_credential = test_ok
             .collect_authorization_gesture(test_credential_options)
             .await?;
-        // let mut test_selected_credential = PublicKeyCredentialSource::generate().await;
 
         test_selected_credential.id = *b"cred_identifier_";
 

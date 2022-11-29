@@ -7,7 +7,7 @@ use crate::api::authenticator_responses::{
 use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientOutputs;
 use crate::api::public_key_credential::PublicKeyCredential;
 use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
-use crate::authenticator::attestation::{AttestedCredentialData, COSEKey};
+use crate::authenticator::attestation::COSEKey;
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::relying_party::StoreChannel;
@@ -126,11 +126,6 @@ impl AuthenticationCeremony {
         response: AuthenticatorAssertionResponse,
     ) -> Result<(ClientDataJSON, Vec<u8>, Signature), AuthenticationError> {
         let client_data = response.client_data_json;
-        // let rp_id = "some_rp_id";
-        // let attested_credential_data = AttestedCredentialData::generate().await;
-        // let attested_credential_data_byte_array = attested_credential_data.to_byte_array().await;
-        // let authenticator_data =
-        //     AuthenticatorData::generate(rp_id, attested_credential_data_byte_array).await;
         let authenticator_data = response.authenticator_data;
         let signature = response.signature;
 
@@ -206,7 +201,6 @@ impl AuthenticationCeremony {
 
     pub async fn verify_rp_id_hash(
         &self,
-        // authenticator_data: &AuthenticatorData,
         authenticator_data: &[u8],
         rp_id: &str,
     ) -> Result<(), AuthenticationError> {
@@ -223,7 +217,6 @@ impl AuthenticationCeremony {
 
     pub async fn verify_user_present(
         &self,
-        // authenticator_data: &AuthenticatorData,
         authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
         let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
@@ -238,7 +231,6 @@ impl AuthenticationCeremony {
 
     pub async fn verify_user_verification(
         &self,
-        // authenticator_data: &AuthenticatorData,
         authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
         let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
@@ -254,7 +246,6 @@ impl AuthenticationCeremony {
     pub async fn verify_client_extension_results(
         &self,
         _client_extension_results: &AuthenticationExtensionsClientOutputs,
-        // authenticator_data: &AuthenticatorData,
         authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
         let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
@@ -279,7 +270,6 @@ impl AuthenticationCeremony {
         &self,
         credential_public_key: &COSEKey,
         signature: &Signature,
-        // authenticator_data: &AuthenticatorData,
         authenticator_data: &[u8],
         hash: &[u8],
     ) -> Result<(), AuthenticationError> {
@@ -294,7 +284,6 @@ impl AuthenticationCeremony {
         &self,
         store: &StoreChannel,
         credential: &PublicKeyCredential,
-        // authenticator_data: &AuthenticatorData,
         authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
         let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
@@ -318,10 +307,9 @@ mod tests {
     use crate::api::supporting_data_structures::{
         PublicKeyCredentialDescriptor, PublicKeyCredentialType, TokenBinding, TokenBindingStatus,
     };
-    use crate::authenticator::attestation::COSEAlgorithm;
+    use crate::authenticator::attestation::{AttestedCredentialData, COSEAlgorithm};
     use crate::relying_party::store::UserAccount;
     use crate::relying_party::Store;
-    use ed25519_dalek::PublicKey;
 
     #[tokio::test]
     async fn public_key_credential_request_options() -> Result<(), Box<dyn std::error::Error>> {
@@ -850,11 +838,8 @@ mod tests {
         let test_credential_id_length = test_credential_id.len() as u16;
         let test_credential_id_length_bytes = test_credential_id_length.to_be_bytes();
         let test_attested_credential_data = AttestedCredentialData {
-            // aaguid: Vec::with_capacity(0),
             aaguid: [0; 16],
-            // credential_id_length: Vec::<[u8; 8]>::with_capacity(0).len().to_be_bytes(),
             credential_id_length: test_credential_id_length_bytes,
-            // credential_id: Vec::with_capacity(0),
             credential_id: test_credential_id,
             credential_public_key: test_credential_public_key.0.to_owned(),
         };
@@ -874,7 +859,6 @@ mod tests {
         assert!(test_authentication_ceremony
             .verify_signature(
                 &test_credential_public_key.0,
-                // &test_signature.to_bytes().to_vec(),
                 &test_signature.to_vec(),
                 &test_authenticator_data_byte_array,
                 &test_hash,
@@ -901,7 +885,6 @@ mod tests {
             AuthenticatorData::generate("test_rp_id", test_attested_credential_data_byte_array)
                 .await;
 
-        // test_authenticator_data.signcount = 1;
         test_authenticator_data.signcount = 1_u32.to_be_bytes();
 
         let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;

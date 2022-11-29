@@ -1,4 +1,3 @@
-use crate::authenticator::attestation::AttestationObject;
 use crate::authenticator::operation::{AuthenticatorGetAssertion, AuthenticatorMakeCrendential};
 use crate::authenticator::store::CredentialsChannel;
 use crate::error::AuthenticationError;

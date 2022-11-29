@@ -6,7 +6,6 @@ pub use crate::authenticator::attestation::statement_format::{
     AttestationStatement, AttestationStatementFormat, AttestationStatementFormatIdentifier,
     AttestationVerificationProcedureOutput, PackedAttestationStatementSyntax,
 };
-use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 
 mod cose_key_format;
@@ -150,6 +149,7 @@ pub enum AttestationType {
 mod tests {
     use super::*;
     use crate::authenticator::attestation::cose_key_format::COSEEllipticCurve;
+    use crate::authenticator::data::AuthenticatorData;
     use ciborium::cbor;
 
     #[tokio::test]

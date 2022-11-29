@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use crate::authenticator::attestation::AttestedCredentialData;
 use crate::security::sha2::generate_hash;
 
 pub const UP: u8 = 0;
@@ -137,6 +136,7 @@ impl AuthenticatorData {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::authenticator::attestation::AttestedCredentialData;
 
     #[tokio::test]
     async fn init() -> Result<(), Box<dyn std::error::Error>> {
@@ -334,7 +334,6 @@ mod tests {
         );
         assert!(test_from_byte_array.includes_extension_data().await);
         assert_eq!(test_from_byte_array.signcount, 1000_u32.to_be_bytes());
-        // assert!(test_from_byte_array.attestedcredentialdata.is_none());
         assert!(test_from_byte_array.attested_credential_data.is_some());
         assert!(test_from_byte_array.extensions.is_none());
 
