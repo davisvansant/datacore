@@ -1,4 +1,4 @@
-use ed25519_dalek::{ExpandedSecretKey, Keypair, PublicKey, Signature};
+use ed25519_dalek::{ExpandedSecretKey, Keypair, PublicKey, SecretKey, Signature};
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
@@ -14,7 +14,7 @@ pub enum COSEKey {
 }
 
 impl COSEKey {
-    pub async fn generate(algorithm: COSEAlgorithm) -> (COSEKey, ExpandedSecretKey) {
+    pub async fn generate(algorithm: COSEAlgorithm) -> (COSEKey, COSEKey) {
         match algorithm {
             COSEAlgorithm::EdDSA => {
                 let mut csprng = ChaCha20Rng::from_entropy();
@@ -29,7 +29,15 @@ impl COSEKey {
                         x: Some(keypair.public.to_bytes()),
                         d: None,
                     }),
-                    ExpandedSecretKey::from(&keypair.secret),
+                    COSEKey::OctetKeyPair(OctetKeyPair {
+                        kty: COSEKeyType::Okp,
+                        alg: COSEAlgorithm::EdDSA,
+                        key_ops: None,
+                        crv: COSEEllipticCurve::Ed25519,
+                        x: None,
+                        d: Some(keypair.secret.to_bytes()),
+                    }),
+                    // ExpandedSecretKey::from(&keypair.secret),
                 )
             }
             COSEAlgorithm::ES256 => unimplemented!(),
@@ -51,10 +59,57 @@ impl COSEKey {
         }
     }
 
+    pub async fn sign(
+        &self,
+        authenticator_data: &[u8],
+        hash: &[u8],
+    ) -> Result<[u8; 64], AuthenticationError> {
+        match self {
+            COSEKey::OctetKeyPair(key) => {
+                if let Some(key) = key.d {
+                    let secret_key = match SecretKey::from_bytes(&key) {
+                        Ok(secret_key) => secret_key,
+                        Err(error) => {
+                            println!("secret key from bytes -> {:?}", error);
+
+                            return Err(AuthenticationError {
+                                error: AuthenticationErrorType::OperationError,
+                            });
+                        }
+                    };
+                    let expanded_secret_key = ExpandedSecretKey::from(&secret_key);
+                    let public_key = PublicKey::from(&expanded_secret_key);
+                    let mut message = Vec::with_capacity(500);
+
+                    for element in authenticator_data {
+                        message.push(*element);
+                    }
+
+                    for element in hash {
+                        message.push(*element);
+                    }
+
+                    message.shrink_to_fit();
+
+                    println!("this is to be signed -> {:?}", &message);
+
+                    let signature = expanded_secret_key.sign(&message, &public_key);
+
+                    Ok(signature.to_bytes())
+                } else {
+                    Err(AuthenticationError {
+                        error: AuthenticationErrorType::OperationError,
+                    })
+                }
+            }
+        }
+    }
+
     pub async fn verify_signature(
         &self,
         signature: &[u8],
-        authenticator_data: &AuthenticatorData,
+        // authenticator_data: &AuthenticatorData,
+        authenticator_data: &[u8],
         hash: &[u8],
     ) -> Result<(), AuthenticationError> {
         match self {
@@ -64,23 +119,21 @@ impl COSEKey {
                 if let Ok(public_key) = PublicKey::from_bytes(&public_key_bytes) {
                     let signature =
                         Signature::from_bytes(signature).expect("signature::from_bytes failed");
+                    let mut message = Vec::with_capacity(500);
 
-                    let serialized_authenticator_data =
-                        bincode::serialize(authenticator_data).expect("serialized_data");
-
-                    let mut concatenation = Vec::with_capacity(500);
-
-                    for element in serialized_authenticator_data {
-                        concatenation.push(element.to_owned());
+                    for element in authenticator_data {
+                        message.push(*element);
                     }
 
                     for element in hash {
-                        concatenation.push(element.to_owned());
+                        message.push(*element);
                     }
 
-                    concatenation.shrink_to_fit();
+                    message.shrink_to_fit();
 
-                    match public_key.verify_strict(concatenation.as_slice(), &signature) {
+                    println!("this is to be verified -> {:?}", &message);
+
+                    match public_key.verify_strict(&message, &signature) {
                         Ok(()) => Ok(()),
                         Err(error) => {
                             println!("error -> {:?}", error);
