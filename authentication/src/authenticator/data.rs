@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::authenticator::attestation::AttestedCredentialData;
+use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::security::sha2::generate_hash;
 
 pub const UP: u8 = 0;
@@ -156,6 +158,45 @@ impl AuthenticatorData {
                 attested_credential_data: Some(attested_credential_data.to_vec()),
                 extensions: None,
             }
+        }
+    }
+
+    pub async fn attested_credential_data(
+        data: &[u8],
+    ) -> Result<AttestedCredentialData, AuthenticationError> {
+        if data.len() == 37 {
+            Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            })
+        } else {
+            let (rp_id_hash, remaining) = data.split_at(32);
+            let (flags, remaining) = remaining.split_at(1);
+            let (sign_count_data, attested_credential_data) = remaining.split_at(4);
+
+            let mut sign_count: [u8; 4] = [0; 4];
+
+            sign_count.copy_from_slice(sign_count_data);
+
+            let authenticator_data = AuthenticatorData {
+                rp_id_hash: rp_id_hash.to_vec(),
+                flags: flags[0],
+                sign_count,
+                attested_credential_data: Some(attested_credential_data.to_vec()),
+                extensions: None,
+            };
+
+            let data = match authenticator_data.attested_credential_data {
+                Some(data) => data,
+                None => {
+                    return Err(AuthenticationError {
+                        error: AuthenticationErrorType::OperationError,
+                    });
+                }
+            };
+
+            let attested_credential_data = AttestedCredentialData::from_byte_array(&data).await;
+
+            Ok(attested_credential_data)
         }
     }
 }
