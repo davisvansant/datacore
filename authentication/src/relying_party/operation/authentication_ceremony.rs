@@ -307,7 +307,7 @@ mod tests {
     use crate::api::supporting_data_structures::{
         PublicKeyCredentialDescriptor, PublicKeyCredentialType, TokenBinding, TokenBindingStatus,
     };
-    use crate::authenticator::attestation::{AttestedCredentialData, COSEAlgorithm};
+    use crate::authenticator::attestation::COSEAlgorithm;
     use crate::relying_party::store::UserAccount;
     use crate::relying_party::Store;
 

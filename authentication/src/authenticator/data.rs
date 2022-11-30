@@ -13,10 +13,8 @@ pub type SignCount = [u8; 4];
 pub struct AuthenticatorData {
     pub rp_id_hash: RpIdHash,
     pub flags: u8,
-    // pub signcount: SignCount,
     pub sign_count: SignCount,
     pub attested_credential_data: Option<Vec<u8>>,
-    // pub extensions: Option<String>,
     pub extensions: Option<Vec<u8>>,
 }
 

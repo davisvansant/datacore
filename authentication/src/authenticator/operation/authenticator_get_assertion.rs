@@ -7,7 +7,6 @@ use crate::authenticator::data::AuthenticatorData;
 use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
 use crate::authenticator::store::CredentialsChannel;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
-use crate::security::sha2::generate_hash;
 
 pub struct AuthenticatorGetAssertion {
     rpid: String,
@@ -167,6 +166,7 @@ mod tests {
     use super::*;
     use crate::authenticator::attestation::{COSEAlgorithm, COSEKey};
     use crate::authenticator::store::Credentials;
+    use crate::security::sha2::generate_hash;
 
     #[tokio::test]
     async fn credential_options() -> Result<(), Box<dyn std::error::Error>> {
