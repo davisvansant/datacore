@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::supporting_data_structures::COSEAlgorithmIdentifier;
 use crate::authenticator::attestation::{
-    AttestationType, AttestationVerificationProcedureOutput, AttestedCredentialData,
+    AttestationType, AttestationVerificationProcedureOutput, AttestedCredentialData, COSEKey,
 };
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
@@ -35,44 +35,22 @@ impl PackedAttestationStatementSyntax {
     pub async fn signing_procedure(
         authenticator_data: &[u8],
         client_data_hash: &[u8],
+        private_key: COSEKey,
     ) -> Result<PackedAttestationStatementSyntax, AuthenticationError> {
-        let mut attest = Vec::with_capacity(500);
-
-        for element in authenticator_data {
-            attest.push(*element);
-        }
-
-        for element in client_data_hash {
-            attest.push(*element);
-        }
-
-        attest.shrink_to_fit();
-
-        let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
-        let alg = if let Some(data) = &authenticator_data.attested_credential_data {
-            let attested_credential_data = AttestedCredentialData::from_byte_array(data).await;
-
-            attested_credential_data
-                .credential_public_key
-                .algorithm()
-                .await
-        } else {
-            return Err(AuthenticationError {
-                error: AuthenticationErrorType::OperationError,
-            });
-        };
-        let sig = [0; 64].to_vec();
+        let alg = private_key.algorithm().await;
+        let sig = private_key
+            .sign(authenticator_data, client_data_hash)
+            .await?;
 
         Ok(PackedAttestationStatementSyntax {
             alg,
-            sig,
+            sig: sig.to_vec(),
             x5c: None,
         })
     }
 
     pub async fn verification_procedure(
         attestation_statement: &PackedAttestationStatementSyntax,
-        // authenticator_data: &AuthenticatorData,
         authenticator_data: &[u8],
         client_data_hash: &[u8],
     ) -> Result<AttestationVerificationProcedureOutput, AuthenticationError> {
@@ -233,6 +211,7 @@ mod tests {
         let test_output = PackedAttestationStatementSyntax::signing_procedure(
             &test_authenticator_data,
             &test_hash,
+            test_keypair.1,
         )
         .await?;
 

@@ -42,7 +42,7 @@ impl Session {
             .await?;
 
         operation
-            .create_attestation_object(authenticator_data)
+            .create_attestation_object(authenticator_data, &self.store)
             .await?;
 
         Ok(())

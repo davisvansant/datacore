@@ -26,12 +26,17 @@ impl AttestationObject {
         attestation_format: AttestationStatementFormat,
         authenticator_data: Vec<u8>,
         hash: &[u8],
+        private_key: COSEKey,
     ) -> Result<Vec<u8>, AuthenticationError> {
         let format = attestation_format.identifier().await;
         let attestation_statement = match attestation_format {
             AttestationStatementFormat::Packed => AttestationStatement::Packed(
-                PackedAttestationStatementSyntax::signing_procedure(&authenticator_data, hash)
-                    .await?,
+                PackedAttestationStatementSyntax::signing_procedure(
+                    &authenticator_data,
+                    hash,
+                    private_key,
+                )
+                .await?,
             ),
         };
 
@@ -187,6 +192,7 @@ mod tests {
             test_attestation_format,
             test_authenticator_data.to_owned(),
             &test_hash,
+            test_keypair.1.to_owned(),
         )
         .await?;
 
@@ -194,6 +200,7 @@ mod tests {
             PackedAttestationStatementSyntax::signing_procedure(
                 &test_authenticator_data,
                 &test_hash,
+                test_keypair.1,
             )
             .await?,
         );

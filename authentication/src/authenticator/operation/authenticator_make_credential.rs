@@ -241,10 +241,19 @@ impl AuthenticatorMakeCrendential {
     pub async fn create_attestation_object(
         &self,
         authenticator_data: Vec<u8>,
+        store: &CredentialsChannel,
     ) -> Result<(), AuthenticationError> {
+        let credential_source = store
+            .lookup(self.rp_entity.id.to_owned(), self.user_entity.id)
+            .await?;
         let attestation_format = AttestationStatementFormat::Packed;
-        let attestation_object =
-            AttestationObject::generate(attestation_format, authenticator_data, &self.hash).await?;
+        let attestation_object = AttestationObject::generate(
+            attestation_format,
+            authenticator_data,
+            &self.hash,
+            credential_source.private_key,
+        )
+        .await?;
 
         println!("send this to the client -> {:?}", attestation_object);
 
@@ -708,7 +717,7 @@ mod tests {
             .await?;
 
         assert!(test_ok
-            .create_attestation_object(test_authenticator_data)
+            .create_attestation_object(test_authenticator_data, &test_credentials_store.0)
             .await
             .is_ok());
 
