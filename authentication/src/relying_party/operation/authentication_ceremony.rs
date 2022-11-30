@@ -11,7 +11,7 @@ use crate::authenticator::attestation::COSEKey;
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::relying_party::StoreChannel;
-use crate::security::sha2::generate_hash;
+use crate::security::sha2::{generate_hash, Hash};
 
 pub struct AuthenticationCeremony {}
 
@@ -260,7 +260,7 @@ impl AuthenticationCeremony {
     pub async fn hash(
         &self,
         client_data_json: &ClientDataJSON,
-    ) -> Result<Vec<u8>, AuthenticationError> {
+    ) -> Result<Hash, AuthenticationError> {
         let client_data_hash = generate_hash(client_data_json).await;
 
         Ok(client_data_hash)

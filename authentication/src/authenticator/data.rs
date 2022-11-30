@@ -2,18 +2,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::authenticator::attestation::AttestedCredentialData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
-use crate::security::sha2::generate_hash;
+use crate::security::sha2::{generate_hash, Hash};
 
 pub const UP: u8 = 0;
 pub const UV: u8 = 2;
 pub const AT: u8 = 6;
 pub const ED: u8 = 7;
-pub type RpIdHash = Vec<u8>;
 pub type SignCount = [u8; 4];
 
 #[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct AuthenticatorData {
-    pub rp_id_hash: RpIdHash,
+    pub rp_id_hash: Hash,
     pub flags: u8,
     pub sign_count: SignCount,
     pub attested_credential_data: Option<Vec<u8>>,
@@ -128,31 +127,35 @@ impl AuthenticatorData {
 
     pub async fn from_byte_array(data: &[u8]) -> AuthenticatorData {
         if data.len() == 37 {
-            let (rp_id_hash, remaining) = data.split_at(32);
+            let (rp_id_hash_data, remaining) = data.split_at(32);
             let (flags, sign_count_data) = remaining.split_at(1);
 
-            let mut sign_count: [u8; 4] = [0; 4];
+            let mut rp_id_hash: Hash = [0; 32];
+            let mut sign_count: SignCount = [0; 4];
 
+            rp_id_hash.copy_from_slice(rp_id_hash_data);
             sign_count.copy_from_slice(sign_count_data);
 
             AuthenticatorData {
-                rp_id_hash: rp_id_hash.to_vec(),
+                rp_id_hash,
                 flags: flags[0],
                 sign_count,
                 attested_credential_data: None,
                 extensions: None,
             }
         } else {
-            let (rp_id_hash, remaining) = data.split_at(32);
+            let (rp_id_hash_data, remaining) = data.split_at(32);
             let (flags, remaining) = remaining.split_at(1);
             let (sign_count_data, attested_credential_data) = remaining.split_at(4);
 
-            let mut sign_count: [u8; 4] = [0; 4];
+            let mut rp_id_hash: Hash = [0; 32];
+            let mut sign_count: SignCount = [0; 4];
 
+            rp_id_hash.copy_from_slice(rp_id_hash_data);
             sign_count.copy_from_slice(sign_count_data);
 
             AuthenticatorData {
-                rp_id_hash: rp_id_hash.to_vec(),
+                rp_id_hash,
                 flags: flags[0],
                 sign_count,
                 attested_credential_data: Some(attested_credential_data.to_vec()),
@@ -169,16 +172,18 @@ impl AuthenticatorData {
                 error: AuthenticationErrorType::OperationError,
             })
         } else {
-            let (rp_id_hash, remaining) = data.split_at(32);
+            let (rp_id_hash_data, remaining) = data.split_at(32);
             let (flags, remaining) = remaining.split_at(1);
             let (sign_count_data, attested_credential_data) = remaining.split_at(4);
 
-            let mut sign_count: [u8; 4] = [0; 4];
+            let mut rp_id_hash: Hash = [0; 32];
+            let mut sign_count: SignCount = [0; 4];
 
+            rp_id_hash.copy_from_slice(rp_id_hash_data);
             sign_count.copy_from_slice(sign_count_data);
 
             let authenticator_data = AuthenticatorData {
-                rp_id_hash: rp_id_hash.to_vec(),
+                rp_id_hash,
                 flags: flags[0],
                 sign_count,
                 attested_credential_data: Some(attested_credential_data.to_vec()),

@@ -17,7 +17,7 @@ use crate::authenticator::attestation::{
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::relying_party::store::{StoreChannel, UserAccount};
-use crate::security::sha2::generate_hash;
+use crate::security::sha2::{generate_hash, Hash};
 
 pub struct RegistrationCeremony {}
 
@@ -150,7 +150,7 @@ impl RegistrationCeremony {
     pub async fn hash(
         &self,
         response: &AuthenticatorAttestationResponse,
-    ) -> Result<Vec<u8>, AuthenticationError> {
+    ) -> Result<Hash, AuthenticationError> {
         let hash = generate_hash(&response.client_data_json).await;
 
         Ok(hash)
