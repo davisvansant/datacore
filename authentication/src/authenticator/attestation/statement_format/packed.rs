@@ -1,9 +1,8 @@
-use ed25519_dalek::{PublicKey, Signature};
 use serde::{Deserialize, Serialize};
 
 use crate::api::supporting_data_structures::COSEAlgorithmIdentifier;
 use crate::authenticator::attestation::{
-    AttestationType, AttestationVerificationProcedureOutput, AttestedCredentialData, COSEKey,
+    AttestationType, AttestationVerificationProcedureOutput, COSEKey,
 };
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
@@ -54,28 +53,12 @@ impl PackedAttestationStatementSyntax {
         authenticator_data: &[u8],
         client_data_hash: &[u8],
     ) -> Result<AttestationVerificationProcedureOutput, AuthenticationError> {
-        let authenticator_data_byte_array =
-            AuthenticatorData::from_byte_array(authenticator_data).await;
-        let (public_key_alg, public_key) =
-            if let Some(data) = &authenticator_data_byte_array.attested_credential_data {
-                let attested_credential_data = AttestedCredentialData::from_byte_array(data).await;
-
-                let alg = attested_credential_data
-                    .credential_public_key
-                    .algorithm()
-                    .await;
-
-                let public_key = attested_credential_data
-                    .credential_public_key
-                    .public_key()
-                    .await;
-
-                (alg, public_key)
-            } else {
-                return Err(AuthenticationError {
-                    error: AuthenticationErrorType::OperationError,
-                });
-            };
+        let attested_credential_data =
+            AuthenticatorData::attested_credential_data(authenticator_data).await?;
+        let public_key_alg = attested_credential_data
+            .credential_public_key
+            .algorithm()
+            .await;
 
         match attestation_statement.x5c.is_some() {
             true => {
@@ -90,44 +73,14 @@ impl PackedAttestationStatementSyntax {
                 true => {
                     println!("do alg specific verification");
 
-                    match attestation_statement.alg {
-                        -8 => {
-                            if let Ok(public_key) = PublicKey::from_bytes(&public_key) {
-                                let signature = Signature::from_bytes(&attestation_statement.sig)
-                                    .expect("signature::from_bytes failed");
-
-                                let mut message = Vec::with_capacity(500);
-
-                                for element in authenticator_data {
-                                    message.push(*element);
-                                }
-
-                                for element in client_data_hash {
-                                    message.push(*element);
-                                }
-
-                                message.shrink_to_fit();
-
-                                println!("verify this message -> {:?}", &message);
-
-                                match public_key.verify_strict(&message, &signature) {
-                                    Ok(()) => (),
-                                    Err(error) => {
-                                        println!("error -> {:?}", error);
-
-                                        return Err(AuthenticationError {
-                                            error: AuthenticationErrorType::OperationError,
-                                        });
-                                    }
-                                }
-                            } else {
-                                return Err(AuthenticationError {
-                                    error: AuthenticationErrorType::OperationError,
-                                });
-                            }
-                        }
-                        _ => unimplemented!(),
-                    }
+                    attested_credential_data
+                        .credential_public_key
+                        .verify_signature(
+                            &attestation_statement.sig,
+                            authenticator_data,
+                            client_data_hash,
+                        )
+                        .await?;
 
                     Ok(AttestationVerificationProcedureOutput {
                         attestation_type: AttestationType::SelfAttestation,
