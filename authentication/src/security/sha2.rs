@@ -1,12 +1,15 @@
 use sha2::{Digest, Sha256};
 
-pub async fn generate_hash(message: &[u8]) -> Vec<u8> {
-    let mut sha256_hash = Sha256::new();
+pub type Hash = [u8; 32];
 
-    sha256_hash.update(message);
-    let message = sha256_hash.finalize();
+pub async fn generate_hash(message: &[u8]) -> Hash {
+    let mut digest = Sha256::new();
+    let mut hash: Hash = [0; 32];
 
-    message.to_vec()
+    digest.update(message);
+    hash.copy_from_slice(&digest.finalize());
+
+    hash
 }
 
 #[cfg(test)]
