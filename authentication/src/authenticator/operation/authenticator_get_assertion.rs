@@ -116,27 +116,18 @@ impl AuthenticatorGetAssertion {
         store: &CredentialsChannel,
         selected_credential: &PublicKeyCredentialSource,
     ) -> Result<Vec<u8>, AuthenticationError> {
-        let rp_id_hash = generate_hash(self.rpid.as_bytes()).await;
-        let signcount = store.counter(selected_credential.id).await?;
-        let mut authenticator_data = AuthenticatorData {
-            rp_id_hash,
-            flags: 0b0000_0000,
-            signcount: signcount.to_be_bytes(),
-            attested_credential_data: None,
-            extensions: None,
-        };
+        let sign_count = store.counter(selected_credential.id).await?;
+        let authenticator_data = AuthenticatorData::generate(
+            &self.rpid,
+            self.require_user_presence,
+            self.require_user_verification,
+            sign_count.to_be_bytes(),
+            None,
+            None,
+        )
+        .await;
 
-        if self.require_user_presence {
-            authenticator_data.set_user_present().await;
-        }
-
-        if self.require_user_verification {
-            authenticator_data.set_user_verifed().await;
-        }
-
-        let byte_array = authenticator_data.to_byte_array().await;
-
-        Ok(byte_array)
+        Ok(authenticator_data)
     }
 
     pub async fn assertion_signature(
@@ -402,7 +393,7 @@ mod tests {
         );
         assert!(!test_authenticator_data.user_present().await);
         assert!(!test_authenticator_data.user_verified().await);
-        assert_eq!(test_authenticator_data.signcount, [0; 4]);
+        assert_eq!(test_authenticator_data.sign_count, [0; 4]);
         assert!(test_authenticator_data.attested_credential_data.is_none());
         assert!(test_authenticator_data.extensions.is_none());
 
@@ -422,7 +413,7 @@ mod tests {
         );
         assert!(test_authenticator_data.user_present().await);
         assert!(test_authenticator_data.user_verified().await);
-        assert_eq!(test_authenticator_data.signcount, [0; 4]);
+        assert_eq!(test_authenticator_data.sign_count, [0; 4]);
         assert!(test_authenticator_data.attested_credential_data.is_none());
         assert!(test_authenticator_data.extensions.is_none());
 

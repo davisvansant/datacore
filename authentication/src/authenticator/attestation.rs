@@ -165,25 +165,34 @@ mod tests {
     #[tokio::test]
     async fn attestation_object() -> Result<(), Box<dyn std::error::Error>> {
         let test_attestation_format = AttestationStatementFormat::Packed;
-        let test_rp_id = "test_rp_id";
         let test_credential_id = [0u8; 16];
         let test_keypair = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data =
             AttestedCredentialData::generate(test_credential_id, test_keypair.0).await?;
-        let test_authenticator_data =
-            AuthenticatorData::generate(test_rp_id, test_attested_credential_data).await;
-        let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
+        let test_rp_id = "test_rp_id";
+        let test_user_present = true;
+        let test_user_verified = true;
+        let test_sign_count = [0u8; 4];
+        let test_authenticator_data = AuthenticatorData::generate(
+            test_rp_id,
+            test_user_present,
+            test_user_verified,
+            test_sign_count,
+            Some(test_attested_credential_data),
+            None,
+        )
+        .await;
         let test_hash = Vec::with_capacity(0);
         let test_attestation_object = AttestationObject::generate(
             test_attestation_format,
-            test_authenticator_data_byte_array.to_owned(),
+            test_authenticator_data.to_owned(),
             &test_hash,
         )
         .await?;
 
         let test_attestation_statement = AttestationStatement::Packed(
             PackedAttestationStatementSyntax::signing_procedure(
-                &test_authenticator_data_byte_array,
+                &test_authenticator_data,
                 &test_hash,
             )
             .await?,
@@ -191,7 +200,7 @@ mod tests {
 
         let mut test_cbor = Vec::with_capacity(500);
         let test_assertion_cbor_value = cbor!({
-            "authData" => test_authenticator_data_byte_array,
+            "authData" => test_authenticator_data,
             "fmt" => "packed",
             "attStmt" => test_attestation_statement,
         })?;

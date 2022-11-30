@@ -216,12 +216,22 @@ mod tests {
         let test_keypair = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data =
             AttestedCredentialData::generate(test_credential_id, test_keypair.0).await?;
-        let test_authenticator_data =
-            AuthenticatorData::generate("test_rp_id", test_attested_credential_data).await;
-        let test_authenticator_data_byte_array = test_authenticator_data.to_byte_array().await;
+        let test_rp_id = "test_rp_id";
+        let test_user_present = true;
+        let test_user_verified = true;
+        let test_sign_count = [0u8; 4];
+        let test_authenticator_data = AuthenticatorData::generate(
+            test_rp_id,
+            test_user_present,
+            test_user_verified,
+            test_sign_count,
+            Some(test_attested_credential_data),
+            None,
+        )
+        .await;
         let test_hash = b"test_client_data".to_vec();
         let test_output = PackedAttestationStatementSyntax::signing_procedure(
-            &test_authenticator_data_byte_array,
+            &test_authenticator_data,
             &test_hash,
         )
         .await?;
