@@ -274,7 +274,7 @@ impl AuthenticationCeremony {
         hash: &[u8],
     ) -> Result<(), AuthenticationError> {
         credential_public_key
-            .verify_signature(signature, authenticator_data, hash)
+            .verify(signature, authenticator_data, hash)
             .await?;
 
         Ok(())

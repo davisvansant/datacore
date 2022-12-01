@@ -48,15 +48,6 @@ impl COSEKey {
         }
     }
 
-    pub async fn public_key(&self) -> [u8; 32] {
-        match self {
-            COSEKey::OctetKeyPair(parameters) => match parameters.x {
-                Some(x) => x,
-                None => panic!("add better error handling here"),
-            },
-        }
-    }
-
     pub async fn sign(
         &self,
         authenticator_data: &[u8],
@@ -103,19 +94,37 @@ impl COSEKey {
         }
     }
 
-    pub async fn verify_signature(
+    pub async fn verify(
         &self,
         signature: &[u8],
         authenticator_data: &[u8],
         hash: &[u8],
     ) -> Result<(), AuthenticationError> {
         match self {
-            COSEKey::OctetKeyPair(_) => {
-                let public_key_bytes = self.public_key().await;
+            COSEKey::OctetKeyPair(key) => {
+                if let Some(public_key) = key.x {
+                    let public_key = match PublicKey::from_bytes(&public_key) {
+                        Ok(public_key) => public_key,
+                        Err(error) => {
+                            println!("public key from bytes -> {:?}", error);
 
-                if let Ok(public_key) = PublicKey::from_bytes(&public_key_bytes) {
-                    let signature =
-                        Signature::from_bytes(signature).expect("signature::from_bytes failed");
+                            return Err(AuthenticationError {
+                                error: AuthenticationErrorType::OperationError,
+                            });
+                        }
+                    };
+
+                    let signature = match Signature::from_bytes(signature) {
+                        Ok(signature) => signature,
+                        Err(error) => {
+                            println!("signature from bytes -> {:?}", error);
+
+                            return Err(AuthenticationError {
+                                error: AuthenticationErrorType::OperationError,
+                            });
+                        }
+                    };
+
                     let mut message = Vec::with_capacity(500);
 
                     for element in authenticator_data {
@@ -127,8 +136,6 @@ impl COSEKey {
                     }
 
                     message.shrink_to_fit();
-
-                    println!("this is to be verified -> {:?}", &message);
 
                     match public_key.verify_strict(&message, &signature) {
                         Ok(()) => Ok(()),

@@ -75,7 +75,7 @@ impl PackedAttestationStatementSyntax {
 
                     attested_credential_data
                         .credential_public_key
-                        .verify_signature(
+                        .verify(
                             &attestation_statement.sig,
                             authenticator_data,
                             client_data_hash,
