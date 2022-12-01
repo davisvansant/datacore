@@ -1,15 +1,14 @@
-use rand::{thread_rng, Rng};
-use serde::{Deserialize, Serialize};
 use uuid::{Bytes, Uuid};
 
 use crate::api::credential_generation_parameters::PublicKeyCredentialParameters;
 use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientInputs;
 use crate::api::supporting_data_structures::PublicKeyCredentialDescriptor;
+use crate::security::challenge::{base64_encode_challenge, generate_challenge};
 
 pub struct PublicKeyCredentialCreationOptions {
     pub rp: PublicKeyCredentialRpEntity,
     pub user: PublicKeyCredentialUserEntity,
-    pub challenge: Challenge,
+    pub challenge: Vec<u8>,
     pub public_key_credential_parameters: Vec<PublicKeyCredentialParameters>,
     pub timeout: u32,
     pub exclude_credentials: Vec<PublicKeyCredentialDescriptor>,
@@ -25,7 +24,10 @@ impl PublicKeyCredentialCreationOptions {
         let rp = PublicKeyCredentialRpEntity {
             id: String::from("some_rp_entity"),
         };
-        let challenge = Challenge::generate().await;
+        let challenge = base64_encode_challenge(&generate_challenge().await)
+            .await
+            .as_bytes()
+            .to_vec();
         let public_key_credential_parameters = Vec::with_capacity(0);
         let timeout = 0;
         let exclude_credentials = Vec::with_capacity(0);
@@ -49,17 +51,6 @@ impl PublicKeyCredentialCreationOptions {
             attestation,
             extensions,
         }
-    }
-}
-
-#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
-pub struct Challenge(pub [u8; 16]);
-
-impl Challenge {
-    pub async fn generate() -> Challenge {
-        let mut rng = thread_rng();
-
-        Challenge(rng.gen())
     }
 }
 
@@ -118,15 +109,6 @@ pub enum AttestationConveyancePreference {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[tokio::test]
-    async fn challenge() -> Result<(), Box<dyn std::error::Error>> {
-        let test_challenge = Challenge::generate().await;
-
-        assert_eq!(test_challenge.0.len(), 16);
-
-        Ok(())
-    }
 
     #[tokio::test]
     async fn public_key_credential_user_entity() -> Result<(), Box<dyn std::error::Error>> {

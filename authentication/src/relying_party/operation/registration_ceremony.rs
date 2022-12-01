@@ -109,7 +109,7 @@ impl RegistrationCeremony {
         client_data: &CollectedClientData,
         options: &PublicKeyCredentialCreationOptions,
     ) -> Result<(), AuthenticationError> {
-        match client_data.challenge == options.challenge {
+        match client_data.challenge.as_bytes() == options.challenge {
             true => Ok(()),
             false => Err(AuthenticationError {
                 error: AuthenticationErrorType::OperationError,
@@ -369,7 +369,6 @@ impl RegistrationCeremony {
 mod tests {
     use super::*;
     use crate::api::authenticator_responses::AuthenticatorAssertionResponse;
-    use crate::api::credential_creation_options::Challenge;
     use crate::api::credential_generation_parameters::PublicKeyCredentialParameters;
     use crate::api::supporting_data_structures::{PublicKeyCredentialType, TokenBindingStatus};
     use crate::authenticator::attestation::{
@@ -497,7 +496,7 @@ mod tests {
             \"crossOrigin\": true,
             \"type\": \"webauthn.create\",
             \"origin\": \"some_test_origin\",
-            \"challenge\": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            \"challenge\": \"c29tZV90ZXN0X2NoYWxsZW5nZQ==\"
         }";
 
         assert!(test_registration_ceremony
@@ -513,7 +512,7 @@ mod tests {
         let test_registration_ceremony = RegistrationCeremony {};
         let mut test_client_data = CollectedClientData {
             r#type: String::from("webauthn.not_create"),
-            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            challenge: String::from("c29tZV90ZXN0X2NoYWxsZW5nZQ=="),
             origin: String::from("some_test_origin"),
             cross_origin: false,
             token_binding: None,
@@ -543,7 +542,7 @@ mod tests {
 
         let mut test_client_data = CollectedClientData {
             r#type: String::from("webauthn.create"),
-            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            challenge: String::from("c29tZV90ZXN0X2NoYWxsZW5nZQ=="),
             origin: String::from("some_test_origin"),
             cross_origin: false,
             token_binding: None,
@@ -557,9 +556,11 @@ mod tests {
             .await
             .is_err());
 
-        test_client_data.challenge = test_public_key_credential_creation_options
-            .challenge
-            .to_owned();
+        test_client_data.challenge = String::from_utf8(
+            test_public_key_credential_creation_options
+                .challenge
+                .to_owned(),
+        )?;
 
         assert!(test_registration_ceremony
             .verify_challenge(
@@ -577,7 +578,7 @@ mod tests {
         let test_registration_ceremony = RegistrationCeremony {};
         let mut test_client_data = CollectedClientData {
             r#type: String::from("webauthn.create"),
-            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            challenge: String::from("c29tZV90ZXN0X2NoYWxsZW5nZQ=="),
             origin: String::from("some_test_origin"),
             cross_origin: false,
             token_binding: None,
@@ -608,7 +609,7 @@ mod tests {
 
         let mut test_client_data = CollectedClientData {
             r#type: String::from("webauthn.create"),
-            challenge: Challenge([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            challenge: String::from("c29tZV90ZXN0X2NoYWxsZW5nZQ=="),
             origin: String::from("some_test_origin"),
             cross_origin: false,
             token_binding: None,
