@@ -12,7 +12,7 @@ use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::{
     AttestationObject, AttestationStatement, AttestationStatementFormat,
     AttestationStatementFormatIdentifier, AttestationType, AttestationVerificationProcedureOutput,
-    AttestedCredentialData, PackedAttestationStatementSyntax,
+    PackedAttestationStatementSyntax,
 };
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
@@ -240,23 +240,15 @@ impl RegistrationCeremony {
         authenticator_data: &[u8],
         options: &PublicKeyCredentialCreationOptions,
     ) -> Result<(), AuthenticationError> {
-        let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
-        let mut algorithm_match = Vec::with_capacity(1);
-        let public_key_alg = match &authenticator_data.attested_credential_data {
-            Some(data) => {
-                let attested_credential_data = AttestedCredentialData::from_byte_array(data).await;
+        let attested_credential_data =
+            AuthenticatorData::attested_credential_data(authenticator_data).await?;
 
-                attested_credential_data
-                    .credential_public_key
-                    .algorithm()
-                    .await
-            }
-            None => {
-                return Err(AuthenticationError {
-                    error: AuthenticationErrorType::OperationError,
-                })
-            }
-        };
+        let public_key_alg = attested_credential_data
+            .credential_public_key
+            .algorithm()
+            .await;
+
+        let mut algorithm_match = Vec::with_capacity(1);
 
         for public_key_credential_parameters in &options.public_key_credential_parameters {
             match public_key_alg == public_key_credential_parameters.alg {
@@ -339,21 +331,14 @@ impl RegistrationCeremony {
         store: &StoreChannel,
         authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
-        let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
+        let attested_credential_data =
+            AuthenticatorData::attested_credential_data(authenticator_data).await?;
 
-        if let Some(data) = &authenticator_data.attested_credential_data {
-            let attested_credential_data = AttestedCredentialData::from_byte_array(data).await;
+        store
+            .check(attested_credential_data.credential_id.to_vec())
+            .await?;
 
-            store
-                .check(attested_credential_data.credential_id.to_vec())
-                .await?;
-
-            Ok(())
-        } else {
-            Err(AuthenticationError {
-                error: AuthenticationErrorType::OperationError,
-            })
-        }
+        Ok(())
     }
 
     pub async fn register(
@@ -362,20 +347,13 @@ impl RegistrationCeremony {
         options: PublicKeyCredentialCreationOptions,
         authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
+        let attested_credential_data =
+            AuthenticatorData::attested_credential_data(authenticator_data).await?;
         let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
-        let public_key = if let Some(data) = authenticator_data.attested_credential_data {
-            let attested_credential_data = AttestedCredentialData::from_byte_array(&data).await;
 
-            attested_credential_data.credential_public_key
-        } else {
-            return Err(AuthenticationError {
-                error: AuthenticationErrorType::OperationError,
-            });
-        };
-        let signature_counter = authenticator_data.sign_count;
         let new_account = UserAccount {
-            public_key,
-            signature_counter: u32::from_be_bytes(signature_counter),
+            public_key: attested_credential_data.credential_public_key,
+            signature_counter: u32::from_be_bytes(authenticator_data.sign_count),
             transports: None,
         };
 

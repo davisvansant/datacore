@@ -173,12 +173,12 @@ impl AuthenticatorMakeCrendential {
         store: &CredentialsChannel,
     ) -> Result<([u8; 16], COSEKey), AuthenticationError> {
         let algorithm = COSEAlgorithm::from(self.cred_types_and_pub_key_apis[0].alg).await;
-        let new_credential = COSEKey::generate(algorithm).await;
+        let keypair = COSEKey::generate(algorithm).await;
         let credential_id = Uuid::new_v4().simple().into_uuid().into_bytes();
         let credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
             id: credential_id,
-            private_key: new_credential.1,
+            private_key: keypair.1,
             rpid: self.rp_entity.id.to_owned(),
             user_handle: self.user_entity.id,
             other_ui: String::from("some_other_ui"),
@@ -192,7 +192,7 @@ impl AuthenticatorMakeCrendential {
             )
             .await?;
 
-        Ok((credential_id, new_credential.0))
+        Ok((credential_id, keypair.0))
     }
 
     pub async fn process_extensions(&self) -> Result<(), AuthenticationError> {
@@ -202,9 +202,8 @@ impl AuthenticatorMakeCrendential {
     pub async fn signature_counter(
         &self,
         store: &CredentialsChannel,
+        credential_id: [u8; 16],
     ) -> Result<(), AuthenticationError> {
-        let credential_id = [0; 16];
-
         store.signature_counter(credential_id).await?;
 
         Ok(())
@@ -581,8 +580,10 @@ mod tests {
             test_credentials_store.1.run().await.unwrap();
         });
 
+        let test_credential_id: [u8; 16] = [0; 16];
+
         assert!(test_ok
-            .signature_counter(&test_credentials_store.0)
+            .signature_counter(&test_credentials_store.0, test_credential_id)
             .await
             .is_ok());
 

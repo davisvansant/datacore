@@ -32,7 +32,9 @@ impl Session {
 
         // let _processed_extensions = operation.process_extensions().await?;
 
-        operation.signature_counter(&self.store).await?;
+        operation
+            .signature_counter(&self.store, credential_id)
+            .await?;
 
         let attested_credential_data = operation
             .attested_credential_data(credential_id, public_key)
