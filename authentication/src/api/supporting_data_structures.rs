@@ -52,11 +52,13 @@ pub enum TokenBindingStatus {
     Supported,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum PublicKeyCredentialType {
+    #[serde(rename = "public-key")]
     PublicKey,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PublicKeyCredentialDescriptor {
     pub r#type: PublicKeyCredentialType,
     pub id: [u8; 16],

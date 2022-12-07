@@ -1,9 +1,11 @@
+use serde::{Deserialize, Serialize};
+
 use crate::api::assertion_generation_options::PublicKeyCredentialRequestOptions;
 use crate::api::authenticator_responses::AuthenticatorResponse;
 use crate::api::credential_creation_options::PublicKeyCredentialCreationOptions;
 use crate::api::supporting_data_structures::PublicKeyCredentialType;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PublicKeyCredential {
     pub id: String,
     pub raw_id: Vec<u8>,

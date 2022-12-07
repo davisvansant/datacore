@@ -1,10 +1,13 @@
+use serde::{Deserialize, Serialize};
+
 use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientInputs;
 use crate::api::supporting_data_structures::PublicKeyCredentialDescriptor;
 use crate::security::challenge::{base64_encode_challenge, generate_challenge};
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PublicKeyCredentialRequestOptions {
     pub challenge: Vec<u8>,
-    pub timeout: u32,
+    pub timeout: u64,
     pub rp_id: String,
     pub allow_credentials: Vec<PublicKeyCredentialDescriptor>,
     pub user_verification: String,

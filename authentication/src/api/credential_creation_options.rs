@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use uuid::{Bytes, Uuid};
 
 use crate::api::credential_generation_parameters::PublicKeyCredentialParameters;
@@ -5,12 +6,13 @@ use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientInp
 use crate::api::supporting_data_structures::PublicKeyCredentialDescriptor;
 use crate::security::challenge::{base64_encode_challenge, generate_challenge};
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PublicKeyCredentialCreationOptions {
     pub rp: PublicKeyCredentialRpEntity,
     pub user: PublicKeyCredentialUserEntity,
     pub challenge: Vec<u8>,
     pub public_key_credential_parameters: Vec<PublicKeyCredentialParameters>,
-    pub timeout: u32,
+    pub timeout: u64,
     pub exclude_credentials: Vec<PublicKeyCredentialDescriptor>,
     pub authenticator_selection: AuthenticatorSelectionCriteria,
     pub attestation: Option<String>,
@@ -54,15 +56,17 @@ impl PublicKeyCredentialCreationOptions {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PublicKeyCredentialEntity {
     pub name: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PublicKeyCredentialRpEntity {
     pub id: String,
 }
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PublicKeyCredentialUserEntity {
     pub name: String,
     pub id: Bytes,
@@ -81,6 +85,7 @@ impl PublicKeyCredentialUserEntity {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AuthenticatorSelectionCriteria {
     pub authenticator_attachment: String,
     pub resident_key: String,
