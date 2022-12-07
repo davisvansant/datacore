@@ -10,6 +10,7 @@ use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::COSEKey;
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
+use crate::relying_party::ClientChannel;
 use crate::relying_party::StoreChannel;
 use crate::security::sha2::{generate_hash, Hash};
 
@@ -27,21 +28,10 @@ impl AuthenticationCeremony {
 
     pub async fn call_credentials_get(
         &self,
-        _options: &PublicKeyCredentialRequestOptions,
+        options: &PublicKeyCredentialRequestOptions,
+        client: &ClientChannel,
     ) -> Result<PublicKeyCredential, AuthenticationError> {
-        let id = String::from("some_key_id");
-        let client_data_json = Vec::with_capacity(0);
-        let authenticator_data = Vec::with_capacity(0);
-        let signature = Vec::with_capacity(0);
-        let user_handle = Vec::with_capacity(0);
-        let response =
-            AuthenticatorResponse::AuthenticatorAssertionResponse(AuthenticatorAssertionResponse {
-                client_data_json,
-                authenticator_data,
-                signature,
-                user_handle,
-            });
-        let credential = PublicKeyCredential::generate(id, response).await;
+        let credential = client.credentials_get(options.to_owned()).await?;
 
         Ok(credential)
     }
@@ -329,8 +319,21 @@ mod tests {
             .public_key_credential_request_options()
             .await?;
 
+        let mut test_client_channel = ClientChannel::init().await;
+
+        tokio::spawn(async move {
+            test_client_channel.0.run().await.expect("good things");
+        });
+
+        tokio::spawn(async move {
+            test_client_channel.1.run().await.expect("good things");
+        });
+
         assert!(test_authentication_ceremony
-            .call_credentials_get(&test_public_key_credential_request_options)
+            .call_credentials_get(
+                &test_public_key_credential_request_options,
+                &test_client_channel.2,
+            )
             .await
             .is_ok());
 
@@ -508,8 +511,22 @@ mod tests {
         let test_public_key_credential_request_options = test_authentication_ceremony
             .public_key_credential_request_options()
             .await?;
+
+        let mut test_client_channel = ClientChannel::init().await;
+
+        tokio::spawn(async move {
+            test_client_channel.0.run().await.expect("good things");
+        });
+
+        tokio::spawn(async move {
+            test_client_channel.1.run().await.expect("good things");
+        });
+
         let mut test_public_key_credential = test_authentication_ceremony
-            .call_credentials_get(&test_public_key_credential_request_options)
+            .call_credentials_get(
+                &test_public_key_credential_request_options,
+                &test_client_channel.2,
+            )
             .await?;
 
         let mut test_store = Store::init().await;
@@ -553,8 +570,21 @@ mod tests {
         let test_public_key_credential_request_options = test_authentication_ceremony
             .public_key_credential_request_options()
             .await?;
+        let mut test_client_channel = ClientChannel::init().await;
+
+        tokio::spawn(async move {
+            test_client_channel.0.run().await.expect("good things");
+        });
+
+        tokio::spawn(async move {
+            test_client_channel.1.run().await.expect("good things");
+        });
+
         let test_public_key_credential = test_authentication_ceremony
-            .call_credentials_get(&test_public_key_credential_request_options)
+            .call_credentials_get(
+                &test_public_key_credential_request_options,
+                &test_client_channel.2,
+            )
             .await?;
         let test_authenticator_assertion_response = test_authentication_ceremony
             .authenticator_assertion_response(&test_public_key_credential)
@@ -911,8 +941,21 @@ mod tests {
         let test_public_key_credential_request_options = test_authentication_ceremony
             .public_key_credential_request_options()
             .await?;
+        let mut test_client_channel = ClientChannel::init().await;
+
+        tokio::spawn(async move {
+            test_client_channel.0.run().await.expect("good things");
+        });
+
+        tokio::spawn(async move {
+            test_client_channel.1.run().await.expect("good things");
+        });
+
         let test_public_key_credential = test_authentication_ceremony
-            .call_credentials_get(&test_public_key_credential_request_options)
+            .call_credentials_get(
+                &test_public_key_credential_request_options,
+                &test_client_channel.2,
+            )
             .await?;
         let test_rp_id = "test_rp_id";
         let test_user_present = true;

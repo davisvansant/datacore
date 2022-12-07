@@ -17,6 +17,7 @@ use crate::authenticator::attestation::{
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::relying_party::store::{StoreChannel, UserAccount};
+use crate::relying_party::ClientChannel;
 use crate::security::sha2::{generate_hash, Hash};
 
 pub struct RegistrationCeremony {}
@@ -36,18 +37,10 @@ impl RegistrationCeremony {
 
     pub async fn call_credentials_create(
         &self,
-        _options: &PublicKeyCredentialCreationOptions,
+        options: &PublicKeyCredentialCreationOptions,
+        client: &ClientChannel,
     ) -> Result<PublicKeyCredential, AuthenticationError> {
-        let id = String::from("some_credential_id");
-        let client_data_json = Vec::with_capacity(0);
-        let attestation_object = Vec::with_capacity(0);
-        let response = AuthenticatorResponse::AuthenticatorAttestationResponse(
-            AuthenticatorAttestationResponse {
-                client_data_json,
-                attestation_object,
-            },
-        );
-        let credential = PublicKeyCredential::generate(id, response).await;
+        let credential = client.credentials_create(options.to_owned()).await?;
 
         Ok(credential)
     }
@@ -392,12 +385,25 @@ mod tests {
     #[tokio::test]
     async fn call_credentials_create() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration_ceremony = RegistrationCeremony {};
+        let mut test_client_channel = ClientChannel::init().await;
+
+        tokio::spawn(async move {
+            test_client_channel.0.run().await.expect("good things");
+        });
+
+        tokio::spawn(async move {
+            test_client_channel.1.run().await.expect("good things");
+        });
+
         let test_public_key_credential_creation_options = test_registration_ceremony
             .public_key_credential_creation_options()
             .await?;
 
         assert!(test_registration_ceremony
-            .call_credentials_create(&test_public_key_credential_creation_options)
+            .call_credentials_create(
+                &test_public_key_credential_creation_options,
+                &test_client_channel.2,
+            )
             .await
             .is_ok());
 
@@ -445,11 +451,24 @@ mod tests {
     #[tokio::test]
     async fn client_extension_results() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration_ceremony = RegistrationCeremony {};
+        let mut test_client_channel = ClientChannel::init().await;
+
+        tokio::spawn(async move {
+            test_client_channel.0.run().await.expect("good things");
+        });
+
+        tokio::spawn(async move {
+            test_client_channel.1.run().await.expect("good things");
+        });
+
         let test_public_key_credential_creation_options = test_registration_ceremony
             .public_key_credential_creation_options()
             .await?;
         let test_public_key_credential = test_registration_ceremony
-            .call_credentials_create(&test_public_key_credential_creation_options)
+            .call_credentials_create(
+                &test_public_key_credential_creation_options,
+                &test_client_channel.2,
+            )
             .await?;
 
         assert!(test_registration_ceremony

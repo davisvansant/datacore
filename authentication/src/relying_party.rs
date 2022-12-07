@@ -1,20 +1,24 @@
 use crate::api::supporting_data_structures::TokenBinding;
 use crate::error::AuthenticationError;
+use crate::relying_party::client::ClientChannel;
 use crate::relying_party::operation::{AuthenticationCeremony, RegistrationCeremony};
 use crate::relying_party::store::{Store, StoreChannel};
 
+pub mod client;
 pub mod operation;
 pub mod store;
 
 pub struct RelyingParty {
     identifier: String,
     store: StoreChannel,
+    client: ClientChannel,
 }
 
 impl RelyingParty {
     pub async fn init() -> RelyingParty {
         let identifier = String::from("some_identifier");
         let (channel, mut store) = Store::init().await;
+        let (mut incoming_data, mut outgoing_data, client) = ClientChannel::init().await;
 
         tokio::spawn(async move {
             if let Err(error) = store.run().await {
@@ -22,9 +26,22 @@ impl RelyingParty {
             }
         });
 
+        tokio::spawn(async move {
+            if let Err(error) = incoming_data.run().await {
+                println!("client incoming data -> {:?}", error);
+            }
+        });
+
+        tokio::spawn(async move {
+            if let Err(error) = outgoing_data.run().await {
+                println!("client outgoing data -> {:?}", error);
+            }
+        });
+
         RelyingParty {
             identifier,
             store: channel,
+            client,
         }
     }
 
@@ -33,7 +50,9 @@ impl RelyingParty {
         operation: RegistrationCeremony,
     ) -> Result<(), AuthenticationError> {
         let options = operation.public_key_credential_creation_options().await?;
-        let credential = operation.call_credentials_create(&options).await?;
+        let credential = operation
+            .call_credentials_create(&options, &self.client)
+            .await?;
         let response = operation
             .authenticator_attestation_response(&credential)
             .await?;
@@ -103,7 +122,9 @@ impl RelyingParty {
         operation: AuthenticationCeremony,
     ) -> Result<(), AuthenticationError> {
         let options = operation.public_key_credential_request_options().await?;
-        let credential = operation.call_credentials_get(&options).await?;
+        let credential = operation
+            .call_credentials_get(&options, &self.client)
+            .await?;
         let response = operation
             .authenticator_assertion_response(&credential)
             .await?;
