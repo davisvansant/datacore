@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
-use uuid::{Bytes, Uuid};
+use uuid::Uuid;
 
 use crate::api::credential_generation_parameters::PublicKeyCredentialParameters;
 use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientInputs;
-use crate::api::supporting_data_structures::PublicKeyCredentialDescriptor;
+use crate::api::supporting_data_structures::{
+    PublicKeyCredentialDescriptor, PublicKeyCredentialType, UserVerificationRequirement,
+};
 use crate::security::challenge::{base64_encode_challenge, generate_challenge};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -12,46 +14,58 @@ pub struct PublicKeyCredentialCreationOptions {
     pub user: PublicKeyCredentialUserEntity,
     pub challenge: Vec<u8>,
     pub public_key_credential_parameters: Vec<PublicKeyCredentialParameters>,
-    pub timeout: u64,
-    pub exclude_credentials: Vec<PublicKeyCredentialDescriptor>,
-    pub authenticator_selection: AuthenticatorSelectionCriteria,
-    pub attestation: Option<String>,
-    pub extensions: AuthenticationExtensionsClientInputs,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exclude_credentials: Option<Vec<PublicKeyCredentialDescriptor>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authenticator_selection: Option<AuthenticatorSelectionCriteria>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attestation: Option<AttestationConveyancePreference>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extensions: Option<AuthenticationExtensionsClientInputs>,
 }
 
 impl PublicKeyCredentialCreationOptions {
     pub async fn generate(
+        rp: PublicKeyCredentialRpEntity,
         user: PublicKeyCredentialUserEntity,
     ) -> PublicKeyCredentialCreationOptions {
-        let rp = PublicKeyCredentialRpEntity {
-            id: String::from("some_rp_entity"),
-        };
         let challenge = base64_encode_challenge(&generate_challenge().await)
             .await
             .as_bytes()
             .to_vec();
-        let public_key_credential_parameters = Vec::with_capacity(0);
-        let timeout = 0;
-        let exclude_credentials = Vec::with_capacity(0);
-        let authenticator_selection = AuthenticatorSelectionCriteria {
-            authenticator_attachment: String::from("some_attachment"),
-            resident_key: String::from("some_resident_key"),
-            require_resident_key: false,
-            user_verification: String::from("some_user_verification"),
+
+        let mut public_key_credential_parameters = Vec::with_capacity(3);
+        let eddsa = PublicKeyCredentialParameters {
+            r#type: PublicKeyCredentialType::PublicKey,
+            alg: -8,
         };
-        let attestation = None;
-        let extensions = AuthenticationExtensionsClientInputs {};
+        let es256 = PublicKeyCredentialParameters {
+            r#type: PublicKeyCredentialType::PublicKey,
+            alg: -7,
+        };
+
+        public_key_credential_parameters.push(eddsa);
+        public_key_credential_parameters.push(es256);
+
+        let authenticator_selection = AuthenticatorSelectionCriteria {
+            authenticator_attachment: AuthenticatorAttachment::CrossPlatform,
+            resident_key: ResidentKeyRequirement::Preferred,
+            require_resident_key: false,
+            user_verification: UserVerificationRequirement::Preferred,
+        };
 
         PublicKeyCredentialCreationOptions {
             rp,
             user,
             challenge,
             public_key_credential_parameters,
-            timeout,
-            exclude_credentials,
-            authenticator_selection,
-            attestation,
-            extensions,
+            timeout: Some(300000),
+            exclude_credentials: None,
+            authenticator_selection: Some(authenticator_selection),
+            attestation: Some(AttestationConveyancePreference::Indirect),
+            extensions: None,
         }
     }
 }
@@ -66,10 +80,10 @@ pub struct PublicKeyCredentialRpEntity {
     pub id: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct PublicKeyCredentialUserEntity {
     pub name: String,
-    pub id: Bytes,
+    pub id: [u8; 16],
     pub display_name: String,
 }
 
@@ -87,27 +101,39 @@ impl PublicKeyCredentialUserEntity {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AuthenticatorSelectionCriteria {
-    pub authenticator_attachment: String,
-    pub resident_key: String,
+    pub authenticator_attachment: AuthenticatorAttachment,
+    pub resident_key: ResidentKeyRequirement,
     pub require_resident_key: bool,
-    pub user_verification: String,
+    pub user_verification: UserVerificationRequirement,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum AuthenticatorAttachment {
+    #[serde(rename = "platform")]
     Platform,
+    #[serde(rename = "cross-platform")]
     CrossPlatform,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum ResidentKeyRequirement {
+    #[serde(rename = "discouraged")]
     Discouraged,
+    #[serde(rename = "preferred")]
     Preferred,
+    #[serde(rename = "required")]
     Required,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum AttestationConveyancePreference {
+    #[serde(rename = "none")]
     None,
+    #[serde(rename = "indirect")]
     Indirect,
+    #[serde(rename = "direct")]
     Direct,
+    #[serde(rename = "enterprise")]
     Enterprise,
 }
 
@@ -116,10 +142,101 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    async fn public_key_credential_creation_options() -> Result<(), Box<dyn std::error::Error>> {
+        let test_rp_entity = PublicKeyCredentialRpEntity {
+            id: String::from("some_rp_entity_id"),
+        };
+        let test_user_entity = PublicKeyCredentialUserEntity::generate(
+            String::from("some_user_name"),
+            String::from("some_display_name"),
+        )
+        .await;
+        let mut test_creation_options =
+            PublicKeyCredentialCreationOptions::generate(test_rp_entity, test_user_entity).await;
+
+        assert_eq!(test_creation_options.rp.id, "some_rp_entity_id");
+        assert_eq!(test_creation_options.user.name, "some_user_name");
+        assert_eq!(test_creation_options.user.display_name, "some_display_name");
+        assert!(test_creation_options.challenge.len() >= 16);
+        assert_eq!(
+            test_creation_options.public_key_credential_parameters.len(),
+            2,
+        );
+        assert_eq!(
+            test_creation_options.public_key_credential_parameters[0].r#type,
+            PublicKeyCredentialType::PublicKey,
+        );
+        assert_eq!(
+            test_creation_options.public_key_credential_parameters[0].alg,
+            -8,
+        );
+        assert_eq!(
+            test_creation_options.public_key_credential_parameters[1].r#type,
+            PublicKeyCredentialType::PublicKey,
+        );
+        assert_eq!(
+            test_creation_options.public_key_credential_parameters[1].alg,
+            -7,
+        );
+
+        assert!(test_creation_options.timeout.is_some());
+        assert_eq!(test_creation_options.timeout.unwrap(), 300000);
+        assert!(test_creation_options.exclude_credentials.is_none());
+        assert!(test_creation_options.authenticator_selection.is_some());
+        assert_eq!(
+            test_creation_options
+                .authenticator_selection
+                .as_ref()
+                .unwrap()
+                .authenticator_attachment,
+            AuthenticatorAttachment::CrossPlatform,
+        );
+        assert_eq!(
+            test_creation_options
+                .authenticator_selection
+                .as_ref()
+                .unwrap()
+                .resident_key,
+            ResidentKeyRequirement::Preferred,
+        );
+        assert!(
+            !test_creation_options
+                .authenticator_selection
+                .as_ref()
+                .unwrap()
+                .require_resident_key,
+        );
+        assert_eq!(
+            test_creation_options
+                .authenticator_selection
+                .as_ref()
+                .unwrap()
+                .user_verification,
+            UserVerificationRequirement::Preferred,
+        );
+        assert!(test_creation_options.attestation.is_some());
+        assert_eq!(
+            test_creation_options.attestation.as_ref().unwrap(),
+            &AttestationConveyancePreference::Indirect,
+        );
+        assert!(test_creation_options.extensions.is_none());
+
+        test_creation_options.user.id = [0; 16];
+        test_creation_options.challenge = [0; 16].to_vec();
+
+        let test_options_json = r#"{"rp":{"id":"some_rp_entity_id"},"user":{"name":"some_user_name","id":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"display_name":"some_display_name"},"challenge":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"public_key_credential_parameters":[{"type":"public-key","alg":-8},{"type":"public-key","alg":-7}],"timeout":300000,"authenticator_selection":{"authenticator_attachment":"cross-platform","resident_key":"preferred","require_resident_key":false,"user_verification":"preferred"},"attestation":"indirect"}"#;
+        let test_assertion_json = serde_json::to_string(&test_creation_options)?;
+
+        assert_eq!(test_options_json, test_assertion_json);
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn public_key_credential_user_entity() -> Result<(), Box<dyn std::error::Error>> {
         let test_name = String::from("some_name");
         let test_display_name = String::from("some_display_name");
-        let test_public_key_credential_user_entity =
+        let mut test_public_key_credential_user_entity =
             PublicKeyCredentialUserEntity::generate(test_name, test_display_name).await;
 
         assert_eq!(test_public_key_credential_user_entity.name, "some_name");
@@ -127,6 +244,19 @@ mod tests {
         assert_eq!(
             test_public_key_credential_user_entity.display_name,
             "some_display_name",
+        );
+
+        test_public_key_credential_user_entity.id = Uuid::nil().into_bytes();
+
+        let test_user_entity_json = b"{\"name\":\"some_name\",\"id\":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\"display_name\":\"some_display_name\"}".to_vec();
+        let test_assertion_json = serde_json::to_vec(&test_public_key_credential_user_entity)?;
+        let test_assertion_user_entity: PublicKeyCredentialUserEntity =
+            serde_json::from_slice(&test_user_entity_json)?;
+
+        assert_eq!(test_user_entity_json, test_assertion_json);
+        assert_eq!(
+            test_assertion_user_entity,
+            test_public_key_credential_user_entity,
         );
 
         Ok(())

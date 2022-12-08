@@ -75,9 +75,13 @@ pub enum AuthenticatorTransport {
 
 pub type COSEAlgorithmIdentifier = i32;
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum UserVerificationRequirement {
+    #[serde(rename = "required")]
     Required,
+    #[serde(rename = "preferred")]
     Preferred,
+    #[serde(rename = "discouraged")]
     Discouraged,
 }
 
