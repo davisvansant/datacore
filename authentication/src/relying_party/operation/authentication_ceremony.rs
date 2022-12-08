@@ -19,9 +19,10 @@ pub struct AuthenticationCeremony {}
 impl AuthenticationCeremony {
     pub async fn public_key_credential_request_options(
         &self,
+        rp_id: &str,
     ) -> Result<PublicKeyCredentialRequestOptions, AuthenticationError> {
         let public_key_credential_request_options =
-            PublicKeyCredentialRequestOptions::generate().await;
+            PublicKeyCredentialRequestOptions::generate(Some(rp_id)).await;
 
         Ok(public_key_credential_request_options)
     }
@@ -64,28 +65,33 @@ impl AuthenticationCeremony {
         options: &PublicKeyCredentialRequestOptions,
         credential: &PublicKeyCredential,
     ) -> Result<(), AuthenticationError> {
-        if !options.allow_credentials.is_empty() {
-            let mut identified_credential = Vec::with_capacity(1);
+        match &options.allow_credentials {
+            Some(allow_credentials) => {
+                if !allow_credentials.is_empty() {
+                    let mut identified_credential = Vec::with_capacity(1);
 
-            for acceptable_credential in &options.allow_credentials {
-                match acceptable_credential.id == credential.id.as_bytes() {
-                    true => {
-                        identified_credential.push(1);
+                    for acceptable_credential in allow_credentials {
+                        match acceptable_credential.id == credential.id.as_bytes() {
+                            true => {
+                                identified_credential.push(1);
 
-                        break;
+                                break;
+                            }
+                            false => continue,
+                        }
                     }
-                    false => continue,
+
+                    match !identified_credential.is_empty() {
+                        true => Ok(()),
+                        false => Err(AuthenticationError {
+                            error: AuthenticationErrorType::OperationError,
+                        }),
+                    }
+                } else {
+                    Ok(())
                 }
             }
-
-            match !identified_credential.is_empty() {
-                true => Ok(()),
-                false => Err(AuthenticationError {
-                    error: AuthenticationErrorType::OperationError,
-                }),
-            }
-        } else {
-            Ok(())
+            None => Ok(()),
         }
     }
 
@@ -305,7 +311,7 @@ mod tests {
         let test_authentication_ceremony = AuthenticationCeremony {};
 
         assert!(test_authentication_ceremony
-            .public_key_credential_request_options()
+            .public_key_credential_request_options("test_rp_id")
             .await
             .is_ok());
 
@@ -316,7 +322,7 @@ mod tests {
     async fn call_credentials_get() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
         let test_public_key_credential_request_options = test_authentication_ceremony
-            .public_key_credential_request_options()
+            .public_key_credential_request_options("test_rp_id")
             .await?;
 
         let mut test_client_channel = ClientChannel::init().await;
@@ -404,7 +410,7 @@ mod tests {
     async fn verify_credential_id() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
         let mut test_public_key_credential_request_options = test_authentication_ceremony
-            .public_key_credential_request_options()
+            .public_key_credential_request_options("test_rp_id")
             .await?;
         let mut test_public_key_credential = PublicKeyCredential::generate(
             String::from("test_id"),
@@ -427,11 +433,17 @@ mod tests {
 
         test_public_key_credential_request_options
             .allow_credentials
-            .push(PublicKeyCredentialDescriptor {
-                r#type: PublicKeyCredentialType::PublicKey,
-                id: [1; 16],
-                transports: Some(vec![String::from("internal")]),
-            });
+            .as_mut()
+            .map_or_else(
+                || {},
+                |credentials| {
+                    credentials.push(PublicKeyCredentialDescriptor {
+                        r#type: PublicKeyCredentialType::PublicKey,
+                        id: [1; 16],
+                        transports: Some(vec![String::from("internal")]),
+                    })
+                },
+            );
 
         assert!(test_authentication_ceremony
             .verify_credential_id(
@@ -445,11 +457,17 @@ mod tests {
 
         test_public_key_credential_request_options
             .allow_credentials
-            .push(PublicKeyCredentialDescriptor {
-                r#type: PublicKeyCredentialType::PublicKey,
-                id: [2; 16],
-                transports: Some(vec![String::from("internal")]),
-            });
+            .as_mut()
+            .map_or_else(
+                || {},
+                |credentials| {
+                    credentials.push(PublicKeyCredentialDescriptor {
+                        r#type: PublicKeyCredentialType::PublicKey,
+                        id: [2; 16],
+                        transports: Some(vec![String::from("internal")]),
+                    })
+                },
+            );
 
         assert!(test_authentication_ceremony
             .verify_credential_id(
@@ -509,7 +527,7 @@ mod tests {
     async fn credential_public_key() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
         let test_public_key_credential_request_options = test_authentication_ceremony
-            .public_key_credential_request_options()
+            .public_key_credential_request_options("test_rp_id")
             .await?;
 
         let mut test_client_channel = ClientChannel::init().await;
@@ -568,7 +586,7 @@ mod tests {
     async fn response_values() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
         let test_public_key_credential_request_options = test_authentication_ceremony
-            .public_key_credential_request_options()
+            .public_key_credential_request_options("test_rp_id")
             .await?;
         let mut test_client_channel = ClientChannel::init().await;
 
@@ -661,7 +679,7 @@ mod tests {
     async fn verify_client_data_challenge() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
         let test_public_key_credential_request_options = test_authentication_ceremony
-            .public_key_credential_request_options()
+            .public_key_credential_request_options("test_rp_id")
             .await?;
         let mut test_client_data = CollectedClientData {
             r#type: String::from("webauthn.get"),
@@ -939,7 +957,7 @@ mod tests {
     async fn stored_sign_count() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
         let test_public_key_credential_request_options = test_authentication_ceremony
-            .public_key_credential_request_options()
+            .public_key_credential_request_options("test_rp_id")
             .await?;
         let mut test_client_channel = ClientChannel::init().await;
 

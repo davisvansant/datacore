@@ -160,7 +160,10 @@ impl ClientChannel {
             error: AuthenticationErrorType::OperationError,
         };
 
-        let call_timeout = Duration::from_millis(options.timeout);
+        let call_timeout = match options.timeout {
+            Some(timeout) => Duration::from_millis(timeout),
+            None => return Err(error),
+        };
 
         match self
             .outgoing_data
