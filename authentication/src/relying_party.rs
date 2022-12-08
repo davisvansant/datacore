@@ -49,7 +49,9 @@ impl RelyingParty {
         &self,
         operation: RegistrationCeremony,
     ) -> Result<(), AuthenticationError> {
-        let options = operation.public_key_credential_creation_options().await?;
+        let options = operation
+            .public_key_credential_creation_options(&self.identifier)
+            .await?;
         let credential = operation
             .call_credentials_create(&options, &self.client)
             .await?;

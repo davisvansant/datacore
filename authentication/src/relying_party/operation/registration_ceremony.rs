@@ -4,7 +4,7 @@ use crate::api::authenticator_responses::{
     AuthenticatorAttestationResponse, AuthenticatorResponse,
 };
 use crate::api::credential_creation_options::{
-    PublicKeyCredentialCreationOptions, PublicKeyCredentialUserEntity,
+    PublicKeyCredentialCreationOptions, PublicKeyCredentialRpEntity, PublicKeyCredentialUserEntity,
 };
 use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientOutputs;
 use crate::api::public_key_credential::PublicKeyCredential;
@@ -25,12 +25,16 @@ pub struct RegistrationCeremony {}
 impl RegistrationCeremony {
     pub async fn public_key_credential_creation_options(
         &self,
+        rp_id: &str,
     ) -> Result<PublicKeyCredentialCreationOptions, AuthenticationError> {
+        let rp_entity = PublicKeyCredentialRpEntity {
+            id: rp_id.to_owned(),
+        };
         let user = String::from("some_user");
         let display_name = String::from("some_display_name");
         let user_entity = PublicKeyCredentialUserEntity::generate(user, display_name).await;
         let public_key_credential_creation_options =
-            PublicKeyCredentialCreationOptions::generate(user_entity).await;
+            PublicKeyCredentialCreationOptions::generate(rp_entity, user_entity).await;
 
         Ok(public_key_credential_creation_options)
     }
@@ -375,7 +379,7 @@ mod tests {
         let test_registration_ceremony = RegistrationCeremony {};
 
         assert!(test_registration_ceremony
-            .public_key_credential_creation_options()
+            .public_key_credential_creation_options("test_rp_id")
             .await
             .is_ok());
 
@@ -396,7 +400,7 @@ mod tests {
         });
 
         let test_public_key_credential_creation_options = test_registration_ceremony
-            .public_key_credential_creation_options()
+            .public_key_credential_creation_options("test_rp_id")
             .await?;
 
         assert!(test_registration_ceremony
@@ -462,7 +466,7 @@ mod tests {
         });
 
         let test_public_key_credential_creation_options = test_registration_ceremony
-            .public_key_credential_creation_options()
+            .public_key_credential_creation_options("test_rp_id")
             .await?;
         let test_public_key_credential = test_registration_ceremony
             .call_credentials_create(
@@ -556,7 +560,7 @@ mod tests {
     async fn verify_challenge() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration_ceremony = RegistrationCeremony {};
         let test_public_key_credential_creation_options = test_registration_ceremony
-            .public_key_credential_creation_options()
+            .public_key_credential_creation_options("test_rp_id")
             .await?;
 
         let mut test_client_data = CollectedClientData {
@@ -882,7 +886,7 @@ mod tests {
         .await;
         let test_registration_ceremony = RegistrationCeremony {};
         let mut test_public_key_credential_creation_options = test_registration_ceremony
-            .public_key_credential_creation_options()
+            .public_key_credential_creation_options("test_rp_id")
             .await?;
 
         assert!(test_registration_ceremony
@@ -891,13 +895,16 @@ mod tests {
                 &test_public_key_credential_creation_options
             )
             .await
-            .is_err());
+            .is_ok());
 
+        test_public_key_credential_creation_options
+            .public_key_credential_parameters
+            .clear();
         test_public_key_credential_creation_options
             .public_key_credential_parameters
             .push(PublicKeyCredentialParameters {
                 r#type: PublicKeyCredentialType::PublicKey,
-                alg: -8,
+                alg: -6,
             });
 
         assert!(test_registration_ceremony
@@ -906,7 +913,7 @@ mod tests {
                 &test_public_key_credential_creation_options
             )
             .await
-            .is_ok());
+            .is_err());
 
         Ok(())
     }
@@ -1129,7 +1136,7 @@ mod tests {
         .await;
         let test_registration_ceremony = RegistrationCeremony {};
         let test_options = test_registration_ceremony
-            .public_key_credential_creation_options()
+            .public_key_credential_creation_options("test_rp_id")
             .await?;
         let mut test_store = Store::init().await;
 
