@@ -6,6 +6,7 @@ use crate::relying_party::store::{Store, StoreChannel};
 
 pub mod client;
 pub mod operation;
+pub mod protocol;
 pub mod store;
 
 pub struct RelyingParty {
