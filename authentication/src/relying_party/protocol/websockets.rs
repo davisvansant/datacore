@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
-    Error, Router,
+    Error, Router, Server,
 };
 use futures::{
     sink::SinkExt,
@@ -13,6 +13,7 @@ use futures::{
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::time::timeout;
 
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
 use crate::relying_party::protocol::websockets::session::{Session, SessionChannel, SessionInfo};
@@ -20,14 +21,34 @@ use crate::relying_party::protocol::websockets::session::{Session, SessionChanne
 mod session;
 
 pub struct Websockets {
-    router: Router,
+    socket_address: SocketAddr,
 }
 
 impl Websockets {
     pub async fn init() -> Websockets {
-        let session = Session::init().await;
+        let socket_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
 
-        let router = Router::new()
+        Websockets { socket_address }
+    }
+
+    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let mut session = Session::init().await;
+
+        tokio::spawn(async move {
+            if let Err(error) = session.1.run().await {
+                println!("session -> {:?}", error);
+            }
+        });
+
+        Server::bind(&self.socket_address)
+            .serve(self.router(session.0).await.into_make_service())
+            .await?;
+
+        Ok(())
+    }
+
+    async fn router(&self, session: SessionChannel) -> Router {
+        Router::new()
             .route("/register", get(establish))
             .route("/authenticate", get(establish))
             .route(
@@ -38,9 +59,7 @@ impl Websockets {
                 "/authentication_ceremony/:session",
                 get(authentication_ceremony_session),
             )
-            .with_state(session.0);
-
-        Websockets { router }
+            .with_state(session)
     }
 }
 
