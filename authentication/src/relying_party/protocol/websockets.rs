@@ -11,6 +11,9 @@ use futures::{
     stream::{SplitSink, SplitStream, StreamExt},
 };
 use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::time::timeout;
+
+use std::time::Duration;
 
 use crate::relying_party::protocol::websockets::session::{Session, SessionChannel, SessionInfo};
 
@@ -25,8 +28,8 @@ impl Websockets {
         let session = Session::init().await;
 
         let router = Router::new()
-            .route("/register", get(register))
-            .route("/authenticate", get(authenticate))
+            .route("/register", get(establish))
+            .route("/authenticate", get(establish))
             .route(
                 "/registration_ceremony/:session",
                 get(registration_ceremony_session),
@@ -41,15 +44,13 @@ impl Websockets {
     }
 }
 
-async fn register(connection: WebSocketUpgrade, State(session): State<SessionChannel>) -> Response {
-    connection.on_upgrade(|socket| initialize(socket, session))
-}
-async fn authenticate(
+async fn establish(
     connection: WebSocketUpgrade,
     State(session): State<SessionChannel>,
 ) -> Response {
     connection.on_upgrade(|socket| initialize(socket, session))
 }
+
 async fn registration_ceremony_session(
     Path(session): Path<[u8; 16]>,
     State(available_session): State<SessionChannel>,
@@ -128,28 +129,108 @@ async fn initialize(socket: WebSocket, session: SessionChannel) {
     }
 }
 
-async fn handle_registration_ceremony_session(mut socket: WebSocket, token: [u8; 16]) {
-    while let Some(message) = socket.recv().await {
-        match message {
-            Ok(Message::Text(data)) => {}
-            Ok(Message::Binary(data)) => {}
-            Ok(Message::Ping(data)) => {}
-            Ok(Message::Pong(data)) => {}
-            Ok(Message::Close(close_frame)) => {}
-            Err(error) => {}
+async fn handle_registration_ceremony_session(socket: WebSocket, token: [u8; 16]) {
+    let (mut socket_outgoing, mut socket_incoming) = socket.split();
+
+    run_token_verification(&mut socket_outgoing, &mut socket_incoming, token).await;
+
+    let (outgoing_message, mut outgoing_messages) = channel::<Message>(1);
+
+    tokio::spawn(async move {
+        handle_socket_incoming(&mut socket_incoming, outgoing_message).await;
+    });
+
+    tokio::spawn(async move {
+        handle_socket_outgoing(&mut outgoing_messages, &mut socket_outgoing).await;
+    });
+}
+
+async fn handle_authentication_ceremony_session(socket: WebSocket, token: [u8; 16]) {
+    let (mut socket_outgoing, mut socket_incoming) = socket.split();
+
+    run_token_verification(&mut socket_outgoing, &mut socket_incoming, token).await;
+
+    let (outgoing_message, mut outgoing_messages) = channel::<Message>(1);
+
+    tokio::spawn(async move {
+        handle_socket_incoming(&mut socket_incoming, outgoing_message).await;
+    });
+
+    tokio::spawn(async move {
+        handle_socket_outgoing(&mut outgoing_messages, &mut socket_outgoing).await;
+    });
+}
+
+async fn run_token_verification(
+    socket_outgoing: &mut SplitSink<WebSocket, Message>,
+    socket_incoming: &mut SplitStream<WebSocket>,
+    token: [u8; 16],
+) {
+    match timeout(Duration::from_millis(30000), socket_incoming.next()).await {
+        Ok(incoming_message) => {
+            if let Some(Ok(Message::Binary(data))) = incoming_message {
+                match data == token.to_vec() {
+                    true => {
+                        let data = b"ok".to_vec();
+
+                        let _ = socket_outgoing.send(Message::Binary(data)).await;
+                    }
+                    false => {
+                        let _ = socket_outgoing.close().await;
+                    }
+                }
+            } else {
+                let _ = socket_outgoing.close().await;
+            }
+        }
+        Err(error) => {
+            println!("timeout! -> {:?}", error);
+
+            let _ = socket_outgoing.close().await;
         }
     }
 }
 
-async fn handle_authentication_ceremony_session(mut socket: WebSocket, token: [u8; 16]) {
-    while let Some(message) = socket.recv().await {
+async fn handle_socket_incoming(
+    socket_incoming: &mut SplitStream<WebSocket>,
+    outgoing_message: Sender<Message>,
+) {
+    while let Some(Ok(message)) = socket_incoming.next().await {
         match message {
-            Ok(Message::Text(data)) => {}
-            Ok(Message::Binary(data)) => {}
-            Ok(Message::Ping(data)) => {}
-            Ok(Message::Pong(data)) => {}
-            Ok(Message::Close(close_frame)) => {}
-            Err(error) => {}
+            Message::Text(json) => {
+                let _ = outgoing_message.send(Message::Close(None)).await;
+            }
+            Message::Binary(_) => {
+                let _ = outgoing_message.send(Message::Close(None)).await;
+            }
+            Message::Ping(_) => {}
+            Message::Pong(_) => {}
+            Message::Close(_) => {
+                let _ = outgoing_message.send(Message::Close(None)).await;
+            }
+        }
+    }
+}
+
+async fn handle_socket_outgoing(
+    outgoing_messages: &mut Receiver<Message>,
+    socket_outgoing: &mut SplitSink<WebSocket, Message>,
+) {
+    while let Some(message) = outgoing_messages.recv().await {
+        match message {
+            Message::Text(_) => {
+                let _ = socket_outgoing.close().await;
+            }
+            Message::Binary(data) => {
+                let _ = socket_outgoing.close().await;
+            }
+            Message::Ping(_) => {}
+            Message::Pong(_) => {}
+            Message::Close(_) => {
+                let _ = socket_outgoing.close().await;
+
+                outgoing_messages.close();
+            }
         }
     }
 }
