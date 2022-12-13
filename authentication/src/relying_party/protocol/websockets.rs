@@ -253,3 +253,173 @@ async fn handle_socket_outgoing(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn run_token_verification() -> Result<(), Box<dyn std::error::Error>> {
+        async fn test_router() -> Router {
+            Router::new().route("/test", get(test_handler))
+        }
+
+        async fn test_handler(ws: WebSocketUpgrade) -> Response {
+            ws.on_upgrade(test_handle_socket)
+        }
+
+        async fn test_handle_socket(test_socket: WebSocket) {
+            let (mut test_socket_outgoing, mut test_socket_incoming) = test_socket.split();
+            let test_token = [0u8; 16];
+
+            super::run_token_verification(
+                &mut test_socket_outgoing,
+                &mut test_socket_incoming,
+                test_token,
+            )
+            .await;
+        }
+
+        tokio::spawn(async move {
+            Server::bind(&"127.0.0.1:8080".parse().unwrap())
+                .serve(test_router().await.into_make_service())
+                .await
+                .unwrap();
+        });
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+        let (mut test_client_socket, _response) =
+            tokio_tungstenite::connect_async("ws://127.0.0.1:8080/test")
+                .await
+                .unwrap();
+
+        let test_valid_token = String::from_utf8([0u8; 16].to_vec())?;
+
+        test_client_socket
+            .send(tokio_tungstenite::tungstenite::Message::Text(
+                test_valid_token,
+            ))
+            .await
+            .unwrap();
+
+        if let Some(Ok(test_message)) = test_client_socket.next().await {
+            assert_eq!(
+                test_message,
+                tokio_tungstenite::tungstenite::Message::Close(None),
+            );
+        } else {
+            panic!("a message should have been receieved!");
+        }
+
+        let (mut test_client_socket, _response) =
+            tokio_tungstenite::connect_async("ws://127.0.0.1:8080/test")
+                .await
+                .unwrap();
+
+        let test_valid_token = [0u8; 16].to_vec();
+
+        test_client_socket
+            .send(tokio_tungstenite::tungstenite::Message::Binary(
+                test_valid_token,
+            ))
+            .await
+            .unwrap();
+
+        if let Some(Ok(test_message)) = test_client_socket.next().await {
+            assert_eq!(
+                test_message,
+                tokio_tungstenite::tungstenite::Message::Binary(b"ok".to_vec()),
+            );
+        } else {
+            panic!("a message should have been receieved!");
+        }
+
+        test_client_socket
+            .send(tokio_tungstenite::tungstenite::Message::Close(None))
+            .await
+            .unwrap();
+
+        let (mut test_client_socket, _response) =
+            tokio_tungstenite::connect_async("ws://127.0.0.1:8080/test")
+                .await
+                .unwrap();
+
+        let test_invalid_token = [1u8; 16].to_vec();
+
+        test_client_socket
+            .send(tokio_tungstenite::tungstenite::Message::Binary(
+                test_invalid_token,
+            ))
+            .await
+            .unwrap();
+
+        if let Some(Ok(test_message)) = test_client_socket.next().await {
+            assert_eq!(
+                test_message,
+                tokio_tungstenite::tungstenite::Message::Close(None),
+            );
+        } else {
+            panic!("a message should have been receieved!");
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn handle_socket_incoming_outgoing() -> Result<(), Box<dyn std::error::Error>> {
+        async fn test_router() -> Router {
+            Router::new().route("/test", get(test_handler))
+        }
+
+        async fn test_handler(ws: WebSocketUpgrade) -> Response {
+            ws.on_upgrade(test_handle_socket)
+        }
+
+        async fn test_handle_socket(test_socket: WebSocket) {
+            let (mut test_socket_outgoing, mut test_socket_incoming) = test_socket.split();
+            let (test_outgoing_message, mut test_outgoing_messages) = channel::<Message>(1);
+
+            tokio::spawn(async move {
+                handle_socket_incoming(&mut test_socket_incoming, test_outgoing_message).await;
+            });
+
+            tokio::spawn(async move {
+                handle_socket_outgoing(&mut test_outgoing_messages, &mut test_socket_outgoing)
+                    .await;
+            });
+        }
+
+        tokio::spawn(async move {
+            Server::bind(&"127.0.0.1:8080".parse().unwrap())
+                .serve(test_router().await.into_make_service())
+                .await
+                .unwrap();
+        });
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+        let (mut test_client_socket, _response) =
+            tokio_tungstenite::connect_async("ws://127.0.0.1:8080/test")
+                .await
+                .unwrap();
+
+        test_client_socket
+            .send(tokio_tungstenite::tungstenite::Message::Text(String::from(
+                "test",
+            )))
+            .await
+            .unwrap();
+
+        if let Some(Ok(test_message)) = test_client_socket.next().await {
+            assert_eq!(
+                test_message,
+                tokio_tungstenite::tungstenite::Message::Close(None),
+            );
+        } else {
+            panic!("a message should have been receieved!");
+        }
+
+        Ok(())
+    }
+}
