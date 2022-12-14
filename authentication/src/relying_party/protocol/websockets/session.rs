@@ -6,17 +6,20 @@ use tokio::time::sleep;
 use std::collections::HashMap;
 use std::time::Duration;
 
+use crate::security::session_token::{generate_session_token, SessionToken};
+use crate::security::uuid::{generate_session_id, SessionId};
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct SessionInfo {
-    pub id: [u8; 16],
-    pub token: [u8; 16],
+    pub id: SessionId,
+    pub token: SessionToken,
 }
 
 impl SessionInfo {
     pub async fn generate() -> SessionInfo {
         SessionInfo {
-            id: [0; 16],
-            token: [0; 16],
+            id: generate_session_id().await,
+            token: generate_session_token().await,
         }
     }
 }
@@ -24,7 +27,7 @@ impl SessionInfo {
 #[derive(Debug)]
 pub enum Request {
     Allocate,
-    Consume([u8; 16]),
+    Consume(SessionId),
 }
 
 #[derive(Debug)]
@@ -66,12 +69,12 @@ impl SessionChannel {
         }
     }
 
-    pub async fn consume(&self, id: [u8; 16]) -> Result<SessionInfo, StatusCode> {
+    pub async fn consume(&self, id: SessionId) -> Result<SessionInfo, StatusCode> {
         let (request, response) = oneshot::channel();
         match self.request.send((Request::Consume(id), request)).await {
             Ok(()) => match response.await {
                 Ok(Response::SessionInfo(session_info)) => Ok(session_info),
-                Ok(Response::Error) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+                Ok(Response::Error) => Err(StatusCode::BAD_REQUEST),
                 Err(error) => {
                     println!("consume response -> {:?}", error);
 
@@ -88,7 +91,7 @@ impl SessionChannel {
 }
 
 pub struct Session {
-    available: HashMap<[u8; 16], [u8; 16]>,
+    available: HashMap<SessionId, SessionToken>,
     receiver: mpsc::Receiver<(Request, oneshot::Sender<Response>)>,
     timeout: SessionChannel,
 }
@@ -148,7 +151,7 @@ impl Session {
         session_info
     }
 
-    async fn consume(&mut self, id: [u8; 16]) -> Option<SessionInfo> {
+    async fn consume(&mut self, id: SessionId) -> Option<SessionInfo> {
         match self.available.remove_entry(&id) {
             Some((id, token)) => Some(SessionInfo { id, token }),
             None => None,
