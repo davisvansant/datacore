@@ -315,6 +315,19 @@ mod tests {
 
         let mut test_client_connection = connect_async(&test_sesion_uri).await?;
 
+        test_client_connection
+            .0
+            .send(tungstenite::Message::Binary(
+                test_session_info.token.to_vec(),
+            ))
+            .await?;
+
+        if let Some(Ok(test_message)) = test_client_connection.0.next().await {
+            assert_eq!(test_message, tungstenite::Message::Binary(b"ok".to_vec()));
+        } else {
+            panic!("a message should have been receieved!");
+        }
+
         assert!(test_client_connection.0.close(None).await.is_ok());
 
         let test_client_connection = connect_async(&test_sesion_uri).await;
@@ -347,7 +360,7 @@ mod tests {
             assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         }
 
-        let mut test_ws_connection = connect_async("ws://127.0.0.1:8080/register").await?;
+        let mut test_ws_connection = connect_async("ws://127.0.0.1:8080/authenticate").await?;
         let test_session_info: SessionInfo =
             if let Some(Ok(tungstenite::Message::Text(test_message))) =
                 test_ws_connection.0.next().await
@@ -409,76 +422,49 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
-        let (mut test_client_socket, _response) =
-            tokio_tungstenite::connect_async("ws://127.0.0.1:8080/test")
-                .await
-                .unwrap();
-
+        let mut test_client_socket = connect_async("ws://127.0.0.1:8080/test").await?;
         let test_valid_token = String::from_utf8([0u8; 16].to_vec())?;
 
         test_client_socket
-            .send(tokio_tungstenite::tungstenite::Message::Text(
-                test_valid_token,
-            ))
-            .await
-            .unwrap();
+            .0
+            .send(tungstenite::Message::Text(test_valid_token))
+            .await?;
 
-        if let Some(Ok(test_message)) = test_client_socket.next().await {
-            assert_eq!(
-                test_message,
-                tokio_tungstenite::tungstenite::Message::Close(None),
-            );
+        if let Some(Ok(test_message)) = test_client_socket.0.next().await {
+            assert_eq!(test_message, tungstenite::Message::Close(None));
         } else {
             panic!("a message should have been receieved!");
         }
 
-        let (mut test_client_socket, _response) =
-            tokio_tungstenite::connect_async("ws://127.0.0.1:8080/test")
-                .await
-                .unwrap();
-
+        let mut test_client_socket = connect_async("ws://127.0.0.1:8080/test").await?;
         let test_valid_token: SessionToken = [0; 16];
 
         test_client_socket
-            .send(tokio_tungstenite::tungstenite::Message::Binary(
-                test_valid_token.to_vec(),
-            ))
-            .await
-            .unwrap();
+            .0
+            .send(tungstenite::Message::Binary(test_valid_token.to_vec()))
+            .await?;
 
-        if let Some(Ok(test_message)) = test_client_socket.next().await {
-            assert_eq!(
-                test_message,
-                tokio_tungstenite::tungstenite::Message::Binary(b"ok".to_vec()),
-            );
+        if let Some(Ok(test_message)) = test_client_socket.0.next().await {
+            assert_eq!(test_message, tungstenite::Message::Binary(b"ok".to_vec()));
         } else {
             panic!("a message should have been receieved!");
         }
 
         test_client_socket
-            .send(tokio_tungstenite::tungstenite::Message::Close(None))
-            .await
-            .unwrap();
+            .0
+            .send(tungstenite::Message::Close(None))
+            .await?;
 
-        let (mut test_client_socket, _response) =
-            tokio_tungstenite::connect_async("ws://127.0.0.1:8080/test")
-                .await
-                .unwrap();
-
+        let mut test_client_socket = connect_async("ws://127.0.0.1:8080/test").await?;
         let test_invalid_token: SessionToken = [1; 16];
 
         test_client_socket
-            .send(tokio_tungstenite::tungstenite::Message::Binary(
-                test_invalid_token.to_vec(),
-            ))
-            .await
-            .unwrap();
+            .0
+            .send(tungstenite::Message::Binary(test_invalid_token.to_vec()))
+            .await?;
 
-        if let Some(Ok(test_message)) = test_client_socket.next().await {
-            assert_eq!(
-                test_message,
-                tokio_tungstenite::tungstenite::Message::Close(None),
-            );
+        if let Some(Ok(test_message)) = test_client_socket.0.next().await {
+            assert_eq!(test_message, tungstenite::Message::Close(None));
         } else {
             panic!("a message should have been receieved!");
         }
@@ -519,23 +505,15 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
-        let (mut test_client_socket, _response) =
-            tokio_tungstenite::connect_async("ws://127.0.0.1:8080/test")
-                .await
-                .unwrap();
+        let mut test_client_socket = connect_async("ws://127.0.0.1:8080/test").await?;
 
         test_client_socket
-            .send(tokio_tungstenite::tungstenite::Message::Text(String::from(
-                "test",
-            )))
-            .await
-            .unwrap();
+            .0
+            .send(tungstenite::Message::Text(String::from("test")))
+            .await?;
 
-        if let Some(Ok(test_message)) = test_client_socket.next().await {
-            assert_eq!(
-                test_message,
-                tokio_tungstenite::tungstenite::Message::Close(None),
-            );
+        if let Some(Ok(test_message)) = test_client_socket.0.next().await {
+            assert_eq!(test_message, tungstenite::Message::Close(None));
         } else {
             panic!("a message should have been receieved!");
         }
