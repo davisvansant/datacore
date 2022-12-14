@@ -17,6 +17,8 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
 use crate::relying_party::protocol::websockets::session::{Session, SessionChannel, SessionInfo};
+use crate::security::session_token::SessionToken;
+use crate::security::uuid::SessionId;
 
 mod session;
 
@@ -71,12 +73,20 @@ async fn establish(
 }
 
 async fn registration_ceremony_session(
-    Path(session): Path<[u8; 16]>,
+    Path(session): Path<String>,
     State(available_session): State<SessionChannel>,
     connection: WebSocketUpgrade,
 ) -> Response {
-    match available_session.consume(session).await {
-        Ok(session_info) => match session == session_info.id {
+    let mut session_id: SessionId = [0; 32];
+
+    if session.len() == 32 {
+        session_id.copy_from_slice(session.as_bytes());
+    } else {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+
+    match available_session.consume(session_id).await {
+        Ok(session_info) => match session_id == session_info.id {
             true => connection.on_upgrade(move |socket| {
                 handle_registration_ceremony_session(socket, session_info.token)
             }),
@@ -86,12 +96,20 @@ async fn registration_ceremony_session(
     }
 }
 async fn authentication_ceremony_session(
-    Path(session): Path<[u8; 16]>,
+    Path(session): Path<String>,
     State(available_session): State<SessionChannel>,
     connection: WebSocketUpgrade,
 ) -> Response {
-    match available_session.consume(session).await {
-        Ok(session_info) => match session == session_info.id {
+    let mut session_id: SessionId = [0; 32];
+
+    if session.len() == 32 {
+        session_id.copy_from_slice(session.as_bytes());
+    } else {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+
+    match available_session.consume(session_id).await {
+        Ok(session_info) => match session_id == session_info.id {
             true => connection.on_upgrade(move |socket| {
                 handle_authentication_ceremony_session(socket, session_info.token)
             }),
@@ -148,7 +166,7 @@ async fn initialize(socket: WebSocket, session: SessionChannel) {
     }
 }
 
-async fn handle_registration_ceremony_session(socket: WebSocket, token: [u8; 16]) {
+async fn handle_registration_ceremony_session(socket: WebSocket, token: SessionToken) {
     let (mut socket_outgoing, mut socket_incoming) = socket.split();
 
     run_token_verification(&mut socket_outgoing, &mut socket_incoming, token).await;
@@ -164,7 +182,7 @@ async fn handle_registration_ceremony_session(socket: WebSocket, token: [u8; 16]
     });
 }
 
-async fn handle_authentication_ceremony_session(socket: WebSocket, token: [u8; 16]) {
+async fn handle_authentication_ceremony_session(socket: WebSocket, token: SessionToken) {
     let (mut socket_outgoing, mut socket_incoming) = socket.split();
 
     run_token_verification(&mut socket_outgoing, &mut socket_incoming, token).await;
@@ -183,12 +201,12 @@ async fn handle_authentication_ceremony_session(socket: WebSocket, token: [u8; 1
 async fn run_token_verification(
     socket_outgoing: &mut SplitSink<WebSocket, Message>,
     socket_incoming: &mut SplitStream<WebSocket>,
-    token: [u8; 16],
+    token: SessionToken,
 ) {
     match timeout(Duration::from_millis(30000), socket_incoming.next()).await {
         Ok(incoming_message) => {
             if let Some(Ok(Message::Binary(data))) = incoming_message {
-                match data == token.to_vec() {
+                match data == token {
                     true => {
                         let data = b"ok".to_vec();
 
@@ -257,6 +275,108 @@ async fn handle_socket_outgoing(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio_tungstenite::connect_async;
+    use tokio_tungstenite::tungstenite;
+
+    #[tokio::test]
+    async fn registration_ceremony_session() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_websockets = Websockets::init().await;
+
+        tokio::spawn(async move {
+            test_websockets.run().await.unwrap();
+        });
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+        let test_websockets_connection =
+            connect_async("ws://127.0.0.1:8080/registration_ceremony/test").await;
+
+        assert!(test_websockets_connection.is_err());
+
+        if let tungstenite::Error::Http(response) = test_websockets_connection.unwrap_err() {
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        }
+
+        let mut test_client_connection = connect_async("ws://127.0.0.1:8080/register").await?;
+        let test_session_info: SessionInfo =
+            if let Some(Ok(tungstenite::Message::Text(test_message))) =
+                test_client_connection.0.next().await
+            {
+                serde_json::from_str(&test_message)?
+            } else {
+                panic!("a message should have been receieved!");
+            };
+
+        let test_session_id = String::from_utf8(test_session_info.id.to_vec())?;
+        let test_sesion_uri = format!(
+            "ws://127.0.0.1:8080/registration_ceremony/{}",
+            test_session_id,
+        );
+
+        let mut test_client_connection = connect_async(&test_sesion_uri).await?;
+
+        assert!(test_client_connection.0.close(None).await.is_ok());
+
+        let test_client_connection = connect_async(&test_sesion_uri).await;
+
+        assert!(test_client_connection.is_err());
+
+        if let tungstenite::Error::Http(response) = test_client_connection.unwrap_err() {
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn authentication_ceremony_session() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_websockets = Websockets::init().await;
+
+        tokio::spawn(async move {
+            test_websockets.run().await.unwrap();
+        });
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+        let test_ws_connection =
+            connect_async("ws://127.0.0.1:8080/authentication_ceremony/test").await;
+
+        assert!(test_ws_connection.is_err());
+
+        if let tungstenite::Error::Http(response) = test_ws_connection.unwrap_err() {
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        }
+
+        let mut test_ws_connection = connect_async("ws://127.0.0.1:8080/register").await?;
+        let test_session_info: SessionInfo =
+            if let Some(Ok(tungstenite::Message::Text(test_message))) =
+                test_ws_connection.0.next().await
+            {
+                serde_json::from_str(&test_message)?
+            } else {
+                panic!("a message should have been receieved!");
+            };
+
+        let test_session_id = String::from_utf8(test_session_info.id.to_vec())?;
+        let test_sesion_uri = format!(
+            "ws://127.0.0.1:8080/authentication_ceremony/{}",
+            test_session_id,
+        );
+
+        let mut test_ws_connection = connect_async(&test_sesion_uri).await?;
+
+        assert!(test_ws_connection.0.close(None).await.is_ok());
+
+        let test_ws_connection = connect_async(&test_sesion_uri).await;
+
+        assert!(test_ws_connection.is_err());
+
+        if let tungstenite::Error::Http(response) = test_ws_connection.unwrap_err() {
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        }
+
+        Ok(())
+    }
 
     #[tokio::test]
     async fn run_token_verification() -> Result<(), Box<dyn std::error::Error>> {
@@ -317,11 +437,11 @@ mod tests {
                 .await
                 .unwrap();
 
-        let test_valid_token = [0u8; 16].to_vec();
+        let test_valid_token: SessionToken = [0; 16];
 
         test_client_socket
             .send(tokio_tungstenite::tungstenite::Message::Binary(
-                test_valid_token,
+                test_valid_token.to_vec(),
             ))
             .await
             .unwrap();
@@ -345,11 +465,11 @@ mod tests {
                 .await
                 .unwrap();
 
-        let test_invalid_token = [1u8; 16].to_vec();
+        let test_invalid_token: SessionToken = [1; 16];
 
         test_client_socket
             .send(tokio_tungstenite::tungstenite::Message::Binary(
-                test_invalid_token,
+                test_invalid_token.to_vec(),
             ))
             .await
             .unwrap();
