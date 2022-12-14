@@ -330,6 +330,35 @@ mod tests {
 
         assert!(test_client_connection.0.close(None).await.is_ok());
 
+        let mut test_client_connection = connect_async("ws://127.0.0.1:8080/register").await?;
+        let test_session_info: SessionInfo =
+            if let Some(Ok(tungstenite::Message::Text(test_message))) =
+                test_client_connection.0.next().await
+            {
+                serde_json::from_str(&test_message)?
+            } else {
+                panic!("a message should have been receieved!");
+            };
+
+        let test_session_id = String::from_utf8(test_session_info.id.to_vec())?;
+        let test_sesion_uri = format!(
+            "ws://127.0.0.1:8080/registration_ceremony/{}",
+            test_session_id,
+        );
+
+        let mut test_client_connection = connect_async(&test_sesion_uri).await?;
+
+        test_client_connection
+            .0
+            .send(tungstenite::Message::Binary([0u8; 16].to_vec()))
+            .await?;
+
+        if let Some(Ok(test_message)) = test_client_connection.0.next().await {
+            assert_eq!(test_message, tungstenite::Message::Close(None));
+        } else {
+            panic!("a message should have been receieved!");
+        }
+
         let test_client_connection = connect_async(&test_sesion_uri).await;
 
         assert!(test_client_connection.is_err());
@@ -378,7 +407,49 @@ mod tests {
 
         let mut test_ws_connection = connect_async(&test_sesion_uri).await?;
 
+        test_ws_connection
+            .0
+            .send(tungstenite::Message::Binary(
+                test_session_info.token.to_vec(),
+            ))
+            .await?;
+
+        if let Some(Ok(test_message)) = test_ws_connection.0.next().await {
+            assert_eq!(test_message, tungstenite::Message::Binary(b"ok".to_vec()));
+        } else {
+            panic!("a message should have been receieved!");
+        }
+
         assert!(test_ws_connection.0.close(None).await.is_ok());
+
+        let mut test_client_connection = connect_async("ws://127.0.0.1:8080/register").await?;
+        let test_session_info: SessionInfo =
+            if let Some(Ok(tungstenite::Message::Text(test_message))) =
+                test_client_connection.0.next().await
+            {
+                serde_json::from_str(&test_message)?
+            } else {
+                panic!("a message should have been receieved!");
+            };
+
+        let test_session_id = String::from_utf8(test_session_info.id.to_vec())?;
+        let test_sesion_uri = format!(
+            "ws://127.0.0.1:8080/authentication_ceremony/{}",
+            test_session_id,
+        );
+
+        let mut test_client_connection = connect_async(&test_sesion_uri).await?;
+
+        test_client_connection
+            .0
+            .send(tungstenite::Message::Binary([0u8; 16].to_vec()))
+            .await?;
+
+        if let Some(Ok(test_message)) = test_client_connection.0.next().await {
+            assert_eq!(test_message, tungstenite::Message::Close(None));
+        } else {
+            panic!("a message should have been receieved!");
+        }
 
         let test_ws_connection = connect_async(&test_sesion_uri).await;
 
