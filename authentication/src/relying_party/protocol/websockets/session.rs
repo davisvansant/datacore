@@ -152,9 +152,101 @@ impl Session {
     }
 
     async fn consume(&mut self, id: SessionId) -> Option<SessionInfo> {
-        match self.available.remove_entry(&id) {
-            Some((id, token)) => Some(SessionInfo { id, token }),
-            None => None,
-        }
+        self.available
+            .remove_entry(&id)
+            .map(|(id, token)| SessionInfo { id, token })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn generate_session_info() -> Result<(), Box<dyn std::error::Error>> {
+        let test_session_info = SessionInfo::generate().await;
+
+        assert_eq!(test_session_info.id.len(), 32);
+        assert_eq!(test_session_info.token.len(), 16);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn init() -> Result<(), Box<dyn std::error::Error>> {
+        let test_session = Session::init().await;
+
+        assert!(!test_session.0.request.is_closed());
+        assert!(test_session.1.available.capacity() >= 100);
+        assert!(test_session.1.timeout.request.capacity() >= 100);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn allocate() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_session = Session::init().await;
+
+        assert!(test_session.1.available.is_empty());
+
+        test_session.1.allocate().await;
+
+        assert!(!test_session.1.available.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn consume() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_session = Session::init().await;
+
+        assert!(test_session.1.consume([0u8; 32]).await.is_none());
+
+        let test_session_info = test_session.1.allocate().await;
+
+        assert!(test_session.1.consume(test_session_info.id).await.is_some());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn allocate_channel() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_session = Session::init().await;
+
+        tokio::spawn(async move {
+            test_session.1.run().await.unwrap();
+        });
+
+        assert!(test_session.0.allocate().await.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn consume_channel() -> Result<(), StatusCode> {
+        let mut test_session = Session::init().await;
+
+        tokio::spawn(async move {
+            test_session.1.run().await.unwrap();
+        });
+
+        assert!(test_session.0.consume([0u8; 32]).await.is_err());
+
+        let test_session_info = test_session.0.allocate().await?;
+
+        assert!(test_session.0.consume(test_session_info.id).await.is_ok());
+
+        let test_session_info = test_session.0.allocate().await?;
+
+        tokio::time::pause();
+        sleep(Duration::from_millis(31000)).await;
+        tokio::time::resume();
+
+        let test_response = test_session.0.consume(test_session_info.id).await;
+
+        assert!(test_response.is_err());
+        assert_eq!(test_response.unwrap_err(), StatusCode::BAD_REQUEST);
+
+        Ok(())
     }
 }
