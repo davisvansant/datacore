@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
-    Error, Router, Server,
+    Router, Server,
 };
 use futures::{
     sink::SinkExt,
@@ -17,7 +17,7 @@ use std::borrow::Cow;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
-use crate::relying_party::protocol::websockets::session::{Session, SessionChannel, SessionInfo};
+use crate::relying_party::protocol::websockets::session::{Session, SessionChannel};
 use crate::security::session_token::SessionToken;
 use crate::security::uuid::SessionId;
 
@@ -291,6 +291,7 @@ async fn handle_socket_outgoing(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::relying_party::protocol::websockets::session::SessionInfo;
     use tokio_tungstenite::connect_async;
     use tokio_tungstenite::tungstenite;
 
