@@ -13,6 +13,7 @@ use futures::{
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::time::timeout;
 
+use std::borrow::Cow;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
@@ -125,7 +126,7 @@ async fn initialize(socket: WebSocket, session: SessionChannel) {
     let terminate_session = message.to_owned();
 
     tokio::spawn(async move {
-        if let Some(message) = socket_incoming.next().await {
+        if let Some(_message) = socket_incoming.next().await {
             let _ = terminate_session.send(Message::Close(None)).await;
         }
     });
@@ -234,11 +235,18 @@ async fn handle_socket_incoming(
 ) {
     while let Some(Ok(message)) = socket_incoming.next().await {
         match message {
-            Message::Text(json) => {
-                let _ = outgoing_message.send(Message::Close(None)).await;
+            Message::Text(_) => {
+                let close_frame = CloseFrame {
+                    code: close_code::UNSUPPORTED,
+                    reason: Cow::from("WebSocket.binaryType = 'blob'"),
+                };
+
+                let _ = outgoing_message
+                    .send(Message::Close(Some(close_frame)))
+                    .await;
             }
-            Message::Binary(_) => {
-                let _ = outgoing_message.send(Message::Close(None)).await;
+            Message::Binary(data) => {
+                let _ = outgoing_message.send(Message::Binary(data)).await;
             }
             Message::Ping(_) => {}
             Message::Pong(_) => {}
@@ -259,11 +267,19 @@ async fn handle_socket_outgoing(
                 let _ = socket_outgoing.close().await;
             }
             Message::Binary(data) => {
-                let _ = socket_outgoing.close().await;
+                let _ = socket_outgoing.send(Message::Binary(data)).await;
             }
             Message::Ping(_) => {}
             Message::Pong(_) => {}
-            Message::Close(_) => {
+            Message::Close(Some(close_frame)) => {
+                let _ = socket_outgoing
+                    .send(Message::Close(Some(close_frame)))
+                    .await;
+                let _ = socket_outgoing.close().await;
+
+                outgoing_messages.close();
+            }
+            Message::Close(None) => {
                 let _ = socket_outgoing.close().await;
 
                 outgoing_messages.close();
@@ -581,6 +597,41 @@ mod tests {
         test_client_socket
             .0
             .send(tungstenite::Message::Text(String::from("test")))
+            .await?;
+
+        if let Some(Ok(test_message)) = test_client_socket.0.next().await {
+            let test_close_frame = tungstenite::protocol::frame::CloseFrame {
+                code: tungstenite::protocol::frame::coding::CloseCode::Unsupported,
+                reason: Cow::from("WebSocket.binaryType = 'blob'"),
+            };
+
+            assert_eq!(
+                test_message,
+                tungstenite::Message::Close(Some(test_close_frame)),
+            );
+        } else {
+            panic!("a message should have been receieved!");
+        }
+
+        let mut test_client_socket = connect_async("ws://127.0.0.1:8080/test").await?;
+
+        test_client_socket
+            .0
+            .send(tungstenite::Message::Binary(b"test_data".to_vec()))
+            .await?;
+
+        if let Some(Ok(test_message)) = test_client_socket.0.next().await {
+            assert_eq!(
+                test_message,
+                tungstenite::Message::Binary(b"test_data".to_vec()),
+            );
+        } else {
+            panic!("a message should have been receieved!");
+        }
+
+        test_client_socket
+            .0
+            .send(tungstenite::Message::Close(None))
             .await?;
 
         if let Some(Ok(test_message)) = test_client_socket.0.next().await {
