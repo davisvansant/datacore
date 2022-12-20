@@ -20,96 +20,26 @@ pub mod outgoing_data;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct WebAuthnData {
-    message: String,
-    contents: Vec<u8>,
-    timestamp: String,
+    pub message: String,
+    pub contents: Vec<u8>,
+    pub timestamp: String,
 }
 
+#[derive(Clone, Debug)]
 pub struct ClientChannel {
     incoming_data: broadcast::Sender<IncomingData>,
     outgoing_data: mpsc::Sender<OutgoingData>,
 }
 
 impl ClientChannel {
-    pub async fn init() -> (IncomingDataTask, OutgoingDataTask, ClientChannel) {
-        let (incoming_data, incoming_data_task, relying_party) = IncomingDataTask::init().await;
-        let (outgoing_data, outgoing_data_task, connected_client) = OutgoingDataTask::init().await;
-
-        let mut client = connected_client.subscribe();
-
-        tokio::spawn(async move {
-            if let Ok(outgoing_data) = client.recv().await {
-                let webauthndata: WebAuthnData = serde_json::from_slice(&outgoing_data).unwrap();
-
-                println!(
-                    "send to client -> {:?}",
-                    String::from_utf8(outgoing_data).unwrap(),
-                );
-
-                match webauthndata.message.as_str() {
-                    "public_key_credential_creation_options" => {
-                        let id = String::from("some_credential_id");
-                        let client_data_json = Vec::with_capacity(0);
-                        let attestation_object = Vec::with_capacity(0);
-                        let response = AuthenticatorResponse::AuthenticatorAttestationResponse(
-                            AuthenticatorAttestationResponse {
-                                client_data_json,
-                                attestation_object,
-                            },
-                        );
-                        let credential = PublicKeyCredential::generate(id, response).await;
-                        let webauthndata = WebAuthnData {
-                            message: String::from("public_key_credential"),
-                            contents: serde_json::to_vec(&credential).expect("json"),
-                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                        };
-                        let json = serde_json::to_vec(&webauthndata).expect("json");
-
-                        relying_party
-                            .send(json)
-                            .await
-                            .expect("a good message to send");
-                    }
-                    "public_key_credential_request_options" => {
-                        let id = String::from("some_key_id");
-                        let client_data_json = Vec::with_capacity(0);
-                        let authenticator_data = Vec::with_capacity(0);
-                        let signature = Vec::with_capacity(0);
-                        let user_handle = Vec::with_capacity(0);
-                        let response = AuthenticatorResponse::AuthenticatorAssertionResponse(
-                            AuthenticatorAssertionResponse {
-                                client_data_json,
-                                authenticator_data,
-                                signature,
-                                user_handle,
-                            },
-                        );
-                        let credential = PublicKeyCredential::generate(id, response).await;
-                        let webauthndata = WebAuthnData {
-                            message: String::from("public_key_credential"),
-                            contents: serde_json::to_vec(&credential).expect("json"),
-                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                        };
-                        let json = serde_json::to_vec(&webauthndata).expect("json");
-
-                        relying_party
-                            .send(json)
-                            .await
-                            .expect("a good message to send");
-                    }
-                    _ => panic!("this is just for testing..."),
-                }
-            }
-        });
-
-        (
-            incoming_data_task,
-            outgoing_data_task,
-            ClientChannel {
-                incoming_data,
-                outgoing_data,
-            },
-        )
+    pub async fn init(
+        incoming_data: broadcast::Sender<IncomingData>,
+        outgoing_data: mpsc::Sender<OutgoingData>,
+    ) -> ClientChannel {
+        ClientChannel {
+            incoming_data,
+            outgoing_data,
+        }
     }
 
     pub async fn credentials_create(

@@ -371,7 +371,11 @@ mod tests {
     use crate::authenticator::attestation::{
         AttestedCredentialData, COSEAlgorithm, COSEKey, PackedAttestationStatementSyntax,
     };
+    use crate::relying_party::client::incoming_data::IncomingDataTask;
+    use crate::relying_party::client::outgoing_data::OutgoingDataTask;
+    use crate::relying_party::client::WebAuthnData;
     use crate::relying_party::Store;
+    use chrono::{offset::Utc, SecondsFormat};
     use ciborium::cbor;
 
     #[tokio::test]
@@ -389,14 +393,79 @@ mod tests {
     #[tokio::test]
     async fn call_credentials_create() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration_ceremony = RegistrationCeremony {};
-        let mut test_client_channel = ClientChannel::init().await;
+        let mut test_incoming_data = IncomingDataTask::init().await;
+        let mut test_outgoing_data = OutgoingDataTask::init().await;
+        let test_client_channel =
+            ClientChannel::init(test_incoming_data.0, test_outgoing_data.0).await;
 
         tokio::spawn(async move {
-            test_client_channel.0.run().await.expect("good things");
+            test_incoming_data.1.run().await.unwrap();
         });
 
         tokio::spawn(async move {
-            test_client_channel.1.run().await.expect("good things");
+            test_outgoing_data.1.run().await.unwrap();
+        });
+
+        tokio::spawn(async move {
+            if let Some(test_data) = test_outgoing_data.2.recv().await {
+                let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
+
+                match test_webauthndata.message.as_str() {
+                    "public_key_credential_creation_options" => {
+                        let id = String::from("some_credential_id");
+                        let client_data_json = Vec::with_capacity(0);
+                        let attestation_object = Vec::with_capacity(0);
+                        let response = AuthenticatorResponse::AuthenticatorAttestationResponse(
+                            AuthenticatorAttestationResponse {
+                                client_data_json,
+                                attestation_object,
+                            },
+                        );
+                        let credential = PublicKeyCredential::generate(id, response).await;
+                        let webauthndata = WebAuthnData {
+                            message: String::from("public_key_credential"),
+                            contents: serde_json::to_vec(&credential).expect("json"),
+                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                        };
+                        let json = serde_json::to_vec(&webauthndata).expect("json");
+
+                        test_incoming_data
+                            .2
+                            .send(json)
+                            .await
+                            .expect("a good message to send");
+                    }
+                    "public_key_credential_request_options" => {
+                        let id = String::from("some_key_id");
+                        let client_data_json = Vec::with_capacity(0);
+                        let authenticator_data = Vec::with_capacity(0);
+                        let signature = Vec::with_capacity(0);
+                        let user_handle = Vec::with_capacity(0);
+                        let response = AuthenticatorResponse::AuthenticatorAssertionResponse(
+                            AuthenticatorAssertionResponse {
+                                client_data_json,
+                                authenticator_data,
+                                signature,
+                                user_handle,
+                            },
+                        );
+                        let credential = PublicKeyCredential::generate(id, response).await;
+                        let webauthndata = WebAuthnData {
+                            message: String::from("public_key_credential"),
+                            contents: serde_json::to_vec(&credential).expect("json"),
+                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                        };
+                        let json = serde_json::to_vec(&webauthndata).expect("json");
+
+                        test_incoming_data
+                            .2
+                            .send(json)
+                            .await
+                            .expect("a good message to send");
+                    }
+                    _ => panic!("this is just for testing..."),
+                }
+            }
         });
 
         let test_public_key_credential_creation_options = test_registration_ceremony
@@ -406,7 +475,7 @@ mod tests {
         assert!(test_registration_ceremony
             .call_credentials_create(
                 &test_public_key_credential_creation_options,
-                &test_client_channel.2,
+                &test_client_channel,
             )
             .await
             .is_ok());
@@ -455,14 +524,79 @@ mod tests {
     #[tokio::test]
     async fn client_extension_results() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration_ceremony = RegistrationCeremony {};
-        let mut test_client_channel = ClientChannel::init().await;
+        let mut test_incoming_data = IncomingDataTask::init().await;
+        let mut test_outgoing_data = OutgoingDataTask::init().await;
+        let test_client_channel =
+            ClientChannel::init(test_incoming_data.0, test_outgoing_data.0).await;
 
         tokio::spawn(async move {
-            test_client_channel.0.run().await.expect("good things");
+            test_incoming_data.1.run().await.unwrap();
         });
 
         tokio::spawn(async move {
-            test_client_channel.1.run().await.expect("good things");
+            test_outgoing_data.1.run().await.unwrap();
+        });
+
+        tokio::spawn(async move {
+            if let Some(test_data) = test_outgoing_data.2.recv().await {
+                let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
+
+                match test_webauthndata.message.as_str() {
+                    "public_key_credential_creation_options" => {
+                        let id = String::from("some_credential_id");
+                        let client_data_json = Vec::with_capacity(0);
+                        let attestation_object = Vec::with_capacity(0);
+                        let response = AuthenticatorResponse::AuthenticatorAttestationResponse(
+                            AuthenticatorAttestationResponse {
+                                client_data_json,
+                                attestation_object,
+                            },
+                        );
+                        let credential = PublicKeyCredential::generate(id, response).await;
+                        let webauthndata = WebAuthnData {
+                            message: String::from("public_key_credential"),
+                            contents: serde_json::to_vec(&credential).expect("json"),
+                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                        };
+                        let json = serde_json::to_vec(&webauthndata).expect("json");
+
+                        test_incoming_data
+                            .2
+                            .send(json)
+                            .await
+                            .expect("a good message to send");
+                    }
+                    "public_key_credential_request_options" => {
+                        let id = String::from("some_key_id");
+                        let client_data_json = Vec::with_capacity(0);
+                        let authenticator_data = Vec::with_capacity(0);
+                        let signature = Vec::with_capacity(0);
+                        let user_handle = Vec::with_capacity(0);
+                        let response = AuthenticatorResponse::AuthenticatorAssertionResponse(
+                            AuthenticatorAssertionResponse {
+                                client_data_json,
+                                authenticator_data,
+                                signature,
+                                user_handle,
+                            },
+                        );
+                        let credential = PublicKeyCredential::generate(id, response).await;
+                        let webauthndata = WebAuthnData {
+                            message: String::from("public_key_credential"),
+                            contents: serde_json::to_vec(&credential).expect("json"),
+                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                        };
+                        let json = serde_json::to_vec(&webauthndata).expect("json");
+
+                        test_incoming_data
+                            .2
+                            .send(json)
+                            .await
+                            .expect("a good message to send");
+                    }
+                    _ => panic!("this is just for testing..."),
+                }
+            }
         });
 
         let test_public_key_credential_creation_options = test_registration_ceremony
@@ -471,7 +605,7 @@ mod tests {
         let test_public_key_credential = test_registration_ceremony
             .call_credentials_create(
                 &test_public_key_credential_creation_options,
-                &test_client_channel.2,
+                &test_client_channel,
             )
             .await?;
 

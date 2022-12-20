@@ -13,25 +13,25 @@ pub enum OutgoingData {
 
 pub struct OutgoingDataTask {
     data: mpsc::Receiver<OutgoingData>,
-    client: broadcast::Sender<Vec<u8>>,
+    connected_client: mpsc::Sender<Vec<u8>>,
 }
 
 impl OutgoingDataTask {
     pub async fn init() -> (
         mpsc::Sender<OutgoingData>,
         OutgoingDataTask,
-        broadcast::Sender<Vec<u8>>,
+        mpsc::Receiver<Vec<u8>>,
     ) {
         let (sender, data) = mpsc::channel(64);
-        let (client, _) = broadcast::channel(64);
+        let connected_client = mpsc::channel(1);
 
         (
             sender,
             OutgoingDataTask {
                 data,
-                client: client.to_owned(),
+                connected_client: connected_client.0,
             },
-            client,
+            connected_client.1,
         )
     }
 
@@ -47,7 +47,7 @@ impl OutgoingDataTask {
 
                     let json = serde_json::to_vec(&webauthndata)?;
 
-                    self.client.send(json)?;
+                    self.connected_client.send(json).await?;
                 }
                 OutgoingData::PublicKeyCredentialRequestOptions(options) => {
                     let webauthndata = WebAuthnData {
@@ -58,7 +58,7 @@ impl OutgoingDataTask {
 
                     let json = serde_json::to_vec(&webauthndata)?;
 
-                    self.client.send(json)?;
+                    self.connected_client.send(json).await?;
                 }
             }
         }
