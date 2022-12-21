@@ -20,6 +20,7 @@ use std::time::Duration;
 
 use crate::relying_party::client::incoming_data::IncomingDataTask;
 use crate::relying_party::client::outgoing_data::OutgoingDataTask;
+use crate::relying_party::SessionInfo;
 use crate::relying_party::{ClientChannel, RelyingPartyOperation};
 use crate::security::session_token::SessionToken;
 use crate::security::uuid::SessionId;
@@ -86,7 +87,7 @@ async fn registration_ceremony_session(
     match relying_party.consume(session_id).await {
         Ok(session_info) => match session_id == session_info.id {
             true => connection.on_upgrade(move |socket| {
-                handle_registration_ceremony_session(socket, session_info.token, relying_party)
+                handle_registration_ceremony_session(socket, session_info, relying_party)
             }),
             false => StatusCode::BAD_REQUEST.into_response(),
         },
@@ -109,7 +110,7 @@ async fn authentication_ceremony_session(
     match relying_party.consume(session_id).await {
         Ok(session_info) => match session_id == session_info.id {
             true => connection.on_upgrade(move |socket| {
-                handle_authentication_ceremony_session(socket, session_info.token, relying_party)
+                handle_authentication_ceremony_session(socket, session_info, relying_party)
             }),
             false => StatusCode::BAD_REQUEST.into_response(),
         },
@@ -166,14 +167,21 @@ async fn initialize(socket: WebSocket, relying_party: RelyingPartyOperation) {
 
 async fn handle_registration_ceremony_session(
     socket: WebSocket,
-    token: SessionToken,
+    // token: SessionToken,
+    session_info: SessionInfo,
     relying_party_operation: RelyingPartyOperation,
 ) {
     let (mut socket_outgoing, mut socket_incoming) = socket.split();
 
-    run_token_verification(&mut socket_outgoing, &mut socket_incoming, token).await;
+    token_verification(
+        &mut socket_outgoing,
+        &mut socket_incoming,
+        session_info.token,
+    )
+    .await;
 
     let (outgoing_message, mut outgoing_messages) = channel::<Message>(1);
+    let ceremony_error = outgoing_message.to_owned();
     let relying_party_channel_error = outgoing_message.to_owned();
     let relying_party_outgoing_message = outgoing_message.to_owned();
 
@@ -208,7 +216,7 @@ async fn handle_registration_ceremony_session(
     });
 
     if let Err(error) = relying_party_operation
-        .registration_ceremony(client_channel)
+        .registration_ceremony(session_info.id, client_channel, ceremony_error)
         .await
     {
         println!("relying party operation -> {:?}", error);
@@ -232,14 +240,21 @@ async fn handle_registration_ceremony_session(
 
 async fn handle_authentication_ceremony_session(
     socket: WebSocket,
-    token: SessionToken,
+    // token: SessionToken,
+    session_info: SessionInfo,
     relying_party_operation: RelyingPartyOperation,
 ) {
     let (mut socket_outgoing, mut socket_incoming) = socket.split();
 
-    run_token_verification(&mut socket_outgoing, &mut socket_incoming, token).await;
+    token_verification(
+        &mut socket_outgoing,
+        &mut socket_incoming,
+        session_info.token,
+    )
+    .await;
 
     let (outgoing_message, mut outgoing_messages) = channel::<Message>(1);
+    let ceremony_error = outgoing_message.to_owned();
     let relying_party_channel_error = outgoing_message.to_owned();
     let relying_party_outgoing_message = outgoing_message.to_owned();
 
@@ -274,7 +289,7 @@ async fn handle_authentication_ceremony_session(
     });
 
     if let Err(error) = relying_party_operation
-        .registration_ceremony(client_channel)
+        .registration_ceremony(session_info.id, client_channel, ceremony_error)
         .await
     {
         println!("relying party operation -> {:?}", error);
@@ -296,7 +311,7 @@ async fn handle_authentication_ceremony_session(
     }
 }
 
-async fn run_token_verification(
+async fn token_verification(
     socket_outgoing: &mut SplitSink<WebSocket, Message>,
     socket_incoming: &mut SplitStream<WebSocket>,
     token: SessionToken,
@@ -598,7 +613,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn run_token_verification() -> Result<(), Box<dyn std::error::Error>> {
+    async fn token_verification() -> Result<(), Box<dyn std::error::Error>> {
         async fn test_router() -> Router {
             Router::new().route("/test", get(test_handler))
         }
@@ -611,7 +626,7 @@ mod tests {
             let (mut test_socket_outgoing, mut test_socket_incoming) = test_socket.split();
             let test_token = [0u8; 16];
 
-            super::run_token_verification(
+            super::token_verification(
                 &mut test_socket_outgoing,
                 &mut test_socket_incoming,
                 test_token,

@@ -1,45 +1,28 @@
+use axum::extract::ws::Message;
 use axum::http::StatusCode;
-use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
-use tokio::time::{sleep, Duration};
-
-use crate::security::session_token::{generate_session_token, SessionToken};
-use crate::security::uuid::{generate_session_id, SessionId};
-
-use std::collections::HashMap;
 
 use crate::api::supporting_data_structures::TokenBinding;
 use crate::error::AuthenticationError;
 use crate::relying_party::client::ClientChannel;
 use crate::relying_party::operation::{AuthenticationCeremony, RegistrationCeremony};
+use crate::relying_party::session::{Active, Available, SessionInfo};
 use crate::relying_party::store::{Store, StoreChannel};
+use crate::security::uuid::SessionId;
 
 pub mod client;
 pub mod operation;
 pub mod protocol;
 pub mod store;
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct SessionInfo {
-    pub id: SessionId,
-    pub token: SessionToken,
-}
-
-impl SessionInfo {
-    pub async fn generate() -> SessionInfo {
-        SessionInfo {
-            id: generate_session_id().await,
-            token: generate_session_token().await,
-        }
-    }
-}
+mod session;
 
 #[derive(Debug)]
 pub enum Operation {
     Allocate,
     Consume(SessionId),
-    RegistrationCeremony(ClientChannel),
-    AuthenticationCeremony(ClientChannel),
+    RegistrationCeremony((SessionId, ClientChannel, mpsc::Sender<Message>)),
+    AuthenticationCeremony((SessionId, ClientChannel, mpsc::Sender<Message>)),
 }
 
 #[derive(Debug)]
@@ -103,13 +86,18 @@ impl RelyingPartyOperation {
 
     pub async fn registration_ceremony(
         &self,
+        session_id: SessionId,
         client_channel: ClientChannel,
+        ceremony_error: mpsc::Sender<Message>,
     ) -> Result<(), StatusCode> {
         let (_request, _response) = oneshot::channel();
 
         match self
             .run
-            .send((Operation::RegistrationCeremony(client_channel), _request))
+            .send((
+                Operation::RegistrationCeremony((session_id, client_channel, ceremony_error)),
+                _request,
+            ))
             .await
         {
             Ok(()) => Ok(()),
@@ -126,13 +114,18 @@ impl RelyingPartyOperation {
 
     pub async fn authentication_ceremony(
         &self,
+        session_id: SessionId,
         client_channel: ClientChannel,
+        ceremony_error: mpsc::Sender<Message>,
     ) -> Result<(), StatusCode> {
         let (_request, _response) = oneshot::channel();
 
         match self
             .run
-            .send((Operation::AuthenticationCeremony(client_channel), _request))
+            .send((
+                Operation::AuthenticationCeremony((session_id, client_channel, ceremony_error)),
+                _request,
+            ))
             .await
         {
             Ok(()) => Ok(()),
@@ -150,61 +143,65 @@ impl RelyingPartyOperation {
 
 pub struct RelyingParty {
     identifier: String,
-    available_session: HashMap<SessionId, SessionToken>,
-    store: StoreChannel,
-    session_timeout: RelyingPartyOperation,
     operation: mpsc::Receiver<(Operation, oneshot::Sender<Response>)>,
 }
 
 impl RelyingParty {
     pub async fn init() -> (RelyingPartyOperation, RelyingParty) {
         let identifier = String::from("some_identifier");
-        let available_session = HashMap::with_capacity(100);
-        let (channel, mut store) = Store::init().await;
         let relying_party_operation = RelyingPartyOperation::init().await;
-
-        tokio::spawn(async move {
-            if let Err(error) = store.run().await {
-                println!("store error -> {:?}", error);
-            }
-        });
 
         (
             relying_party_operation.0.to_owned(),
             RelyingParty {
                 identifier,
-                available_session,
-                store: channel,
-                session_timeout: relying_party_operation.0,
                 operation: relying_party_operation.1,
             },
         )
     }
 
-    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn run(&mut self) -> Result<(), StatusCode> {
+        let mut active = Active::init().await;
+        let mut available = Available::init().await;
+        let mut store = Store::init().await;
+
+        tokio::spawn(async move {
+            active.1.run().await;
+        });
+
+        tokio::spawn(async move {
+            available.1.run().await;
+        });
+
+        tokio::spawn(async move {
+            if let Err(error) = store.1.run().await {
+                println!("store error -> {:?}", error);
+            }
+        });
+
         while let Some((operation, response)) = self.operation.recv().await {
             match operation {
                 Operation::Allocate => {
-                    let session_info = self.allocate().await;
+                    let session_info = available.0.allocate().await?;
                     let _ = response.send(Response::SessionInfo(session_info));
                 }
-                Operation::Consume(id) => match self.consume(id).await {
-                    Some(session_info) => {
+                Operation::Consume(id) => match available.0.consume(id).await {
+                    Ok(session_info) => {
                         let _ = response.send(Response::SessionInfo(session_info));
                     }
-                    None => {
+                    Err(_) => {
                         let _ = response.send(Response::Error);
                     }
                 },
-                Operation::RegistrationCeremony(client_channel) => {
+                Operation::RegistrationCeremony((session_id, client_channel, ceremony_error)) => {
                     let identifier = self.identifier.to_owned();
-                    let store = self.store.to_owned();
+                    let store = store.0.to_owned();
 
-                    tokio::spawn(async move {
-                        let operation = RegistrationCeremony {};
+                    let task_id = session_id.to_owned();
+                    let task = active.0.to_owned();
 
+                    let handle = tokio::spawn(async move {
                         if let Err(error) = RelyingParty::register_new_credential(
-                            operation,
                             &identifier,
                             client_channel,
                             store,
@@ -212,18 +209,23 @@ impl RelyingParty {
                         .await
                         {
                             println!("ceremony error -> {:?}", error);
+
+                            let _ = task.abort(task_id).await;
+                            let _ = ceremony_error.send(Message::Close(None)).await;
                         }
                     });
+
+                    active.0.insert(session_id, handle).await?;
                 }
-                Operation::AuthenticationCeremony(client_channel) => {
+                Operation::AuthenticationCeremony((session_id, client_channel, ceremony_error)) => {
                     let identifier = self.identifier.to_owned();
-                    let store = self.store.to_owned();
+                    let store = store.0.to_owned();
 
-                    tokio::spawn(async move {
-                        let operation = AuthenticationCeremony {};
+                    let task_id = session_id.to_owned();
+                    let task = active.0.to_owned();
 
+                    let handle = tokio::spawn(async move {
                         if let Err(error) = RelyingParty::verify_authentication_assertion(
-                            operation,
                             &identifier,
                             client_channel,
                             store,
@@ -231,46 +233,25 @@ impl RelyingParty {
                         .await
                         {
                             println!("ceremony error -> {:?}", error);
+
+                            let _ = task.abort(task_id).await;
+                            let _ = ceremony_error.send(Message::Close(None)).await;
                         }
                     });
+
+                    active.0.insert(session_id, handle).await?;
                 }
             }
         }
         Ok(())
     }
 
-    async fn allocate(&mut self) -> SessionInfo {
-        let session_info = SessionInfo::generate().await;
-
-        self.available_session
-            .insert(session_info.id, session_info.token);
-
-        let session_timeout = self.session_timeout.to_owned();
-        let id = session_info.id.to_owned();
-
-        tokio::spawn(async move {
-            sleep(Duration::from_millis(30000)).await;
-
-            if let Err(error) = session_timeout.consume(id).await {
-                println!("timeout error -> {:?}", error);
-            }
-        });
-
-        session_info
-    }
-
-    async fn consume(&mut self, id: SessionId) -> Option<SessionInfo> {
-        self.available_session
-            .remove_entry(&id)
-            .map(|(id, token)| SessionInfo { id, token })
-    }
-
     async fn register_new_credential(
-        operation: RegistrationCeremony,
         identifier: &str,
         client: ClientChannel,
         store: StoreChannel,
     ) -> Result<(), AuthenticationError> {
+        let operation = RegistrationCeremony {};
         let options = operation
             .public_key_credential_creation_options(identifier)
             .await?;
@@ -338,11 +319,11 @@ impl RelyingParty {
     }
 
     pub async fn verify_authentication_assertion(
-        operation: AuthenticationCeremony,
         identifier: &str,
         client: ClientChannel,
         store: StoreChannel,
     ) -> Result<(), AuthenticationError> {
+        let operation = AuthenticationCeremony {};
         let options = operation
             .public_key_credential_request_options(identifier)
             .await?;
