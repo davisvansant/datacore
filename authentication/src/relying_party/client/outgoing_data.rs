@@ -1,5 +1,5 @@
 use chrono::{offset::Utc, SecondsFormat};
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::api::assertion_generation_options::PublicKeyCredentialRequestOptions;
 use crate::api::credential_creation_options::PublicKeyCredentialCreationOptions;
@@ -12,18 +12,14 @@ pub enum OutgoingData {
 }
 
 pub struct OutgoingDataTask {
-    data: mpsc::Receiver<OutgoingData>,
-    connected_client: mpsc::Sender<Vec<u8>>,
+    data: Receiver<OutgoingData>,
+    connected_client: Sender<Vec<u8>>,
 }
 
 impl OutgoingDataTask {
-    pub async fn init() -> (
-        mpsc::Sender<OutgoingData>,
-        OutgoingDataTask,
-        mpsc::Receiver<Vec<u8>>,
-    ) {
-        let (sender, data) = mpsc::channel(64);
-        let connected_client = mpsc::channel(1);
+    pub async fn init() -> (Sender<OutgoingData>, OutgoingDataTask, Receiver<Vec<u8>>) {
+        let (sender, data) = channel(64);
+        let connected_client = channel(1);
 
         (
             sender,

@@ -18,16 +18,11 @@ use std::borrow::Cow;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
-use crate::relying_party::{ClientChannel, RelyingPartyOperation};
-
-use crate::relying_party::protocol::websockets::session::{Session, SessionChannel};
-use crate::security::session_token::SessionToken;
-use crate::security::uuid::SessionId;
-
 use crate::relying_party::client::incoming_data::IncomingDataTask;
 use crate::relying_party::client::outgoing_data::OutgoingDataTask;
-
-mod session;
+use crate::relying_party::{ClientChannel, RelyingPartyOperation};
+use crate::security::session_token::SessionToken;
+use crate::security::uuid::SessionId;
 
 pub struct Websockets {
     socket_address: SocketAddr,
@@ -45,22 +40,14 @@ impl Websockets {
     }
 
     pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let mut session = Session::init().await;
-
-        tokio::spawn(async move {
-            if let Err(error) = session.1.run().await {
-                println!("session -> {:?}", error);
-            }
-        });
-
         Server::bind(&self.socket_address)
-            .serve(self.router(session.0).await.into_make_service())
+            .serve(self.router().await.into_make_service())
             .await?;
 
         Ok(())
     }
 
-    async fn router(&self, session: SessionChannel) -> Router {
+    async fn router(&self) -> Router {
         Router::new()
             .route("/register", get(establish))
             .route("/authenticate", get(establish))
@@ -72,7 +59,6 @@ impl Websockets {
                 "/authentication_ceremony/:session",
                 get(authentication_ceremony_session),
             )
-            // .with_state(session)
             .with_state(self.relying_party.to_owned())
     }
 }
@@ -188,7 +174,6 @@ async fn handle_registration_ceremony_session(
     run_token_verification(&mut socket_outgoing, &mut socket_incoming, token).await;
 
     let (outgoing_message, mut outgoing_messages) = channel::<Message>(1);
-    let connected_client_outgoing_message = outgoing_message.to_owned();
     let relying_party_channel_error = outgoing_message.to_owned();
     let relying_party_outgoing_message = outgoing_message.to_owned();
 
@@ -255,7 +240,6 @@ async fn handle_authentication_ceremony_session(
     run_token_verification(&mut socket_outgoing, &mut socket_incoming, token).await;
 
     let (outgoing_message, mut outgoing_messages) = channel::<Message>(1);
-    let connected_client_outgoing_message = outgoing_message.to_owned();
     let relying_party_channel_error = outgoing_message.to_owned();
     let relying_party_outgoing_message = outgoing_message.to_owned();
 
@@ -413,8 +397,7 @@ async fn handle_socket_outgoing(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relying_party::protocol::websockets::session::SessionInfo;
-    use crate::relying_party::RelyingParty;
+    use crate::relying_party::{RelyingParty, SessionInfo};
     use tokio_tungstenite::connect_async;
     use tokio_tungstenite::tungstenite;
 

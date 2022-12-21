@@ -1,4 +1,3 @@
-use chrono::{offset::Utc, SecondsFormat};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::timeout;
@@ -6,14 +5,11 @@ use tokio::time::timeout;
 use std::time::Duration;
 
 use crate::api::assertion_generation_options::PublicKeyCredentialRequestOptions;
-use crate::api::authenticator_responses::{
-    AuthenticatorAssertionResponse, AuthenticatorAttestationResponse, AuthenticatorResponse,
-};
 use crate::api::credential_creation_options::PublicKeyCredentialCreationOptions;
 use crate::api::public_key_credential::PublicKeyCredential;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
-use crate::relying_party::client::incoming_data::{IncomingData, IncomingDataTask};
-use crate::relying_party::client::outgoing_data::{OutgoingData, OutgoingDataTask};
+use crate::relying_party::client::incoming_data::IncomingData;
+use crate::relying_party::client::outgoing_data::OutgoingData;
 
 pub mod incoming_data;
 pub mod outgoing_data;
