@@ -10,7 +10,7 @@ use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::COSEKey;
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
-use crate::relying_party::ClientChannel;
+use crate::relying_party::client::ceremony_data::CeremonyData;
 use crate::relying_party::StoreChannel;
 use crate::security::sha2::{generate_hash, Hash};
 
@@ -30,7 +30,7 @@ impl AuthenticationCeremony {
     pub async fn call_credentials_get(
         &self,
         options: &PublicKeyCredentialRequestOptions,
-        client: &ClientChannel,
+        client: &CeremonyData,
     ) -> Result<PublicKeyCredential, AuthenticationError> {
         let credential = client.credentials_get(options.to_owned()).await?;
 
@@ -303,8 +303,8 @@ mod tests {
         PublicKeyCredentialDescriptor, PublicKeyCredentialType, TokenBinding, TokenBindingStatus,
     };
     use crate::authenticator::attestation::COSEAlgorithm;
-    use crate::relying_party::client::incoming_data::IncomingDataTask;
-    use crate::relying_party::client::outgoing_data::OutgoingDataTask;
+    use crate::relying_party::client::outgoing_data::CeremonyStatus;
+    use crate::relying_party::client::SessionSync;
     use crate::relying_party::client::WebAuthnData;
     use crate::relying_party::store::UserAccount;
     use crate::relying_party::Store;
@@ -329,21 +329,10 @@ mod tests {
             .public_key_credential_request_options("test_rp_id")
             .await?;
 
-        let mut test_incoming_data = IncomingDataTask::init().await;
-        let mut test_outgoing_data = OutgoingDataTask::init().await;
-        let test_client_channel =
-            ClientChannel::init(test_incoming_data.0, test_outgoing_data.0).await;
+        let mut test_session_sync = SessionSync::init().await;
 
         tokio::spawn(async move {
-            test_incoming_data.1.run().await.unwrap();
-        });
-
-        tokio::spawn(async move {
-            test_outgoing_data.1.run().await.unwrap();
-        });
-
-        tokio::spawn(async move {
-            if let Some(test_data) = test_outgoing_data.2.recv().await {
+            if let Some(CeremonyStatus::Continue(test_data)) = test_session_sync.2.recv().await {
                 let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
 
                 match test_webauthndata.message.as_str() {
@@ -365,8 +354,8 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_incoming_data
-                            .2
+                        test_session_sync
+                            .5
                             .send(json)
                             .await
                             .expect("a good message to send");
@@ -393,8 +382,8 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_incoming_data
-                            .2
+                        test_session_sync
+                            .5
                             .send(json)
                             .await
                             .expect("a good message to send");
@@ -407,7 +396,7 @@ mod tests {
         assert!(test_authentication_ceremony
             .call_credentials_get(
                 &test_public_key_credential_request_options,
-                &test_client_channel,
+                &test_session_sync.3,
             )
             .await
             .is_ok());
@@ -599,21 +588,10 @@ mod tests {
             .public_key_credential_request_options("test_rp_id")
             .await?;
 
-        let mut test_incoming_data = IncomingDataTask::init().await;
-        let mut test_outgoing_data = OutgoingDataTask::init().await;
-        let test_client_channel =
-            ClientChannel::init(test_incoming_data.0, test_outgoing_data.0).await;
+        let mut test_session_sync = SessionSync::init().await;
 
         tokio::spawn(async move {
-            test_incoming_data.1.run().await.unwrap();
-        });
-
-        tokio::spawn(async move {
-            test_outgoing_data.1.run().await.unwrap();
-        });
-
-        tokio::spawn(async move {
-            if let Some(test_data) = test_outgoing_data.2.recv().await {
+            if let Some(CeremonyStatus::Continue(test_data)) = test_session_sync.2.recv().await {
                 let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
 
                 match test_webauthndata.message.as_str() {
@@ -635,8 +613,8 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_incoming_data
-                            .2
+                        test_session_sync
+                            .5
                             .send(json)
                             .await
                             .expect("a good message to send");
@@ -663,8 +641,8 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_incoming_data
-                            .2
+                        test_session_sync
+                            .5
                             .send(json)
                             .await
                             .expect("a good message to send");
@@ -677,7 +655,7 @@ mod tests {
         let mut test_public_key_credential = test_authentication_ceremony
             .call_credentials_get(
                 &test_public_key_credential_request_options,
-                &test_client_channel,
+                &test_session_sync.3,
             )
             .await?;
 
@@ -723,21 +701,10 @@ mod tests {
             .public_key_credential_request_options("test_rp_id")
             .await?;
 
-        let mut test_incoming_data = IncomingDataTask::init().await;
-        let mut test_outgoing_data = OutgoingDataTask::init().await;
-        let test_client_channel =
-            ClientChannel::init(test_incoming_data.0, test_outgoing_data.0).await;
+        let mut test_session_sync = SessionSync::init().await;
 
         tokio::spawn(async move {
-            test_incoming_data.1.run().await.unwrap();
-        });
-
-        tokio::spawn(async move {
-            test_outgoing_data.1.run().await.unwrap();
-        });
-
-        tokio::spawn(async move {
-            if let Some(test_data) = test_outgoing_data.2.recv().await {
+            if let Some(CeremonyStatus::Continue(test_data)) = test_session_sync.2.recv().await {
                 let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
 
                 match test_webauthndata.message.as_str() {
@@ -759,8 +726,8 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_incoming_data
-                            .2
+                        test_session_sync
+                            .5
                             .send(json)
                             .await
                             .expect("a good message to send");
@@ -787,8 +754,8 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_incoming_data
-                            .2
+                        test_session_sync
+                            .5
                             .send(json)
                             .await
                             .expect("a good message to send");
@@ -801,7 +768,7 @@ mod tests {
         let test_public_key_credential = test_authentication_ceremony
             .call_credentials_get(
                 &test_public_key_credential_request_options,
-                &test_client_channel,
+                &test_session_sync.3,
             )
             .await?;
         let test_authenticator_assertion_response = test_authentication_ceremony
@@ -1160,21 +1127,10 @@ mod tests {
             .public_key_credential_request_options("test_rp_id")
             .await?;
 
-        let mut test_incoming_data = IncomingDataTask::init().await;
-        let mut test_outgoing_data = OutgoingDataTask::init().await;
-        let test_client_channel =
-            ClientChannel::init(test_incoming_data.0, test_outgoing_data.0).await;
+        let mut test_session_sync = SessionSync::init().await;
 
         tokio::spawn(async move {
-            test_incoming_data.1.run().await.unwrap();
-        });
-
-        tokio::spawn(async move {
-            test_outgoing_data.1.run().await.unwrap();
-        });
-
-        tokio::spawn(async move {
-            if let Some(test_data) = test_outgoing_data.2.recv().await {
+            if let Some(CeremonyStatus::Continue(test_data)) = test_session_sync.2.recv().await {
                 let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
 
                 match test_webauthndata.message.as_str() {
@@ -1196,8 +1152,8 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_incoming_data
-                            .2
+                        test_session_sync
+                            .5
                             .send(json)
                             .await
                             .expect("a good message to send");
@@ -1224,8 +1180,9 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_incoming_data
-                            .2
+                        // test_incoming_data
+                        test_session_sync
+                            .5
                             .send(json)
                             .await
                             .expect("a good message to send");
@@ -1238,7 +1195,7 @@ mod tests {
         let test_public_key_credential = test_authentication_ceremony
             .call_credentials_get(
                 &test_public_key_credential_request_options,
-                &test_client_channel,
+                &test_session_sync.3,
             )
             .await?;
         let test_rp_id = "test_rp_id";

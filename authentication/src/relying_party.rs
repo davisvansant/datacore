@@ -1,10 +1,10 @@
-use axum::extract::ws::Message;
 use axum::http::StatusCode;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::api::supporting_data_structures::TokenBinding;
 use crate::error::AuthenticationError;
-use crate::relying_party::client::ClientChannel;
+use crate::relying_party::client::ceremony_data::CeremonyData;
+use crate::relying_party::client::outgoing_data::ConnectedClient;
 use crate::relying_party::operation::{AuthenticationCeremony, RegistrationCeremony};
 use crate::relying_party::session::{Active, Available, SessionInfo};
 use crate::relying_party::store::{Store, StoreChannel};
@@ -21,8 +21,8 @@ mod session;
 pub enum Operation {
     Allocate,
     Consume(SessionId),
-    RegistrationCeremony((SessionId, ClientChannel, mpsc::Sender<Message>)),
-    AuthenticationCeremony((SessionId, ClientChannel, mpsc::Sender<Message>)),
+    RegistrationCeremony((SessionId, CeremonyData, ConnectedClient)),
+    AuthenticationCeremony((SessionId, CeremonyData, ConnectedClient)),
 }
 
 #[derive(Debug)]
@@ -87,15 +87,15 @@ impl RelyingPartyOperation {
     pub async fn registration_ceremony(
         &self,
         session_id: SessionId,
-        client_channel: ClientChannel,
-        ceremony_error: mpsc::Sender<Message>,
+        ceremony_data: CeremonyData,
+        connected_client: ConnectedClient,
     ) -> Result<(), StatusCode> {
         let (_request, _response) = oneshot::channel();
 
         match self
             .run
             .send((
-                Operation::RegistrationCeremony((session_id, client_channel, ceremony_error)),
+                Operation::RegistrationCeremony((session_id, ceremony_data, connected_client)),
                 _request,
             ))
             .await
@@ -115,15 +115,15 @@ impl RelyingPartyOperation {
     pub async fn authentication_ceremony(
         &self,
         session_id: SessionId,
-        client_channel: ClientChannel,
-        ceremony_error: mpsc::Sender<Message>,
+        ceremony_data: CeremonyData,
+        connected_client: ConnectedClient,
     ) -> Result<(), StatusCode> {
         let (_request, _response) = oneshot::channel();
 
         match self
             .run
             .send((
-                Operation::AuthenticationCeremony((session_id, client_channel, ceremony_error)),
+                Operation::AuthenticationCeremony((session_id, ceremony_data, connected_client)),
                 _request,
             ))
             .await
@@ -193,7 +193,7 @@ impl RelyingParty {
                         let _ = response.send(Response::Error);
                     }
                 },
-                Operation::RegistrationCeremony((session_id, client_channel, ceremony_error)) => {
+                Operation::RegistrationCeremony((session_id, ceremony_data, connected_client)) => {
                     let identifier = self.identifier.to_owned();
                     let store = store.0.to_owned();
 
@@ -203,7 +203,8 @@ impl RelyingParty {
                     let handle = tokio::spawn(async move {
                         if let Err(error) = RelyingParty::register_new_credential(
                             &identifier,
-                            client_channel,
+                            // client_channel,
+                            ceremony_data,
                             store,
                         )
                         .await
@@ -211,13 +212,17 @@ impl RelyingParty {
                             println!("ceremony error -> {:?}", error);
 
                             let _ = task.abort(task_id).await;
-                            let _ = ceremony_error.send(Message::Close(None)).await;
+                            connected_client.fail_ceremony(error).await;
                         }
                     });
 
                     active.0.insert(session_id, handle).await?;
                 }
-                Operation::AuthenticationCeremony((session_id, client_channel, ceremony_error)) => {
+                Operation::AuthenticationCeremony((
+                    session_id,
+                    ceremony_data,
+                    connected_client,
+                )) => {
                     let identifier = self.identifier.to_owned();
                     let store = store.0.to_owned();
 
@@ -227,7 +232,7 @@ impl RelyingParty {
                     let handle = tokio::spawn(async move {
                         if let Err(error) = RelyingParty::verify_authentication_assertion(
                             &identifier,
-                            client_channel,
+                            ceremony_data,
                             store,
                         )
                         .await
@@ -235,7 +240,7 @@ impl RelyingParty {
                             println!("ceremony error -> {:?}", error);
 
                             let _ = task.abort(task_id).await;
-                            let _ = ceremony_error.send(Message::Close(None)).await;
+                            connected_client.fail_ceremony(error).await;
                         }
                     });
 
@@ -248,7 +253,7 @@ impl RelyingParty {
 
     async fn register_new_credential(
         identifier: &str,
-        client: ClientChannel,
+        client: CeremonyData,
         store: StoreChannel,
     ) -> Result<(), AuthenticationError> {
         let operation = RegistrationCeremony {};
@@ -320,7 +325,7 @@ impl RelyingParty {
 
     pub async fn verify_authentication_assertion(
         identifier: &str,
-        client: ClientChannel,
+        client: CeremonyData,
         store: StoreChannel,
     ) -> Result<(), AuthenticationError> {
         let operation = AuthenticationCeremony {};

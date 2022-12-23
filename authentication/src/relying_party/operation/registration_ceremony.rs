@@ -16,8 +16,8 @@ use crate::authenticator::attestation::{
 };
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
+use crate::relying_party::client::ceremony_data::CeremonyData;
 use crate::relying_party::store::{StoreChannel, UserAccount};
-use crate::relying_party::ClientChannel;
 use crate::security::sha2::{generate_hash, Hash};
 
 pub struct RegistrationCeremony {}
@@ -42,7 +42,7 @@ impl RegistrationCeremony {
     pub async fn call_credentials_create(
         &self,
         options: &PublicKeyCredentialCreationOptions,
-        client: &ClientChannel,
+        client: &CeremonyData,
     ) -> Result<PublicKeyCredential, AuthenticationError> {
         let credential = client.credentials_create(options.to_owned()).await?;
 
@@ -371,8 +371,8 @@ mod tests {
     use crate::authenticator::attestation::{
         AttestedCredentialData, COSEAlgorithm, COSEKey, PackedAttestationStatementSyntax,
     };
-    use crate::relying_party::client::incoming_data::IncomingDataTask;
-    use crate::relying_party::client::outgoing_data::OutgoingDataTask;
+    use crate::relying_party::client::outgoing_data::CeremonyStatus;
+    use crate::relying_party::client::SessionSync;
     use crate::relying_party::client::WebAuthnData;
     use crate::relying_party::Store;
     use chrono::{offset::Utc, SecondsFormat};
@@ -393,21 +393,10 @@ mod tests {
     #[tokio::test]
     async fn call_credentials_create() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration_ceremony = RegistrationCeremony {};
-        let mut test_incoming_data = IncomingDataTask::init().await;
-        let mut test_outgoing_data = OutgoingDataTask::init().await;
-        let test_client_channel =
-            ClientChannel::init(test_incoming_data.0, test_outgoing_data.0).await;
+        let mut test_session_sync = SessionSync::init().await;
 
         tokio::spawn(async move {
-            test_incoming_data.1.run().await.unwrap();
-        });
-
-        tokio::spawn(async move {
-            test_outgoing_data.1.run().await.unwrap();
-        });
-
-        tokio::spawn(async move {
-            if let Some(test_data) = test_outgoing_data.2.recv().await {
+            if let Some(CeremonyStatus::Continue(test_data)) = test_session_sync.2.recv().await {
                 let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
 
                 match test_webauthndata.message.as_str() {
@@ -429,8 +418,8 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_incoming_data
-                            .2
+                        test_session_sync
+                            .5
                             .send(json)
                             .await
                             .expect("a good message to send");
@@ -457,8 +446,8 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_incoming_data
-                            .2
+                        test_session_sync
+                            .5
                             .send(json)
                             .await
                             .expect("a good message to send");
@@ -475,7 +464,7 @@ mod tests {
         assert!(test_registration_ceremony
             .call_credentials_create(
                 &test_public_key_credential_creation_options,
-                &test_client_channel,
+                &test_session_sync.3,
             )
             .await
             .is_ok());
@@ -524,21 +513,10 @@ mod tests {
     #[tokio::test]
     async fn client_extension_results() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration_ceremony = RegistrationCeremony {};
-        let mut test_incoming_data = IncomingDataTask::init().await;
-        let mut test_outgoing_data = OutgoingDataTask::init().await;
-        let test_client_channel =
-            ClientChannel::init(test_incoming_data.0, test_outgoing_data.0).await;
+        let mut test_session_sync = SessionSync::init().await;
 
         tokio::spawn(async move {
-            test_incoming_data.1.run().await.unwrap();
-        });
-
-        tokio::spawn(async move {
-            test_outgoing_data.1.run().await.unwrap();
-        });
-
-        tokio::spawn(async move {
-            if let Some(test_data) = test_outgoing_data.2.recv().await {
+            if let Some(CeremonyStatus::Continue(test_data)) = test_session_sync.2.recv().await {
                 let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
 
                 match test_webauthndata.message.as_str() {
@@ -560,8 +538,8 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_incoming_data
-                            .2
+                        test_session_sync
+                            .5
                             .send(json)
                             .await
                             .expect("a good message to send");
@@ -588,8 +566,8 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_incoming_data
-                            .2
+                        test_session_sync
+                            .5
                             .send(json)
                             .await
                             .expect("a good message to send");
@@ -605,7 +583,7 @@ mod tests {
         let test_public_key_credential = test_registration_ceremony
             .call_credentials_create(
                 &test_public_key_credential_creation_options,
-                &test_client_channel,
+                &test_session_sync.3,
             )
             .await?;
 

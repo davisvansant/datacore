@@ -11,17 +11,16 @@ use futures::{
     stream::{SplitSink, SplitStream, StreamExt},
 };
 use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::task::JoinHandle;
 use tokio::time::timeout;
 
 use std::borrow::Cow;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
-use crate::relying_party::client::incoming_data::IncomingDataTask;
-use crate::relying_party::client::outgoing_data::OutgoingDataTask;
+use crate::relying_party::client::outgoing_data::CeremonyStatus;
+use crate::relying_party::client::SessionSync;
+use crate::relying_party::RelyingPartyOperation;
 use crate::relying_party::SessionInfo;
-use crate::relying_party::{ClientChannel, RelyingPartyOperation};
 use crate::security::session_token::SessionToken;
 use crate::security::uuid::SessionId;
 
@@ -167,7 +166,6 @@ async fn initialize(socket: WebSocket, relying_party: RelyingPartyOperation) {
 
 async fn handle_registration_ceremony_session(
     socket: WebSocket,
-    // token: SessionToken,
     session_info: SessionInfo,
     relying_party_operation: RelyingPartyOperation,
 ) {
@@ -181,42 +179,23 @@ async fn handle_registration_ceremony_session(
     .await;
 
     let (outgoing_message, mut outgoing_messages) = channel::<Message>(1);
-    let ceremony_error = outgoing_message.to_owned();
     let relying_party_channel_error = outgoing_message.to_owned();
     let relying_party_outgoing_message = outgoing_message.to_owned();
 
-    let mut incoming_data = IncomingDataTask::init().await;
-    let mut outgoing_data = OutgoingDataTask::init().await;
-    let client_channel = ClientChannel::init(incoming_data.0, outgoing_data.0).await;
-
-    let mut session_tasks = Vec::with_capacity(3);
-
-    let client_incoming_task = tokio::spawn(async move {
-        if let Err(error) = incoming_data.1.run().await {
-            println!("client incoming data -> {:?}", error);
-        }
-    });
-
-    let client_outgoing_task = tokio::spawn(async move {
-        if let Err(error) = outgoing_data.1.run().await {
-            println!("client outgoing data -> {:?}", error);
-        }
-    });
+    let mut session_sync = SessionSync::init().await;
 
     let socket_incoming_task = tokio::spawn(async move {
         handle_socket_incoming(&mut socket_incoming, outgoing_message).await;
     });
 
-    session_tasks.push(client_incoming_task);
-    session_tasks.push(client_outgoing_task);
-    session_tasks.push(socket_incoming_task);
-
-    tokio::spawn(async move {
-        handle_socket_outgoing(&mut outgoing_messages, &mut socket_outgoing, session_tasks).await;
+    let socket_outgoing_task = tokio::spawn(async move {
+        handle_socket_outgoing(&mut outgoing_messages, &mut socket_outgoing).await;
     });
 
+    let session_tasks = vec![socket_incoming_task, socket_outgoing_task];
+
     if let Err(error) = relying_party_operation
-        .registration_ceremony(session_info.id, client_channel, ceremony_error)
+        .registration_ceremony(session_info.id, session_sync.3, session_sync.4)
         .await
     {
         println!("relying party operation -> {:?}", error);
@@ -231,16 +210,28 @@ async fn handle_registration_ceremony_session(
             .await;
     };
 
-    while let Some(data) = outgoing_data.2.recv().await {
-        let _ = relying_party_outgoing_message
-            .send(Message::Binary(data))
-            .await;
+    while let Some(ceremony_status) = session_sync.2.recv().await {
+        match ceremony_status {
+            CeremonyStatus::Continue(data) => {
+                let _ = relying_party_outgoing_message
+                    .send(Message::Binary(data))
+                    .await;
+            }
+            CeremonyStatus::Fail(error) => {
+                println!("fail ceremony");
+
+                session_sync.0.shutdown().await;
+
+                for task in &session_tasks {
+                    task.abort();
+                }
+            }
+        }
     }
 }
 
 async fn handle_authentication_ceremony_session(
     socket: WebSocket,
-    // token: SessionToken,
     session_info: SessionInfo,
     relying_party_operation: RelyingPartyOperation,
 ) {
@@ -254,42 +245,23 @@ async fn handle_authentication_ceremony_session(
     .await;
 
     let (outgoing_message, mut outgoing_messages) = channel::<Message>(1);
-    let ceremony_error = outgoing_message.to_owned();
     let relying_party_channel_error = outgoing_message.to_owned();
     let relying_party_outgoing_message = outgoing_message.to_owned();
 
-    let mut incoming_data = IncomingDataTask::init().await;
-    let mut outgoing_data = OutgoingDataTask::init().await;
-    let client_channel = ClientChannel::init(incoming_data.0, outgoing_data.0).await;
-
-    let mut session_tasks = Vec::with_capacity(3);
-
-    let client_incoming_task = tokio::spawn(async move {
-        if let Err(error) = incoming_data.1.run().await {
-            println!("client incoming data -> {:?}", error);
-        }
-    });
-
-    let client_outgoing_task = tokio::spawn(async move {
-        if let Err(error) = outgoing_data.1.run().await {
-            println!("client outgoing data -> {:?}", error);
-        }
-    });
+    let mut session_sync = SessionSync::init().await;
 
     let socket_incoming_task = tokio::spawn(async move {
         handle_socket_incoming(&mut socket_incoming, outgoing_message).await;
     });
 
-    session_tasks.push(client_incoming_task);
-    session_tasks.push(client_outgoing_task);
-    session_tasks.push(socket_incoming_task);
-
-    tokio::spawn(async move {
-        handle_socket_outgoing(&mut outgoing_messages, &mut socket_outgoing, session_tasks).await;
+    let socket_outgoing_task = tokio::spawn(async move {
+        handle_socket_outgoing(&mut outgoing_messages, &mut socket_outgoing).await;
     });
 
+    let session_tasks = vec![socket_incoming_task, socket_outgoing_task];
+
     if let Err(error) = relying_party_operation
-        .registration_ceremony(session_info.id, client_channel, ceremony_error)
+        .authentication_ceremony(session_info.id, session_sync.3, session_sync.4)
         .await
     {
         println!("relying party operation -> {:?}", error);
@@ -304,10 +276,23 @@ async fn handle_authentication_ceremony_session(
             .await;
     };
 
-    while let Some(data) = outgoing_data.2.recv().await {
-        let _ = relying_party_outgoing_message
-            .send(Message::Binary(data))
-            .await;
+    while let Some(ceremony_status) = session_sync.2.recv().await {
+        match ceremony_status {
+            CeremonyStatus::Continue(data) => {
+                let _ = relying_party_outgoing_message
+                    .send(Message::Binary(data))
+                    .await;
+            }
+            CeremonyStatus::Fail(error) => {
+                println!("fail ceremony");
+
+                session_sync.0.shutdown().await;
+
+                for task in &session_tasks {
+                    task.abort();
+                }
+            }
+        }
     }
 }
 
@@ -372,7 +357,6 @@ async fn handle_socket_incoming(
 async fn handle_socket_outgoing(
     outgoing_messages: &mut Receiver<Message>,
     socket_outgoing: &mut SplitSink<WebSocket, Message>,
-    session_tasks: Vec<JoinHandle<()>>,
 ) {
     while let Some(message) = outgoing_messages.recv().await {
         match message {
@@ -390,18 +374,10 @@ async fn handle_socket_outgoing(
                     .await;
                 let _ = socket_outgoing.close().await;
 
-                for task in &session_tasks {
-                    task.abort();
-                }
-
                 outgoing_messages.close();
             }
             Message::Close(None) => {
                 let _ = socket_outgoing.close().await;
-
-                for task in &session_tasks {
-                    task.abort();
-                }
 
                 outgoing_messages.close();
             }
@@ -707,21 +683,13 @@ mod tests {
             let (mut test_socket_outgoing, mut test_socket_incoming) = test_socket.split();
             let (test_outgoing_message, mut test_outgoing_messages) = channel::<Message>(1);
 
-            let mut test_session_tasks = Vec::with_capacity(1);
-
-            let test_socket_incoming_task = tokio::spawn(async move {
+            tokio::spawn(async move {
                 handle_socket_incoming(&mut test_socket_incoming, test_outgoing_message).await;
             });
 
-            test_session_tasks.push(test_socket_incoming_task);
-
             tokio::spawn(async move {
-                handle_socket_outgoing(
-                    &mut test_outgoing_messages,
-                    &mut test_socket_outgoing,
-                    test_session_tasks,
-                )
-                .await;
+                handle_socket_outgoing(&mut test_outgoing_messages, &mut test_socket_outgoing)
+                    .await;
             });
         }
 
