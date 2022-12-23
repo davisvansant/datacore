@@ -17,7 +17,14 @@ pub enum AuthenticationErrorType {
 
 impl std::fmt::Display for AuthenticationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Authentication Error!")
+        match self.error {
+            AuthenticationErrorType::UnknownError => write!(f, "UnknownError"),
+            AuthenticationErrorType::NotSupportedError => write!(f, "NotSupportedError"),
+            AuthenticationErrorType::InvalidStateError => write!(f, "InvalidStateError"),
+            AuthenticationErrorType::NotAllowedError => write!(f, "NotAllowedError"),
+            AuthenticationErrorType::ConstraintError => write!(f, "ContraintError"),
+            AuthenticationErrorType::OperationError => write!(f, "OperationError"),
+        }
     }
 }
 
