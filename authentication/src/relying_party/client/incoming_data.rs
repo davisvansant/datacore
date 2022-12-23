@@ -1,6 +1,7 @@
 use tokio::sync::{broadcast, mpsc};
 
 use crate::api::public_key_credential::PublicKeyCredential;
+use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::relying_party::client::WebAuthnData;
 
 #[derive(Clone, Debug)]
@@ -9,40 +10,58 @@ pub enum IncomingData {
 }
 
 pub struct IncomingDataTask {
-    data: mpsc::Receiver<Vec<u8>>,
     relying_party: broadcast::Sender<IncomingData>,
+    data: mpsc::Receiver<Vec<u8>>,
 }
 
 impl IncomingDataTask {
-    pub async fn init() -> (
-        broadcast::Sender<IncomingData>,
-        IncomingDataTask,
-        mpsc::Sender<Vec<u8>>,
-    ) {
-        let (relying_party, _) = broadcast::channel(64);
-        let (sender, receiver) = mpsc::channel(64);
+    pub async fn init(
+        relying_party: broadcast::Sender<IncomingData>,
+    ) -> (mpsc::Sender<Vec<u8>>, IncomingDataTask) {
+        let channel = mpsc::channel(1);
 
         (
-            relying_party.to_owned(),
+            channel.0,
             IncomingDataTask {
-                data: receiver,
                 relying_party,
+                data: channel.1,
             },
-            sender,
         )
     }
 
-    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn run(&mut self) -> Result<(), AuthenticationError> {
         while let Some(data) = self.data.recv().await {
-            let webauthndata: WebAuthnData = serde_json::from_slice(&data)?;
+            let webauthndata: WebAuthnData = match serde_json::from_slice(&data) {
+                Ok(webauthndata) => webauthndata,
+                Err(error) => {
+                    println!("json deserialization error -> {:?}", error);
+
+                    let authentication_error = AuthenticationError {
+                        error: AuthenticationErrorType::OperationError,
+                    };
+
+                    return Err(authentication_error);
+                }
+            };
 
             match webauthndata.message.as_str() {
                 "public_key_credential" => {
-                    let public_key_credential: PublicKeyCredential =
-                        serde_json::from_slice(&webauthndata.contents)?;
+                    match serde_json::from_slice(&webauthndata.contents) {
+                        Ok(public_key_credential) => {
+                            let _ = self
+                                .relying_party
+                                .send(IncomingData::PublicKeyCredential(public_key_credential));
+                        }
+                        Err(error) => {
+                            println!("json serialization error -> {:?}", error);
 
-                    self.relying_party
-                        .send(IncomingData::PublicKeyCredential(public_key_credential))?;
+                            let authentication_error = AuthenticationError {
+                                error: AuthenticationErrorType::OperationError,
+                            };
+
+                            return Err(authentication_error);
+                        }
+                    };
                 }
                 _ => panic!("not yet..."),
             }

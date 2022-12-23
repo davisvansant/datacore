@@ -1,16 +1,14 @@
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, mpsc};
-use tokio::time::timeout;
+use tokio::task::JoinHandle;
 
-use std::time::Duration;
+use crate::relying_party::client::ceremony_data::CeremonyData;
+use crate::relying_party::client::incoming_data::{IncomingData, IncomingDataTask};
+use crate::relying_party::client::outgoing_data::{
+    CeremonyStatus, ConnectedClient, OutgoingDataTask,
+};
 
-use crate::api::assertion_generation_options::PublicKeyCredentialRequestOptions;
-use crate::api::credential_creation_options::PublicKeyCredentialCreationOptions;
-use crate::api::public_key_credential::PublicKeyCredential;
-use crate::error::{AuthenticationError, AuthenticationErrorType};
-use crate::relying_party::client::incoming_data::IncomingData;
-use crate::relying_party::client::outgoing_data::OutgoingData;
-
+pub mod ceremony_data;
 pub mod incoming_data;
 pub mod outgoing_data;
 
@@ -21,100 +19,55 @@ pub struct WebAuthnData {
     pub timestamp: String,
 }
 
-#[derive(Clone, Debug)]
-pub struct ClientChannel {
-    incoming_data: broadcast::Sender<IncomingData>,
-    outgoing_data: mpsc::Sender<OutgoingData>,
+pub struct SessionSync {
+    handles: Vec<JoinHandle<()>>,
 }
 
-impl ClientChannel {
-    pub async fn init(
-        incoming_data: broadcast::Sender<IncomingData>,
-        outgoing_data: mpsc::Sender<OutgoingData>,
-    ) -> ClientChannel {
-        ClientChannel {
-            incoming_data,
-            outgoing_data,
-        }
+impl SessionSync {
+    pub async fn init() -> (
+        SessionSync,
+        broadcast::Sender<IncomingData>,
+        mpsc::Receiver<CeremonyStatus>,
+        CeremonyData,
+        ConnectedClient,
+        mpsc::Sender<Vec<u8>>,
+    ) {
+        let connected_client = ConnectedClient::init().await;
+        let connected_relying_party = broadcast::channel(1);
+        let mut incoming = IncomingDataTask::init(connected_relying_party.0.to_owned()).await;
+        let mut outgoing = OutgoingDataTask::init(connected_client.0.to_owned()).await;
+        let ceremony_data =
+            CeremonyData::init(connected_relying_party.0.to_owned(), outgoing.0.to_owned()).await;
+        let incoming_task_error = connected_client.0.to_owned();
+        let outgoing_task_error = connected_client.0.to_owned();
+
+        let incoming_handle = tokio::spawn(async move {
+            if let Err(error) = incoming.1.run().await {
+                incoming_task_error.fail_ceremony(error).await;
+            }
+        });
+
+        let outgoing_handle = tokio::spawn(async move {
+            if let Err(error) = outgoing.1.run().await {
+                outgoing_task_error.fail_ceremony(error).await;
+            }
+        });
+
+        let handles = vec![incoming_handle, outgoing_handle];
+
+        (
+            SessionSync { handles },
+            connected_relying_party.0,
+            connected_client.1,
+            ceremony_data,
+            connected_client.0.to_owned(),
+            incoming.0,
+        )
     }
 
-    pub async fn credentials_create(
-        &self,
-        options: PublicKeyCredentialCreationOptions,
-    ) -> Result<PublicKeyCredential, AuthenticationError> {
-        let error = AuthenticationError {
-            error: AuthenticationErrorType::OperationError,
-        };
-
-        let call_timeout = match options.timeout {
-            Some(timeout) => Duration::from_millis(timeout),
-            None => return Err(error),
-        };
-
-        match self
-            .outgoing_data
-            .send(OutgoingData::PublicKeyCredentialCreationOptions(options))
-            .await
-        {
-            Ok(()) => {
-                let mut incoming_data = self.incoming_data.subscribe();
-
-                match timeout(call_timeout, incoming_data.recv()).await {
-                    Ok(received_data) => {
-                        if let Ok(IncomingData::PublicKeyCredential(credential)) = received_data {
-                            Ok(credential)
-                        } else {
-                            Err(error)
-                        }
-                    }
-                    Err(timeout_error) => {
-                        println!("timeout reached! {:?}", timeout_error);
-
-                        Err(error)
-                    }
-                }
-            }
-            Err(_) => Err(error),
-        }
-    }
-
-    pub async fn credentials_get(
-        &self,
-        options: PublicKeyCredentialRequestOptions,
-    ) -> Result<PublicKeyCredential, AuthenticationError> {
-        let error = AuthenticationError {
-            error: AuthenticationErrorType::OperationError,
-        };
-
-        let call_timeout = match options.timeout {
-            Some(timeout) => Duration::from_millis(timeout),
-            None => return Err(error),
-        };
-
-        match self
-            .outgoing_data
-            .send(OutgoingData::PublicKeyCredentialRequestOptions(options))
-            .await
-        {
-            Ok(()) => {
-                let mut incoming_data = self.incoming_data.subscribe();
-
-                match timeout(call_timeout, incoming_data.recv()).await {
-                    Ok(received_data) => {
-                        if let Ok(IncomingData::PublicKeyCredential(credential)) = received_data {
-                            Ok(credential)
-                        } else {
-                            Err(error)
-                        }
-                    }
-                    Err(timeout_error) => {
-                        println!("timeout reached! {:?}", timeout_error);
-
-                        Err(error)
-                    }
-                }
-            }
-            Err(_) => Err(error),
+    pub async fn shutdown(&self) {
+        for handle in &self.handles {
+            handle.abort();
         }
     }
 }
