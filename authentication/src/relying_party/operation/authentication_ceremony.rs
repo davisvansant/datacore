@@ -304,7 +304,7 @@ mod tests {
     };
     use crate::authenticator::attestation::COSEAlgorithm;
     use crate::relying_party::client::outgoing_data::CeremonyStatus;
-    use crate::relying_party::client::SessionSync;
+    use crate::relying_party::client::CeremonyIO;
     use crate::relying_party::client::WebAuthnData;
     use crate::relying_party::store::UserAccount;
     use crate::relying_party::Store;
@@ -329,37 +329,13 @@ mod tests {
             .public_key_credential_request_options("test_rp_id")
             .await?;
 
-        let mut test_session_sync = SessionSync::init().await;
+        let mut test_ceremony_io = CeremonyIO::init().await;
 
         tokio::spawn(async move {
-            if let Some(CeremonyStatus::Continue(test_data)) = test_session_sync.2.recv().await {
+            if let Some(CeremonyStatus::Continue(test_data)) = test_ceremony_io.2.recv().await {
                 let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
 
                 match test_webauthndata.message.as_str() {
-                    "public_key_credential_creation_options" => {
-                        let id = String::from("some_credential_id");
-                        let client_data_json = Vec::with_capacity(0);
-                        let attestation_object = Vec::with_capacity(0);
-                        let response = AuthenticatorResponse::AuthenticatorAttestationResponse(
-                            AuthenticatorAttestationResponse {
-                                client_data_json,
-                                attestation_object,
-                            },
-                        );
-                        let credential = PublicKeyCredential::generate(id, response).await;
-                        let webauthndata = WebAuthnData {
-                            message: String::from("public_key_credential"),
-                            contents: serde_json::to_vec(&credential).expect("json"),
-                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                        };
-                        let json = serde_json::to_vec(&webauthndata).expect("json");
-
-                        test_session_sync
-                            .5
-                            .send(json)
-                            .await
-                            .expect("a good message to send");
-                    }
                     "public_key_credential_request_options" => {
                         let id = String::from("some_key_id");
                         let client_data_json = Vec::with_capacity(0);
@@ -382,11 +358,11 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_session_sync
+                        test_ceremony_io
                             .5
                             .send(json)
                             .await
-                            .expect("a good message to send");
+                            .expect("test ceremony message");
                     }
                     _ => panic!("this is just for testing..."),
                 }
@@ -396,7 +372,7 @@ mod tests {
         assert!(test_authentication_ceremony
             .call_credentials_get(
                 &test_public_key_credential_request_options,
-                &test_session_sync.3,
+                &test_ceremony_io.3,
             )
             .await
             .is_ok());
@@ -588,37 +564,13 @@ mod tests {
             .public_key_credential_request_options("test_rp_id")
             .await?;
 
-        let mut test_session_sync = SessionSync::init().await;
+        let mut test_ceremony_io = CeremonyIO::init().await;
 
         tokio::spawn(async move {
-            if let Some(CeremonyStatus::Continue(test_data)) = test_session_sync.2.recv().await {
+            if let Some(CeremonyStatus::Continue(test_data)) = test_ceremony_io.2.recv().await {
                 let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
 
                 match test_webauthndata.message.as_str() {
-                    "public_key_credential_creation_options" => {
-                        let id = String::from("some_credential_id");
-                        let client_data_json = Vec::with_capacity(0);
-                        let attestation_object = Vec::with_capacity(0);
-                        let response = AuthenticatorResponse::AuthenticatorAttestationResponse(
-                            AuthenticatorAttestationResponse {
-                                client_data_json,
-                                attestation_object,
-                            },
-                        );
-                        let credential = PublicKeyCredential::generate(id, response).await;
-                        let webauthndata = WebAuthnData {
-                            message: String::from("public_key_credential"),
-                            contents: serde_json::to_vec(&credential).expect("json"),
-                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                        };
-                        let json = serde_json::to_vec(&webauthndata).expect("json");
-
-                        test_session_sync
-                            .5
-                            .send(json)
-                            .await
-                            .expect("a good message to send");
-                    }
                     "public_key_credential_request_options" => {
                         let id = String::from("some_key_id");
                         let client_data_json = Vec::with_capacity(0);
@@ -641,11 +593,11 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_session_sync
+                        test_ceremony_io
                             .5
                             .send(json)
                             .await
-                            .expect("a good message to send");
+                            .expect("test ceremony message");
                     }
                     _ => panic!("this is just for testing..."),
                 }
@@ -655,7 +607,7 @@ mod tests {
         let mut test_public_key_credential = test_authentication_ceremony
             .call_credentials_get(
                 &test_public_key_credential_request_options,
-                &test_session_sync.3,
+                &test_ceremony_io.3,
             )
             .await?;
 
@@ -701,37 +653,13 @@ mod tests {
             .public_key_credential_request_options("test_rp_id")
             .await?;
 
-        let mut test_session_sync = SessionSync::init().await;
+        let mut test_ceremony_io = CeremonyIO::init().await;
 
         tokio::spawn(async move {
-            if let Some(CeremonyStatus::Continue(test_data)) = test_session_sync.2.recv().await {
+            if let Some(CeremonyStatus::Continue(test_data)) = test_ceremony_io.2.recv().await {
                 let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
 
                 match test_webauthndata.message.as_str() {
-                    "public_key_credential_creation_options" => {
-                        let id = String::from("some_credential_id");
-                        let client_data_json = Vec::with_capacity(0);
-                        let attestation_object = Vec::with_capacity(0);
-                        let response = AuthenticatorResponse::AuthenticatorAttestationResponse(
-                            AuthenticatorAttestationResponse {
-                                client_data_json,
-                                attestation_object,
-                            },
-                        );
-                        let credential = PublicKeyCredential::generate(id, response).await;
-                        let webauthndata = WebAuthnData {
-                            message: String::from("public_key_credential"),
-                            contents: serde_json::to_vec(&credential).expect("json"),
-                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                        };
-                        let json = serde_json::to_vec(&webauthndata).expect("json");
-
-                        test_session_sync
-                            .5
-                            .send(json)
-                            .await
-                            .expect("a good message to send");
-                    }
                     "public_key_credential_request_options" => {
                         let id = String::from("some_key_id");
                         let client_data_json = Vec::with_capacity(0);
@@ -754,11 +682,11 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_session_sync
+                        test_ceremony_io
                             .5
                             .send(json)
                             .await
-                            .expect("a good message to send");
+                            .expect("test ceremony message");
                     }
                     _ => panic!("this is just for testing..."),
                 }
@@ -768,7 +696,7 @@ mod tests {
         let test_public_key_credential = test_authentication_ceremony
             .call_credentials_get(
                 &test_public_key_credential_request_options,
-                &test_session_sync.3,
+                &test_ceremony_io.3,
             )
             .await?;
         let test_authenticator_assertion_response = test_authentication_ceremony
@@ -1127,37 +1055,13 @@ mod tests {
             .public_key_credential_request_options("test_rp_id")
             .await?;
 
-        let mut test_session_sync = SessionSync::init().await;
+        let mut test_ceremony_io = CeremonyIO::init().await;
 
         tokio::spawn(async move {
-            if let Some(CeremonyStatus::Continue(test_data)) = test_session_sync.2.recv().await {
+            if let Some(CeremonyStatus::Continue(test_data)) = test_ceremony_io.2.recv().await {
                 let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
 
                 match test_webauthndata.message.as_str() {
-                    "public_key_credential_creation_options" => {
-                        let id = String::from("some_credential_id");
-                        let client_data_json = Vec::with_capacity(0);
-                        let attestation_object = Vec::with_capacity(0);
-                        let response = AuthenticatorResponse::AuthenticatorAttestationResponse(
-                            AuthenticatorAttestationResponse {
-                                client_data_json,
-                                attestation_object,
-                            },
-                        );
-                        let credential = PublicKeyCredential::generate(id, response).await;
-                        let webauthndata = WebAuthnData {
-                            message: String::from("public_key_credential"),
-                            contents: serde_json::to_vec(&credential).expect("json"),
-                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                        };
-                        let json = serde_json::to_vec(&webauthndata).expect("json");
-
-                        test_session_sync
-                            .5
-                            .send(json)
-                            .await
-                            .expect("a good message to send");
-                    }
                     "public_key_credential_request_options" => {
                         let id = String::from("some_key_id");
                         let client_data_json = Vec::with_capacity(0);
@@ -1180,12 +1084,11 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        // test_incoming_data
-                        test_session_sync
+                        test_ceremony_io
                             .5
                             .send(json)
                             .await
-                            .expect("a good message to send");
+                            .expect("test ceremony message");
                     }
                     _ => panic!("this is just for testing..."),
                 }
@@ -1195,9 +1098,10 @@ mod tests {
         let test_public_key_credential = test_authentication_ceremony
             .call_credentials_get(
                 &test_public_key_credential_request_options,
-                &test_session_sync.3,
+                &test_ceremony_io.3,
             )
             .await?;
+
         let test_rp_id = "test_rp_id";
         let test_user_present = true;
         let test_user_verified = false;

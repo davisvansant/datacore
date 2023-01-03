@@ -19,13 +19,13 @@ pub struct WebAuthnData {
     pub timestamp: String,
 }
 
-pub struct SessionSync {
-    handles: Vec<JoinHandle<()>>,
+pub struct CeremonyIO {
+    tasks: Vec<JoinHandle<()>>,
 }
 
-impl SessionSync {
+impl CeremonyIO {
     pub async fn init() -> (
-        SessionSync,
+        CeremonyIO,
         broadcast::Sender<IncomingData>,
         mpsc::Receiver<CeremonyStatus>,
         CeremonyData,
@@ -53,10 +53,10 @@ impl SessionSync {
             }
         });
 
-        let handles = vec![incoming_handle, outgoing_handle];
+        let tasks = vec![incoming_handle, outgoing_handle];
 
         (
-            SessionSync { handles },
+            CeremonyIO { tasks },
             connected_relying_party.0,
             connected_client.1,
             ceremony_data,
@@ -65,9 +65,33 @@ impl SessionSync {
         )
     }
 
-    pub async fn shutdown(&self) {
-        for handle in &self.handles {
-            handle.abort();
+    pub async fn shutdown(&mut self) {
+        for task in &self.tasks {
+            task.abort();
         }
+
+        self.tasks.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn ceremony_io() -> Result<(), Box<dyn std::error::Error>> {
+        let mut test_ceremony_io = CeremonyIO::init().await;
+
+        assert_eq!(test_ceremony_io.0.tasks.len(), 2);
+
+        for test_task in &test_ceremony_io.0.tasks {
+            assert!(!test_task.is_finished());
+        }
+
+        test_ceremony_io.0.shutdown().await;
+
+        assert_eq!(test_ceremony_io.0.tasks.len(), 0);
+
+        Ok(())
     }
 }

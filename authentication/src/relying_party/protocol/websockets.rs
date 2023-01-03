@@ -18,7 +18,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
 use crate::relying_party::client::outgoing_data::CeremonyStatus;
-use crate::relying_party::client::SessionSync;
+use crate::relying_party::client::CeremonyIO;
 use crate::relying_party::RelyingPartyOperation;
 use crate::relying_party::SessionInfo;
 use crate::security::session_token::SessionToken;
@@ -182,7 +182,7 @@ async fn handle_registration_ceremony_session(
     let relying_party_channel_error = outgoing_message.to_owned();
     let relying_party_outgoing_message = outgoing_message.to_owned();
 
-    let mut session_sync = SessionSync::init().await;
+    let mut ceremony_io = CeremonyIO::init().await;
 
     let socket_incoming_task = tokio::spawn(async move {
         handle_socket_incoming(&mut socket_incoming, outgoing_message).await;
@@ -195,7 +195,7 @@ async fn handle_registration_ceremony_session(
     let session_tasks = vec![socket_incoming_task, socket_outgoing_task];
 
     if let Err(error) = relying_party_operation
-        .registration_ceremony(session_info.id, session_sync.3, session_sync.4)
+        .registration_ceremony(session_info.id, ceremony_io.3, ceremony_io.4)
         .await
     {
         println!("relying party operation -> {:?}", error);
@@ -210,7 +210,7 @@ async fn handle_registration_ceremony_session(
             .await;
     };
 
-    while let Some(ceremony_status) = session_sync.2.recv().await {
+    while let Some(ceremony_status) = ceremony_io.2.recv().await {
         match ceremony_status {
             CeremonyStatus::Continue(data) => {
                 let _ = relying_party_outgoing_message
@@ -220,7 +220,7 @@ async fn handle_registration_ceremony_session(
             CeremonyStatus::Fail(error) => {
                 println!("fail ceremony");
 
-                session_sync.0.shutdown().await;
+                ceremony_io.0.shutdown().await;
 
                 for task in &session_tasks {
                     task.abort();
@@ -248,7 +248,7 @@ async fn handle_authentication_ceremony_session(
     let relying_party_channel_error = outgoing_message.to_owned();
     let relying_party_outgoing_message = outgoing_message.to_owned();
 
-    let mut session_sync = SessionSync::init().await;
+    let mut ceremony_io = CeremonyIO::init().await;
 
     let socket_incoming_task = tokio::spawn(async move {
         handle_socket_incoming(&mut socket_incoming, outgoing_message).await;
@@ -261,7 +261,7 @@ async fn handle_authentication_ceremony_session(
     let session_tasks = vec![socket_incoming_task, socket_outgoing_task];
 
     if let Err(error) = relying_party_operation
-        .authentication_ceremony(session_info.id, session_sync.3, session_sync.4)
+        .authentication_ceremony(session_info.id, ceremony_io.3, ceremony_io.4)
         .await
     {
         println!("relying party operation -> {:?}", error);
@@ -276,7 +276,7 @@ async fn handle_authentication_ceremony_session(
             .await;
     };
 
-    while let Some(ceremony_status) = session_sync.2.recv().await {
+    while let Some(ceremony_status) = ceremony_io.2.recv().await {
         match ceremony_status {
             CeremonyStatus::Continue(data) => {
                 let _ = relying_party_outgoing_message
@@ -286,7 +286,7 @@ async fn handle_authentication_ceremony_session(
             CeremonyStatus::Fail(error) => {
                 println!("fail ceremony");
 
-                session_sync.0.shutdown().await;
+                ceremony_io.0.shutdown().await;
 
                 for task in &session_tasks {
                     task.abort();
