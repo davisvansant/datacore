@@ -372,8 +372,8 @@ mod tests {
         AttestedCredentialData, COSEAlgorithm, COSEKey, PackedAttestationStatementSyntax,
     };
     use crate::relying_party::client::outgoing_data::CeremonyStatus;
+    use crate::relying_party::client::webauthn_data::WebAuthnData;
     use crate::relying_party::client::CeremonyIO;
-    use crate::relying_party::client::WebAuthnData;
     use crate::relying_party::Store;
     use chrono::{offset::Utc, SecondsFormat};
     use ciborium::cbor;

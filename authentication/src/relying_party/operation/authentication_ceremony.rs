@@ -304,8 +304,8 @@ mod tests {
     };
     use crate::authenticator::attestation::COSEAlgorithm;
     use crate::relying_party::client::outgoing_data::CeremonyStatus;
+    use crate::relying_party::client::webauthn_data::WebAuthnData;
     use crate::relying_party::client::CeremonyIO;
-    use crate::relying_party::client::WebAuthnData;
     use crate::relying_party::store::UserAccount;
     use crate::relying_party::Store;
     use chrono::{offset::Utc, SecondsFormat};

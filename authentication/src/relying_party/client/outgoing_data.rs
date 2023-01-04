@@ -1,10 +1,9 @@
-use chrono::{offset::Utc, SecondsFormat};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::api::assertion_generation_options::PublicKeyCredentialRequestOptions;
 use crate::api::credential_creation_options::PublicKeyCredentialCreationOptions;
-use crate::error::{AuthenticationError, AuthenticationErrorType};
-use crate::relying_party::client::WebAuthnData;
+use crate::error::AuthenticationError;
+use crate::relying_party::client::webauthn_data::WebAuthnData;
 
 #[derive(Clone, Debug)]
 pub enum OutgoingData {
@@ -61,74 +60,9 @@ impl OutgoingDataTask {
 
     pub async fn run(&mut self) -> Result<(), AuthenticationError> {
         while let Some(data) = self.data.recv().await {
-            match data {
-                OutgoingData::PublicKeyCredentialCreationOptions(options) => {
-                    let webauthndata = match serde_json::to_vec(&options) {
-                        Ok(contents) => WebAuthnData {
-                            message: String::from("public_key_credential_creation_options"),
-                            contents,
-                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                        },
-                        Err(error) => {
-                            println!("json serialization error -> {:?}", error);
+            let json = WebAuthnData::to_outgoing_data(data).await?;
 
-                            let authentication_error = AuthenticationError {
-                                error: AuthenticationErrorType::OperationError,
-                            };
-
-                            return Err(authentication_error);
-                        }
-                    };
-
-                    match serde_json::to_vec(&webauthndata) {
-                        Ok(json) => {
-                            self.connected_client.continue_ceremony(json).await;
-                        }
-                        Err(error) => {
-                            println!("json serialization error -> {:?}", error);
-
-                            let authentication_error = AuthenticationError {
-                                error: AuthenticationErrorType::OperationError,
-                            };
-
-                            return Err(authentication_error);
-                        }
-                    }
-                }
-                OutgoingData::PublicKeyCredentialRequestOptions(options) => {
-                    let webauthndata = match serde_json::to_vec(&options) {
-                        Ok(contents) => WebAuthnData {
-                            message: String::from("public_key_credential_request_options"),
-                            contents,
-                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                        },
-                        Err(error) => {
-                            println!("json serialization error -> {:?}", error);
-
-                            let authentication_error = AuthenticationError {
-                                error: AuthenticationErrorType::OperationError,
-                            };
-
-                            return Err(authentication_error);
-                        }
-                    };
-
-                    match serde_json::to_vec(&webauthndata) {
-                        Ok(json) => {
-                            self.connected_client.continue_ceremony(json).await;
-                        }
-                        Err(error) => {
-                            println!("json serialization error -> {:?}", error);
-
-                            let authentication_error = AuthenticationError {
-                                error: AuthenticationErrorType::OperationError,
-                            };
-
-                            return Err(authentication_error);
-                        }
-                    }
-                }
-            }
+            self.connected_client.continue_ceremony(json).await;
         }
 
         Ok(())

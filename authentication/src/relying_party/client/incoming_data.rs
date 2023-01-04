@@ -2,7 +2,7 @@ use tokio::sync::{broadcast, mpsc};
 
 use crate::api::public_key_credential::PublicKeyCredential;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
-use crate::relying_party::client::WebAuthnData;
+use crate::relying_party::client::webauthn_data::WebAuthnData;
 
 #[derive(Clone, Debug)]
 pub enum IncomingData {
@@ -31,18 +31,7 @@ impl IncomingDataTask {
 
     pub async fn run(&mut self) -> Result<(), AuthenticationError> {
         while let Some(data) = self.data.recv().await {
-            let webauthndata: WebAuthnData = match serde_json::from_slice(&data) {
-                Ok(webauthndata) => webauthndata,
-                Err(error) => {
-                    println!("json deserialization error -> {:?}", error);
-
-                    let authentication_error = AuthenticationError {
-                        error: AuthenticationErrorType::OperationError,
-                    };
-
-                    return Err(authentication_error);
-                }
-            };
+            let webauthndata = WebAuthnData::from_incoming_data(&data).await?;
 
             match webauthndata.message.as_str() {
                 "public_key_credential" => {
