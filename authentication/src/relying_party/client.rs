@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinHandle;
 
@@ -11,13 +10,7 @@ use crate::relying_party::client::outgoing_data::{
 pub mod ceremony_data;
 pub mod incoming_data;
 pub mod outgoing_data;
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct WebAuthnData {
-    pub message: String,
-    pub contents: Vec<u8>,
-    pub timestamp: String,
-}
+pub mod webauthn_data;
 
 pub struct CeremonyIO {
     tasks: Vec<JoinHandle<()>>,
