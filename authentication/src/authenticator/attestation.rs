@@ -7,6 +7,7 @@ pub use crate::authenticator::attestation::statement_format::{
     AttestationVerificationProcedureOutput, PackedAttestationStatementSyntax,
 };
 use crate::error::{AuthenticationError, AuthenticationErrorType};
+use crate::security::uuid::{generate_aaguid, CredentialId, AAGUID};
 
 mod cose_key_format;
 mod statement_format;
@@ -63,24 +64,24 @@ impl AttestationObject {
 
 #[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct AttestedCredentialData {
-    pub aaguid: [u8; 16],
+    pub aaguid: AAGUID,
     pub credential_id_length: [u8; 2],
-    pub credential_id: [u8; 16],
+    pub credential_id: CredentialId,
     pub credential_public_key: COSEKey,
 }
 
 impl AttestedCredentialData {
     pub async fn generate(
-        credential_id: [u8; 16],
+        credential_id: &CredentialId,
         credential_public_key: COSEKey,
     ) -> Result<Vec<u8>, AuthenticationError> {
-        let aaguid = Uuid::new_v4().simple().into_uuid().into_bytes();
+        let aaguid = generate_aaguid().await;
         let credential_id_length = credential_id.len() as u16;
         let credential_id_length_bytes = credential_id_length.to_be_bytes();
         let attested_credential_data = AttestedCredentialData {
             aaguid,
             credential_id_length: credential_id_length_bytes,
-            credential_id,
+            credential_id: credential_id.to_vec(),
             credential_public_key,
         };
 
@@ -126,7 +127,7 @@ impl AttestedCredentialData {
     }
 
     pub async fn from_byte_array(data: &[u8]) -> AttestedCredentialData {
-        let mut aaguid: [u8; 16] = [0; 16];
+        let mut aaguid: AAGUID = [0; 16];
         let mut credential_id_length: [u8; 2] = [0; 2];
         let mut credential_id: [u8; 16] = [0; 16];
 
@@ -146,7 +147,7 @@ impl AttestedCredentialData {
         AttestedCredentialData {
             aaguid,
             credential_id_length,
-            credential_id,
+            credential_id: credential_id.to_vec(),
             credential_public_key,
         }
     }
@@ -170,10 +171,10 @@ mod tests {
     #[tokio::test]
     async fn attestation_object() -> Result<(), Box<dyn std::error::Error>> {
         let test_attestation_format = AttestationStatementFormat::Packed;
-        let test_credential_id = [0u8; 16];
+        let test_credential_id = [0u8; 16].to_vec();
         let test_keypair = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data =
-            AttestedCredentialData::generate(test_credential_id, test_keypair.0).await?;
+            AttestedCredentialData::generate(&test_credential_id, test_keypair.0).await?;
         let test_rp_id = "test_rp_id";
         let test_user_present = true;
         let test_user_verified = true;
@@ -223,10 +224,10 @@ mod tests {
 
     #[tokio::test]
     async fn attested_credential_data() -> Result<(), Box<dyn std::error::Error>> {
-        let test_credential_id = [0u8; 16];
+        let test_credential_id = [0u8; 16].to_vec();
         let test_keypair = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_byte_array =
-            AttestedCredentialData::generate(test_credential_id, test_keypair.0).await?;
+            AttestedCredentialData::generate(&test_credential_id, test_keypair.0).await?;
 
         for element in &test_byte_array {
             assert_eq!(std::mem::size_of_val(element), 1);

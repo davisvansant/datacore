@@ -742,10 +742,10 @@ mod tests {
 
     #[tokio::test]
     async fn perform_decoding() -> Result<(), Box<dyn std::error::Error>> {
-        let test_credential_id = [0u8; 16];
+        let test_credential_id = [0u8; 16].to_vec();
         let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data =
-            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
+            AttestedCredentialData::generate(&test_credential_id, test_public_key.0).await?;
         let test_rp_id = "test_rp_id";
         let test_user_present = true;
         let test_user_verified = false;
@@ -788,10 +788,10 @@ mod tests {
 
     #[tokio::test]
     async fn verify_rp_id_hash() -> Result<(), Box<dyn std::error::Error>> {
-        let test_credential_id = [0u8; 16];
+        let test_credential_id = [0u8; 16].to_vec();
         let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data =
-            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
+            AttestedCredentialData::generate(&test_credential_id, test_public_key.0).await?;
         let test_rp_id = "test_rp_id";
         let test_user_present = true;
         let test_user_verified = false;
@@ -821,10 +821,10 @@ mod tests {
 
     #[tokio::test]
     async fn verify_user_present() -> Result<(), Box<dyn std::error::Error>> {
-        let test_credential_id = [0u8; 16];
+        let test_credential_id = [0u8; 16].to_vec();
         let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data =
-            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
+            AttestedCredentialData::generate(&test_credential_id, test_public_key.0).await?;
         let test_rp_id = "test_rp_id";
         let test_user_present = false;
         let test_user_verified = true;
@@ -845,10 +845,10 @@ mod tests {
             .await
             .is_err());
 
-        let test_credential_id = [0u8; 16];
+        let test_credential_id = [0u8; 16].to_vec();
         let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data =
-            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
+            AttestedCredentialData::generate(&test_credential_id, test_public_key.0).await?;
         let test_rp_id = "test_rp_id";
         let test_user_present = true;
         let test_user_verified = true;
@@ -873,10 +873,10 @@ mod tests {
 
     #[tokio::test]
     async fn verify_user_verification() -> Result<(), Box<dyn std::error::Error>> {
-        let test_credential_id = [0u8; 16];
+        let test_credential_id = [0u8; 16].to_vec();
         let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data =
-            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
+            AttestedCredentialData::generate(&test_credential_id, test_public_key.0).await?;
         let test_rp_id = "test_rp_id";
         let test_user_present = true;
         let test_user_verified = false;
@@ -897,10 +897,10 @@ mod tests {
             .await
             .is_err());
 
-        let test_credential_id = [0u8; 16];
+        let test_credential_id = [0u8; 16].to_vec();
         let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data =
-            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
+            AttestedCredentialData::generate(&test_credential_id, test_public_key.0).await?;
         let test_rp_id = "test_rp_id";
         let test_user_present = true;
         let test_user_verified = true;
@@ -925,10 +925,10 @@ mod tests {
 
     #[tokio::test]
     async fn verify_algorithm() -> Result<(), Box<dyn std::error::Error>> {
-        let test_credential_id = [0u8; 16];
+        let test_credential_id = [0u8; 16].to_vec();
         let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data =
-            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
+            AttestedCredentialData::generate(&test_credential_id, test_public_key.0).await?;
         let test_rp_id = "test_rp_id";
         let test_user_present = true;
         let test_user_verified = true;
@@ -998,10 +998,10 @@ mod tests {
         let test_attestation_statement_format = AttestationStatementFormat::Packed;
         let test_attestation_statement =
             AttestationStatement::Packed(PackedAttestationStatementSyntax::generate().await);
-        let test_credential_id = [0u8; 16];
+        let test_credential_id = [0u8; 16].to_vec();
         let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data =
-            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
+            AttestedCredentialData::generate(&test_credential_id, test_public_key.0).await?;
         let test_rp_id = "test_rp_id";
         let test_user_present = true;
         let test_user_verified = true;
@@ -1028,10 +1028,10 @@ mod tests {
             .await
             .is_ok());
 
-        let test_credential_id = [1u8; 16];
+        let test_credential_id = [1u8; 16].to_vec();
         let test_keypair = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data =
-            AttestedCredentialData::generate(test_credential_id, test_keypair.0).await?;
+            AttestedCredentialData::generate(&test_credential_id, test_keypair.0).await?;
         let test_rp_id = "test_rp_id";
         let test_user_present = true;
         let test_user_verified = true;
@@ -1104,10 +1104,10 @@ mod tests {
 
     #[tokio::test]
     async fn check_credential_id() -> Result<(), Box<dyn std::error::Error>> {
-        let test_credential_id = [0u8; 16];
+        let test_credential_id = [0u8; 16].to_vec();
         let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data =
-            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
+            AttestedCredentialData::generate(&test_credential_id, test_public_key.0).await?;
         let test_rp_id = "test_rp_id";
         let test_user_present = true;
         let test_user_verified = true;
@@ -1147,10 +1147,10 @@ mod tests {
             .await
             .is_err());
 
-        let test_credential_id = [1u8; 16];
+        let test_credential_id = [1u8; 16].to_vec();
         let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data =
-            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
+            AttestedCredentialData::generate(&test_credential_id, test_public_key.0).await?;
         let test_rp_id = "test_rp_id";
         let test_user_present = true;
         let test_user_verified = true;
@@ -1175,10 +1175,10 @@ mod tests {
 
     #[tokio::test]
     async fn register() -> Result<(), Box<dyn std::error::Error>> {
-        let test_credential_id = [0u8; 16];
+        let test_credential_id = [0u8; 16].to_vec();
         let test_public_key = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data =
-            AttestedCredentialData::generate(test_credential_id, test_public_key.0).await?;
+            AttestedCredentialData::generate(&test_credential_id, test_public_key.0).await?;
         let test_rp_id = "test_rp_id";
         let test_user_present = true;
         let test_user_verified = true;

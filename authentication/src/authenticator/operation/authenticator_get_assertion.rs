@@ -54,7 +54,10 @@ impl AuthenticatorGetAssertion {
         match &self.allow_descriptor_credential_list {
             Some(allow_descriptor_credential_list) => {
                 for descriptor in allow_descriptor_credential_list {
-                    match store.lookup(self.rpid.to_owned(), descriptor.id).await {
+                    match store
+                        .lookup(self.rpid.to_owned(), descriptor.id.to_owned())
+                        .await
+                    {
                         Ok(credential_source) => credential_options.push(credential_source),
                         Err(_) => continue,
                     }
@@ -86,10 +89,10 @@ impl AuthenticatorGetAssertion {
         let private_key = COSEKey::generate(COSEAlgorithm::EdDSA).await.1;
         let selected_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
-            id: b"cred_identifier_".to_owned(),
+            id: b"cred_identifier_".to_vec(),
             private_key,
             rpid: String::from("some_relying_party_id"),
-            user_handle: [0; 16],
+            user_handle: b"user_handle".to_vec(),
             other_ui: String::from("some_other_ui"),
         };
 
@@ -105,7 +108,7 @@ impl AuthenticatorGetAssertion {
         store: &CredentialsChannel,
         selected_credential: &PublicKeyCredentialSource,
     ) -> Result<(), AuthenticationError> {
-        store.increment(selected_credential.id).await?;
+        store.increment(selected_credential.id.to_owned()).await?;
 
         Ok(())
     }
@@ -115,7 +118,7 @@ impl AuthenticatorGetAssertion {
         store: &CredentialsChannel,
         selected_credential: &PublicKeyCredentialSource,
     ) -> Result<Vec<u8>, AuthenticationError> {
-        let sign_count = store.counter(selected_credential.id).await?;
+        let sign_count = store.counter(selected_credential.id.to_owned()).await?;
         let authenticator_data = AuthenticatorData::generate(
             &self.rpid,
             self.require_user_presence,
@@ -178,13 +181,13 @@ mod tests {
 
         let test_algorithm = COSEAlgorithm::EdDSA;
         let test_new_credential = COSEKey::generate(test_algorithm).await;
-        let test_credential_id = *b"cred_identifier_";
+        let test_credential_id = b"cred_identifier_".to_vec();
         let test_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
-            id: test_credential_id,
+            id: test_credential_id.to_vec(),
             private_key: test_new_credential.1,
             rpid: String::from("some_relying_party_id"),
-            user_handle: [0; 16],
+            user_handle: [0; 16].to_vec(),
             other_ui: String::from("some_other_ui"),
         };
 
@@ -192,7 +195,7 @@ mod tests {
             .0
             .set(
                 String::from("some_relying_party_id"),
-                *b"cred_identifier_",
+                b"cred_identifier_".to_vec(),
                 test_credential,
             )
             .await?;
@@ -202,7 +205,7 @@ mod tests {
             hash: Vec::with_capacity(0),
             allow_descriptor_credential_list: Some(vec![PublicKeyCredentialDescriptor {
                 r#type: PublicKeyCredentialType::PublicKey,
-                id: *b"cred_identifier_",
+                id: b"cred_identifier_".to_vec(),
                 transports: None,
             }]),
             require_user_presence: false,
@@ -250,13 +253,13 @@ mod tests {
 
         let test_algorithm = COSEAlgorithm::EdDSA;
         let test_new_credential = COSEKey::generate(test_algorithm).await;
-        let test_credential_id = *b"cred_identifier_";
+        let test_credential_id = b"cred_identifier_".to_vec();
         let test_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
             id: test_credential_id,
             private_key: test_new_credential.1,
             rpid: String::from("some_relying_party_id"),
-            user_handle: [0; 16],
+            user_handle: [0; 16].to_vec(),
             other_ui: String::from("some_other_ui"),
         };
 
@@ -264,7 +267,7 @@ mod tests {
             .0
             .set(
                 String::from("some_relying_party_id"),
-                *b"cred_identifier_",
+                b"cred_identifier_".to_vec(),
                 test_credential,
             )
             .await?;
@@ -274,7 +277,7 @@ mod tests {
             hash: Vec::with_capacity(0),
             allow_descriptor_credential_list: Some(vec![PublicKeyCredentialDescriptor {
                 r#type: PublicKeyCredentialType::PublicKey,
-                id: *b"cred_identifier_",
+                id: b"cred_identifier_".to_vec(),
                 transports: None,
             }]),
             require_user_presence: false,
@@ -304,13 +307,13 @@ mod tests {
 
         let test_algorithm = COSEAlgorithm::EdDSA;
         let test_new_credential = COSEKey::generate(test_algorithm).await;
-        let test_credential_id = *b"cred_identifier_";
+        let test_credential_id = b"cred_identifier_".to_vec();
         let test_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
-            id: test_credential_id,
+            id: test_credential_id.to_vec(),
             private_key: test_new_credential.1,
             rpid: String::from("some_relying_party_id"),
-            user_handle: [0; 16],
+            user_handle: [0; 16].to_vec(),
             other_ui: String::from("some_other_ui"),
         };
 
@@ -318,7 +321,7 @@ mod tests {
             .0
             .set(
                 String::from("some_relying_party_id"),
-                *b"cred_identifier_",
+                b"cred_identifier_".to_vec(),
                 test_credential,
             )
             .await?;
@@ -328,7 +331,7 @@ mod tests {
             hash: Vec::with_capacity(0),
             allow_descriptor_credential_list: Some(vec![PublicKeyCredentialDescriptor {
                 r#type: PublicKeyCredentialType::PublicKey,
-                id: *b"cred_identifier_",
+                id: b"cred_identifier_".to_vec(),
                 transports: None,
             }]),
             require_user_presence: false,
@@ -364,7 +367,7 @@ mod tests {
             hash: Vec::with_capacity(0),
             allow_descriptor_credential_list: Some(vec![PublicKeyCredentialDescriptor {
                 r#type: PublicKeyCredentialType::PublicKey,
-                id: *b"cred_identifier_",
+                id: b"cred_identifier_".to_vec(),
                 transports: None,
             }]),
             require_user_presence: false,
@@ -374,11 +377,11 @@ mod tests {
 
         let mut test_selected_credential = PublicKeyCredentialSource::generate().await;
 
-        test_selected_credential.id = *b"cred_identifier_";
+        test_selected_credential.id = b"cred_identifier_".to_vec();
 
         test_credentials_store
             .0
-            .signature_counter(*b"cred_identifier_")
+            .signature_counter(b"cred_identifier_".to_vec())
             .await?;
 
         let test_authenticator_data_byte_array = test_get_assertion
@@ -430,13 +433,13 @@ mod tests {
 
         let test_algorithm = COSEAlgorithm::EdDSA;
         let test_new_credential = COSEKey::generate(test_algorithm).await;
-        let test_credential_id = *b"cred_identifier_";
+        let test_credential_id = b"cred_identifier_".to_vec();
         let test_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
             id: test_credential_id,
             private_key: test_new_credential.1,
             rpid: String::from("some_relying_party_id"),
-            user_handle: [0; 16],
+            user_handle: [0; 16].to_vec(),
             other_ui: String::from("some_other_ui"),
         };
 
@@ -444,7 +447,7 @@ mod tests {
             .0
             .set(
                 String::from("some_relying_party_id"),
-                *b"cred_identifier_",
+                b"cred_identifier_".to_vec(),
                 test_credential,
             )
             .await?;
@@ -454,7 +457,7 @@ mod tests {
             hash: b"some_test_client_data".to_vec(),
             allow_descriptor_credential_list: Some(vec![PublicKeyCredentialDescriptor {
                 r#type: PublicKeyCredentialType::PublicKey,
-                id: *b"cred_identifier_",
+                id: b"cred_identifier_".to_vec(),
                 transports: None,
             }]),
             require_user_presence: false,
@@ -469,11 +472,11 @@ mod tests {
             .collect_authorization_gesture(test_credential_options)
             .await?;
 
-        test_selected_credential.id = *b"cred_identifier_";
+        test_selected_credential.id = b"cred_identifier_".to_vec();
 
         test_credentials_store
             .0
-            .signature_counter(*b"cred_identifier_")
+            .signature_counter(b"cred_identifier_".to_vec())
             .await?;
 
         let test_authenticator_data = test_ok

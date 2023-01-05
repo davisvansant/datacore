@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::security::challenge::{base64_encode_challenge, generate_challenge};
+use crate::security::uuid::CredentialId;
 
 #[derive(Serialize, Deserialize)]
 pub struct CollectedClientData {
@@ -61,7 +62,7 @@ pub enum PublicKeyCredentialType {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PublicKeyCredentialDescriptor {
     pub r#type: PublicKeyCredentialType,
-    pub id: [u8; 16],
+    pub id: CredentialId,
     pub transports: Option<Vec<String>>,
 }
 

@@ -12,6 +12,7 @@ use crate::authenticator::data::AuthenticatorData;
 use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
 use crate::authenticator::store::CredentialsChannel;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
+use crate::security::uuid::CredentialId;
 
 use uuid::Uuid;
 
@@ -99,7 +100,7 @@ impl AuthenticatorMakeCrendential {
         if let Some(descriptor_list) = &self.exclude_credential_descriptor_list {
             for descriptor in descriptor_list {
                 match store
-                    .lookup(self.rp_entity.id.to_owned(), descriptor.id)
+                    .lookup(self.rp_entity.id.to_owned(), descriptor.id.to_owned())
                     .await
                 {
                     Ok(credential) => {
@@ -171,28 +172,28 @@ impl AuthenticatorMakeCrendential {
     pub async fn generate_new_credential_object(
         &self,
         store: &CredentialsChannel,
-    ) -> Result<([u8; 16], COSEKey), AuthenticationError> {
+    ) -> Result<(CredentialId, COSEKey), AuthenticationError> {
         let algorithm = COSEAlgorithm::from(self.cred_types_and_pub_key_apis[0].alg).await;
         let keypair = COSEKey::generate(algorithm).await;
         let credential_id = Uuid::new_v4().simple().into_uuid().into_bytes();
         let credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
-            id: credential_id,
+            id: credential_id.to_vec(),
             private_key: keypair.1,
             rpid: self.rp_entity.id.to_owned(),
-            user_handle: self.user_entity.id,
+            user_handle: self.user_entity.id.to_owned(),
             other_ui: String::from("some_other_ui"),
         };
 
         store
             .set(
                 self.rp_entity.id.to_owned(),
-                self.user_entity.id,
+                self.user_entity.id.to_owned(),
                 credential,
             )
             .await?;
 
-        Ok((credential_id, keypair.0))
+        Ok((credential_id.to_vec(), keypair.0))
     }
 
     pub async fn process_extensions(&self) -> Result<(), AuthenticationError> {
@@ -202,16 +203,18 @@ impl AuthenticatorMakeCrendential {
     pub async fn signature_counter(
         &self,
         store: &CredentialsChannel,
-        credential_id: [u8; 16],
+        // credential_id: [u8; 16],
+        credential_id: &CredentialId,
     ) -> Result<(), AuthenticationError> {
-        store.signature_counter(credential_id).await?;
+        store.signature_counter(credential_id.to_owned()).await?;
 
         Ok(())
     }
 
     pub async fn attested_credential_data(
         &self,
-        credential_id: [u8; 16],
+        // credential_id: [u8; 16],
+        credential_id: &CredentialId,
         public_key: COSEKey,
     ) -> Result<Vec<u8>, AuthenticationError> {
         let attested_credential_data =
@@ -243,7 +246,7 @@ impl AuthenticatorMakeCrendential {
         store: &CredentialsChannel,
     ) -> Result<(), AuthenticationError> {
         let credential_source = store
-            .lookup(self.rp_entity.id.to_owned(), self.user_entity.id)
+            .lookup(self.rp_entity.id.to_owned(), self.user_entity.id.to_owned())
             .await?;
         let attestation_format = AttestationStatementFormat::Packed;
         let attestation_object = AttestationObject::generate(
@@ -275,7 +278,7 @@ mod tests {
             user_entity: PublicKeyCredentialUserEntity {
                 name: String::from("some_name"),
                 display_name: String::from("some_display_name"),
-                id: [0; 16],
+                id: [0; 16].to_vec(),
             },
             require_resident_key: false,
             require_user_presence: false,
@@ -345,13 +348,13 @@ mod tests {
 
         let test_algorithm = COSEAlgorithm::EdDSA;
         let test_new_credential = COSEKey::generate(test_algorithm).await;
-        let test_credential_id = *b"cred_identifier_";
+        let test_credential_id = b"cred_identifier_";
         let test_credential = PublicKeyCredentialSource {
             r#type: PublicKeyCredentialType::PublicKey,
-            id: test_credential_id,
+            id: test_credential_id.to_vec(),
             private_key: test_new_credential.1,
             rpid: String::from("some_relying_party_id"),
-            user_handle: [0; 16],
+            user_handle: [0; 16].to_vec(),
             other_ui: String::from("some_other_ui"),
         };
 
@@ -359,7 +362,7 @@ mod tests {
             .0
             .set(
                 String::from("some_relying_party_id"),
-                *b"cred_identifier_",
+                b"cred_identifier_".to_vec(),
                 test_credential,
             )
             .await?;
@@ -372,7 +375,7 @@ mod tests {
             user_entity: PublicKeyCredentialUserEntity {
                 name: String::from("some_name"),
                 display_name: String::from("some_display_name"),
-                id: [0; 16],
+                id: [0; 16].to_vec(),
             },
             require_resident_key: false,
             require_user_presence: false,
@@ -394,7 +397,7 @@ mod tests {
         test_make_credential.exclude_credential_descriptor_list =
             Some(vec![PublicKeyCredentialDescriptor {
                 r#type: PublicKeyCredentialType::PublicKey,
-                id: *b"cred_identifier_",
+                id: b"cred_identifier_".to_vec(),
                 transports: None,
             }]);
 
@@ -423,7 +426,7 @@ mod tests {
             user_entity: PublicKeyCredentialUserEntity {
                 name: String::from("some_name"),
                 display_name: String::from("some_display_name"),
-                id: [0; 16],
+                id: [0; 16].to_vec(),
             },
             require_resident_key: true,
             require_user_presence: false,
@@ -456,7 +459,7 @@ mod tests {
             user_entity: PublicKeyCredentialUserEntity {
                 name: String::from("some_name"),
                 display_name: String::from("some_display_name"),
-                id: [0; 16],
+                id: [0; 16].to_vec(),
             },
             require_resident_key: false,
             require_user_presence: false,
@@ -495,7 +498,7 @@ mod tests {
             user_entity: PublicKeyCredentialUserEntity {
                 name: String::from("some_name"),
                 display_name: String::from("some_display_name"),
-                id: [0; 16],
+                id: [0; 16].to_vec(),
             },
             require_resident_key: false,
             require_user_presence: false,
@@ -525,7 +528,7 @@ mod tests {
             user_entity: PublicKeyCredentialUserEntity {
                 name: String::from("some_name"),
                 display_name: String::from("some_display_name"),
-                id: [0; 16],
+                id: [0; 16].to_vec(),
             },
             require_resident_key: false,
             require_user_presence: false,
@@ -562,7 +565,7 @@ mod tests {
             user_entity: PublicKeyCredentialUserEntity {
                 name: String::from("some_name"),
                 display_name: String::from("some_display_name"),
-                id: [0; 16],
+                id: [0; 16].to_vec(),
             },
             require_resident_key: false,
             require_user_presence: false,
@@ -580,10 +583,11 @@ mod tests {
             test_credentials_store.1.run().await.unwrap();
         });
 
-        let test_credential_id: [u8; 16] = [0; 16];
+        // let test_credential_id: [u8; 16] = [0; 16].to_vec();
+        let test_credential_id = [0u8; 16].to_vec();
 
         assert!(test_ok
-            .signature_counter(&test_credentials_store.0, test_credential_id)
+            .signature_counter(&test_credentials_store.0, &test_credential_id)
             .await
             .is_ok());
 
@@ -600,7 +604,7 @@ mod tests {
             user_entity: PublicKeyCredentialUserEntity {
                 name: String::from("some_name"),
                 display_name: String::from("some_display_name"),
-                id: [0; 16],
+                id: [0; 16].to_vec(),
             },
             require_resident_key: false,
             require_user_presence: false,
@@ -625,7 +629,7 @@ mod tests {
             .await?;
 
         assert!(test_ok
-            .attested_credential_data(test_credential_id, test_public_key)
+            .attested_credential_data(&test_credential_id, test_public_key)
             .await
             .is_ok());
 
@@ -642,7 +646,7 @@ mod tests {
             user_entity: PublicKeyCredentialUserEntity {
                 name: String::from("some_name"),
                 display_name: String::from("some_display_name"),
-                id: [0; 16],
+                id: [0; 16].to_vec(),
             },
             require_resident_key: false,
             require_user_presence: false,
@@ -666,7 +670,7 @@ mod tests {
             .generate_new_credential_object(&test_credentials_store.0)
             .await?;
         let test_attested_credential_data = test_ok
-            .attested_credential_data(test_credential_id, test_public_key)
+            .attested_credential_data(&test_credential_id, test_public_key)
             .await?;
 
         assert!(test_ok
@@ -687,7 +691,7 @@ mod tests {
             user_entity: PublicKeyCredentialUserEntity {
                 name: String::from("some_name"),
                 display_name: String::from("some_display_name"),
-                id: [0; 16],
+                id: [0; 16].to_vec(),
             },
             require_resident_key: false,
             require_user_presence: false,
@@ -711,7 +715,7 @@ mod tests {
             .generate_new_credential_object(&test_credentials_store.0)
             .await?;
         let test_attested_credential_data = test_ok
-            .attested_credential_data(test_credential_id, test_public_key)
+            .attested_credential_data(&test_credential_id, test_public_key)
             .await?;
         let test_authenticator_data = test_ok
             .authenticator_data(test_attested_credential_data)

@@ -473,7 +473,7 @@ mod tests {
                 |credentials| {
                     credentials.push(PublicKeyCredentialDescriptor {
                         r#type: PublicKeyCredentialType::PublicKey,
-                        id: [1; 16],
+                        id: [1; 16].to_vec(),
                         transports: Some(vec![String::from("internal")]),
                     })
                 },
@@ -497,7 +497,7 @@ mod tests {
                 |credentials| {
                     credentials.push(PublicKeyCredentialDescriptor {
                         r#type: PublicKeyCredentialType::PublicKey,
-                        id: [2; 16],
+                        id: [2; 16].to_vec(),
                         transports: Some(vec![String::from("internal")]),
                     })
                 },

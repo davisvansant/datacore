@@ -1,5 +1,6 @@
 use crate::authenticator::public_key_credential_source::PublicKeyCredentialSource;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
+use crate::security::uuid::{CredentialId, UserHandle};
 
 use std::collections::HashMap;
 
@@ -8,11 +9,11 @@ use tokio::task::JoinHandle;
 
 #[derive(Debug)]
 pub enum CredentialsRequest {
-    Set((String, [u8; 16]), PublicKeyCredentialSource),
-    SignatureCounter([u8; 16]),
-    Increment([u8; 16]),
-    Lookup((String, [u8; 16])),
-    Counter([u8; 16]),
+    Set((String, UserHandle), PublicKeyCredentialSource),
+    SignatureCounter(CredentialId),
+    Increment(CredentialId),
+    Lookup((String, UserHandle)),
+    Counter(CredentialId),
     Values,
 }
 
@@ -52,7 +53,7 @@ impl CredentialsChannel {
     pub async fn set(
         &self,
         rp_entity_id: String,
-        user_handle: [u8; 16],
+        user_handle: UserHandle,
         credential_source: PublicKeyCredentialSource,
     ) -> Result<(), AuthenticationError> {
         let (_request, _response) = oneshot::channel();
@@ -76,7 +77,7 @@ impl CredentialsChannel {
 
     pub async fn signature_counter(
         &self,
-        credential_id: [u8; 16],
+        credential_id: CredentialId,
     ) -> Result<(), AuthenticationError> {
         let (_request, _response) = oneshot::channel();
 
@@ -97,7 +98,7 @@ impl CredentialsChannel {
         }
     }
 
-    pub async fn increment(&self, credential_id: [u8; 16]) -> Result<(), AuthenticationError> {
+    pub async fn increment(&self, credential_id: CredentialId) -> Result<(), AuthenticationError> {
         let (_request, _response) = oneshot::channel();
 
         match self
@@ -117,7 +118,7 @@ impl CredentialsChannel {
     pub async fn lookup(
         &self,
         rp_entity_id: String,
-        user_handle: [u8; 16],
+        user_handle: UserHandle,
     ) -> Result<PublicKeyCredentialSource, AuthenticationError> {
         let (request, response) = oneshot::channel();
 
@@ -142,7 +143,7 @@ impl CredentialsChannel {
         }
     }
 
-    pub async fn counter(&self, credential_id: [u8; 16]) -> Result<u32, AuthenticationError> {
+    pub async fn counter(&self, credential_id: CredentialId) -> Result<u32, AuthenticationError> {
         let (request, response) = oneshot::channel();
 
         if let Ok(()) = self
@@ -181,10 +182,10 @@ impl CredentialsChannel {
 }
 
 pub struct Credentials {
-    map: HashMap<(String, [u8; 16]), PublicKeyCredentialSource>,
+    map: HashMap<(String, UserHandle), PublicKeyCredentialSource>,
     receiver: mpsc::Receiver<(CredentialsRequest, oneshot::Sender<CredentialsResponse>)>,
     signature_counter: HashMap<
-        [u8; 16],
+        CredentialId,
         mpsc::Sender<(
             SignatureCounterRequest,
             oneshot::Sender<SignatureCounterResponse>,
@@ -254,7 +255,7 @@ impl Credentials {
     async fn set(
         &mut self,
         rp_entity_id: String,
-        user_handle: [u8; 16],
+        user_handle: UserHandle,
         source: PublicKeyCredentialSource,
     ) -> Result<(), AuthenticationError> {
         self.map.insert((rp_entity_id, user_handle), source);
@@ -264,7 +265,7 @@ impl Credentials {
 
     async fn signature_counter(
         &mut self,
-        credential_id: [u8; 16],
+        credential_id: CredentialId,
     ) -> Result<(), AuthenticationError> {
         let mut signature_counter = SignatureCounter::init().await;
 
@@ -283,7 +284,7 @@ impl Credentials {
         Ok(())
     }
 
-    async fn increment(&self, credential_id: [u8; 16]) -> Result<(), AuthenticationError> {
+    async fn increment(&self, credential_id: CredentialId) -> Result<(), AuthenticationError> {
         if let Some(channel) = self.signature_counter.get(&credential_id) {
             let (_request, _response) = oneshot::channel();
 
@@ -301,7 +302,7 @@ impl Credentials {
     async fn lookup(
         &self,
         rp_id: String,
-        user_handle: [u8; 16],
+        user_handle: UserHandle,
     ) -> Result<PublicKeyCredentialSource, AuthenticationError> {
         if let Some(credential_source) = self.map.get(&(rp_id, user_handle)) {
             Ok(credential_source.to_owned())
@@ -312,7 +313,7 @@ impl Credentials {
         }
     }
 
-    async fn counter(&self, credential_id: [u8; 16]) -> Result<u32, AuthenticationError> {
+    async fn counter(&self, credential_id: CredentialId) -> Result<u32, AuthenticationError> {
         if let Some(channel) = self.signature_counter.get(&credential_id) {
             let (request, response) = oneshot::channel();
 
@@ -426,7 +427,7 @@ mod tests {
     async fn credentials_channel_set() -> Result<(), Box<dyn std::error::Error>> {
         let mut test_credentials = Credentials::init().await;
         let test_rp_entity_id = String::from("some_rp_entity_id");
-        let test_user_handle = [0; 16];
+        let test_user_handle = [0; 16].to_vec();
         let test_credential_source = PublicKeyCredentialSource::generate().await;
 
         tokio::spawn(async move {
@@ -445,7 +446,7 @@ mod tests {
     #[tokio::test]
     async fn credentials_channel_signature_counter() -> Result<(), Box<dyn std::error::Error>> {
         let mut test_credentials = Credentials::init().await;
-        let test_credential_id = [0; 16];
+        let test_credential_id = [0; 16].to_vec();
 
         tokio::spawn(async move {
             test_credentials.1.run().await.unwrap();
@@ -463,7 +464,7 @@ mod tests {
     #[tokio::test]
     async fn credentials_channel_increment() -> Result<(), Box<dyn std::error::Error>> {
         let mut test_credentials = Credentials::init().await;
-        let test_credential_id = [0; 16];
+        let test_credential_id = [0; 16].to_vec();
 
         tokio::spawn(async move {
             test_credentials.1.run().await.unwrap();
@@ -482,7 +483,7 @@ mod tests {
     async fn credentials_channel_lookup() -> Result<(), Box<dyn std::error::Error>> {
         let mut test_credentials = Credentials::init().await;
         let test_rp_entity_id = String::from("some_rp_entity_id");
-        let test_user_handle = [0; 16];
+        let test_user_handle = [0; 16].to_vec();
         let test_credential_source = PublicKeyCredentialSource::generate().await;
 
         tokio::spawn(async move {
@@ -491,7 +492,7 @@ mod tests {
 
         assert!(test_credentials
             .0
-            .lookup(test_rp_entity_id.to_owned(), test_user_handle)
+            .lookup(test_rp_entity_id.to_owned(), test_user_handle.to_owned())
             .await
             .is_err());
 
@@ -499,7 +500,7 @@ mod tests {
             .0
             .set(
                 test_rp_entity_id.to_owned(),
-                test_user_handle,
+                test_user_handle.to_owned(),
                 test_credential_source,
             )
             .await?;
@@ -516,7 +517,7 @@ mod tests {
     #[tokio::test]
     async fn credentials_channel_counter() -> Result<(), Box<dyn std::error::Error>> {
         let mut test_credentials = Credentials::init().await;
-        let test_credential_id = [0; 16];
+        let test_credential_id = [0; 16].to_vec();
 
         tokio::spawn(async move {
             test_credentials.1.run().await.unwrap();
@@ -551,7 +552,7 @@ mod tests {
     async fn credentials_set() -> Result<(), Box<dyn std::error::Error>> {
         let mut test_credentials = Credentials::init().await;
         let test_rp_entity_id = String::from("some_rp_entity_id");
-        let test_user_handle = [0; 16];
+        let test_user_handle = [0; 16].to_vec();
         let test_credential_source = PublicKeyCredentialSource::generate().await;
 
         test_credentials
@@ -567,7 +568,7 @@ mod tests {
     #[tokio::test]
     async fn credentials_signature_counter() -> Result<(), Box<dyn std::error::Error>> {
         let mut test_credentials = Credentials::init().await;
-        let test_credential_id = [0; 16];
+        let test_credential_id = [0; 16].to_vec();
 
         test_credentials
             .1
@@ -583,11 +584,11 @@ mod tests {
     #[tokio::test]
     async fn credentials_increment() -> Result<(), Box<dyn std::error::Error>> {
         let mut test_credentials = Credentials::init().await;
-        let test_credential_id = [0; 16];
+        let test_credential_id = [0; 16].to_vec();
 
         test_credentials
             .1
-            .signature_counter(test_credential_id)
+            .signature_counter(test_credential_id.to_owned())
             .await?;
 
         test_credentials.1.increment(test_credential_id).await?;
@@ -599,26 +600,26 @@ mod tests {
     async fn credentials_lookup() -> Result<(), Box<dyn std::error::Error>> {
         let mut test_credentials = Credentials::init().await;
         let test_rp_entity_id = String::from("some_rp_entity_id");
-        let test_user_handle = [0; 16];
+        let test_user_handle = [0; 16].to_vec();
         let test_credential_source = PublicKeyCredentialSource::generate().await;
 
         test_credentials
             .1
             .set(
                 test_rp_entity_id.to_owned(),
-                test_user_handle,
+                test_user_handle.to_owned(),
                 test_credential_source,
             )
             .await?;
 
         assert!(test_credentials
             .1
-            .lookup(test_rp_entity_id.to_owned(), test_user_handle)
+            .lookup(test_rp_entity_id.to_owned(), test_user_handle.to_owned())
             .await
             .is_ok());
         assert!(test_credentials
             .1
-            .lookup(test_rp_entity_id.to_owned(), [1; 16])
+            .lookup(test_rp_entity_id.to_owned(), [1; 16].to_vec())
             .await
             .is_err());
         assert!(test_credentials
@@ -628,7 +629,7 @@ mod tests {
             .is_err());
         assert!(test_credentials
             .1
-            .lookup(String::from("some_rp"), [2; 16])
+            .lookup(String::from("some_rp"), [2; 16].to_vec())
             .await
             .is_err());
 
@@ -638,17 +639,17 @@ mod tests {
     #[tokio::test]
     async fn credentials_counter() -> Result<(), Box<dyn std::error::Error>> {
         let mut test_credentials = Credentials::init().await;
-        let test_credential_id = [0; 16];
+        let test_credential_id = [0; 16].to_vec();
 
         assert!(test_credentials
             .1
-            .counter(test_credential_id)
+            .counter(test_credential_id.to_owned())
             .await
             .is_err());
 
         test_credentials
             .1
-            .signature_counter(test_credential_id)
+            .signature_counter(test_credential_id.to_owned())
             .await?;
 
         let test_value = test_credentials.1.counter(test_credential_id).await?;

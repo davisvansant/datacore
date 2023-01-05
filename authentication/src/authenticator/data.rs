@@ -347,10 +347,10 @@ mod tests {
 
     #[tokio::test]
     async fn from_byte_array() -> Result<(), Box<dyn std::error::Error>> {
-        let test_credential_id = [0u8; 16];
+        let test_credential_id = [0u8; 16].to_vec();
         let test_keypair = COSEKey::generate(COSEAlgorithm::EdDSA).await;
         let test_attested_credential_data =
-            AttestedCredentialData::generate(test_credential_id, test_keypair.0).await?;
+            AttestedCredentialData::generate(&test_credential_id, test_keypair.0).await?;
         let test_rp_id = "test_rp_id";
         let test_user_present = true;
         let test_user_verified = true;
