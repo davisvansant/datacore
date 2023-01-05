@@ -403,7 +403,7 @@ mod tests {
 
                 match test_webauthndata.message.as_str() {
                     "public_key_credential_creation_options" => {
-                        let id = String::from("some_credential_id");
+                        let id = [0u8; 16].to_vec();
                         let client_data_json = Vec::with_capacity(0);
                         let attestation_object = Vec::with_capacity(0);
                         let response = AuthenticatorResponse::AuthenticatorAttestationResponse(
@@ -450,7 +450,7 @@ mod tests {
     async fn authenticator_attestation_response() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration_ceremony = RegistrationCeremony {};
         let test_public_key_credential_assertion = PublicKeyCredential::generate(
-            String::from("test_id"),
+            [0u8; 16].to_vec(),
             AuthenticatorResponse::AuthenticatorAssertionResponse(AuthenticatorAssertionResponse {
                 client_data_json: Vec::with_capacity(0),
                 authenticator_data: Vec::with_capacity(0),
@@ -466,7 +466,7 @@ mod tests {
             .is_err());
 
         let test_public_key_credential_attestation = PublicKeyCredential::generate(
-            String::from("test_id"),
+            [0u8; 16].to_vec(),
             AuthenticatorResponse::AuthenticatorAttestationResponse(
                 AuthenticatorAttestationResponse {
                     client_data_json: Vec::with_capacity(0),
@@ -496,7 +496,7 @@ mod tests {
 
                 match test_webauthndata.message.as_str() {
                     "public_key_credential_creation_options" => {
-                        let id = String::from("some_credential_id");
+                        let id = [0u8; 16].to_vec();
                         let client_data_json = Vec::with_capacity(0);
                         let attestation_object = Vec::with_capacity(0);
                         let response = AuthenticatorResponse::AuthenticatorAttestationResponse(

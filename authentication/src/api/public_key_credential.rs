@@ -4,20 +4,24 @@ use crate::api::assertion_generation_options::PublicKeyCredentialRequestOptions;
 use crate::api::authenticator_responses::AuthenticatorResponse;
 use crate::api::credential_creation_options::PublicKeyCredentialCreationOptions;
 use crate::api::supporting_data_structures::PublicKeyCredentialType;
+use crate::security::uuid::CredentialId;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PublicKeyCredential {
     pub id: String,
     #[serde(rename = "rawId")]
-    pub raw_id: Vec<u8>,
+    pub raw_id: CredentialId,
     pub response: AuthenticatorResponse,
     pub r#type: PublicKeyCredentialType,
 }
 
 impl PublicKeyCredential {
-    pub async fn generate(id: String, response: AuthenticatorResponse) -> PublicKeyCredential {
+    pub async fn generate(
+        raw_id: CredentialId,
+        response: AuthenticatorResponse,
+    ) -> PublicKeyCredential {
         let r#type = PublicKeyCredentialType::PublicKey;
-        let raw_id = id.as_bytes().to_vec();
+        let id = base64::encode(&raw_id);
 
         PublicKeyCredential {
             id,
@@ -46,7 +50,6 @@ mod tests {
 
     #[tokio::test]
     async fn generate() -> Result<(), Box<dyn std::error::Error>> {
-        // let test_id = String::from("some_test_id");
         let test_client_data_json = b"
         { 
             \"type\": \"webauthn.get\",
@@ -86,13 +89,16 @@ mod tests {
                 user_handle: test_user_entity.id.to_vec(),
             });
 
-        let test_id = String::from_utf8(test_user_entity.id.to_vec())?;
+        let test_credential_id = [0u8; 16].to_vec();
 
         let test_public_key_credential =
-            PublicKeyCredential::generate(test_id, test_response).await;
+            PublicKeyCredential::generate(test_credential_id, test_response).await;
 
-        assert!(test_public_key_credential.id.len() >= 16);
-        assert!(test_public_key_credential.raw_id.len() >= 16);
+        assert_eq!(
+            base64::decode(test_public_key_credential.id.as_bytes())?,
+            [0u8; 16],
+        );
+        assert_eq!(test_public_key_credential.raw_id, [0u8; 16]);
         assert_eq!(
             test_public_key_credential.response,
             AuthenticatorResponse::AuthenticatorAssertionResponse(AuthenticatorAssertionResponse {

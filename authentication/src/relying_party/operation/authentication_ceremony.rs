@@ -286,7 +286,7 @@ impl AuthenticationCeremony {
 
         store
             .sign_count(
-                credential.id.as_bytes().to_vec(),
+                credential.raw_id.to_owned(),
                 u32::from_be_bytes(authenticator_data.sign_count),
             )
             .await?;
@@ -337,7 +337,7 @@ mod tests {
 
                 match test_webauthndata.message.as_str() {
                     "public_key_credential_request_options" => {
-                        let id = String::from("some_key_id");
+                        let id = [0u8; 16].to_vec();
                         let client_data_json = Vec::with_capacity(0);
                         let authenticator_data = Vec::with_capacity(0);
                         let signature = Vec::with_capacity(0);
@@ -384,7 +384,7 @@ mod tests {
     async fn authenticator_assertion_response() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
         let test_public_key_credential_assertion = PublicKeyCredential::generate(
-            String::from("test_id"),
+            [0u8; 16].to_vec(),
             AuthenticatorResponse::AuthenticatorAssertionResponse(AuthenticatorAssertionResponse {
                 client_data_json: Vec::with_capacity(0),
                 authenticator_data: Vec::with_capacity(0),
@@ -400,7 +400,7 @@ mod tests {
             .is_ok());
 
         let test_public_key_credential_attestation = PublicKeyCredential::generate(
-            String::from("test_id"),
+            [0u8; 16].to_vec(),
             AuthenticatorResponse::AuthenticatorAttestationResponse(
                 AuthenticatorAttestationResponse {
                     client_data_json: Vec::with_capacity(0),
@@ -422,7 +422,7 @@ mod tests {
     async fn client_extension_results() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
         let test_public_key_credential = PublicKeyCredential::generate(
-            String::from("test_id"),
+            [0u8; 16].to_vec(),
             AuthenticatorResponse::AuthenticatorAssertionResponse(AuthenticatorAssertionResponse {
                 client_data_json: Vec::with_capacity(0),
                 authenticator_data: Vec::with_capacity(0),
@@ -447,7 +447,7 @@ mod tests {
             .public_key_credential_request_options("test_rp_id")
             .await?;
         let mut test_public_key_credential = PublicKeyCredential::generate(
-            String::from("test_id"),
+            [0u8; 16].to_vec(),
             AuthenticatorResponse::AuthenticatorAssertionResponse(AuthenticatorAssertionResponse {
                 client_data_json: Vec::with_capacity(0),
                 authenticator_data: Vec::with_capacity(0),
@@ -572,7 +572,7 @@ mod tests {
 
                 match test_webauthndata.message.as_str() {
                     "public_key_credential_request_options" => {
-                        let id = String::from("some_key_id");
+                        let id = [0u8; 16].to_vec();
                         let client_data_json = Vec::with_capacity(0);
                         let authenticator_data = Vec::with_capacity(0);
                         let signature = Vec::with_capacity(0);
@@ -661,7 +661,7 @@ mod tests {
 
                 match test_webauthndata.message.as_str() {
                     "public_key_credential_request_options" => {
-                        let id = String::from("some_key_id");
+                        let id = [0u8; 16].to_vec();
                         let client_data_json = Vec::with_capacity(0);
                         let authenticator_data = Vec::with_capacity(0);
                         let signature = Vec::with_capacity(0);
@@ -1063,7 +1063,7 @@ mod tests {
 
                 match test_webauthndata.message.as_str() {
                     "public_key_credential_request_options" => {
-                        let id = String::from("some_key_id");
+                        let id = [0u8; 16].to_vec();
                         let client_data_json = Vec::with_capacity(0);
                         let authenticator_data = Vec::with_capacity(0);
                         let signature = Vec::with_capacity(0);
@@ -1127,7 +1127,7 @@ mod tests {
         test_store
             .0
             .register(
-                b"some_key_id".to_vec(),
+                [0u8; 16].to_vec(),
                 UserAccount {
                     public_key: COSEKey::generate(COSEAlgorithm::EdDSA).await.0,
                     signature_counter: 0,
