@@ -273,6 +273,7 @@ mod tests {
         let mut test_make_credential = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
+                name: String::from("some_rp_name"),
                 id: String::from("some_id"),
             },
             user_entity: PublicKeyCredentialUserEntity {
@@ -370,6 +371,7 @@ mod tests {
         let mut test_make_credential = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
+                name: String::from("some_rp_name"),
                 id: String::from("some_id"),
             },
             user_entity: PublicKeyCredentialUserEntity {
@@ -421,6 +423,7 @@ mod tests {
         let mut test_make_credential = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
+                name: String::from("some_rp_name"),
                 id: String::from("some_id"),
             },
             user_entity: PublicKeyCredentialUserEntity {
@@ -454,6 +457,7 @@ mod tests {
         let mut test_make_credential = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
+                name: String::from("some_rp_name"),
                 id: String::from("some_id"),
             },
             user_entity: PublicKeyCredentialUserEntity {
@@ -493,6 +497,7 @@ mod tests {
         let test_ok = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
+                name: String::from("some_rp_name"),
                 id: String::from("some_id"),
             },
             user_entity: PublicKeyCredentialUserEntity {
@@ -523,6 +528,7 @@ mod tests {
         let test_ok = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
+                name: String::from("some_rp_name"),
                 id: String::from("some_id"),
             },
             user_entity: PublicKeyCredentialUserEntity {
@@ -560,6 +566,7 @@ mod tests {
         let test_ok = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
+                name: String::from("some_rp_name"),
                 id: String::from("some_id"),
             },
             user_entity: PublicKeyCredentialUserEntity {
@@ -599,6 +606,7 @@ mod tests {
         let test_ok = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
+                name: String::from("some_rp_name"),
                 id: String::from("some_id"),
             },
             user_entity: PublicKeyCredentialUserEntity {
@@ -641,6 +649,7 @@ mod tests {
         let test_ok = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
+                name: String::from("some_rp_name"),
                 id: String::from("some_id"),
             },
             user_entity: PublicKeyCredentialUserEntity {
@@ -686,6 +695,7 @@ mod tests {
         let test_ok = AuthenticatorMakeCrendential {
             hash: Vec::with_capacity(0),
             rp_entity: PublicKeyCredentialRpEntity {
+                name: String::from("some_rp_name"),
                 id: String::from("some_id"),
             },
             user_entity: PublicKeyCredentialUserEntity {

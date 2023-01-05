@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-// use uuid::Uuid;
 
 use crate::api::credential_generation_parameters::PublicKeyCredentialParameters;
 use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientInputs;
@@ -7,9 +6,7 @@ use crate::api::supporting_data_structures::{
     PublicKeyCredentialDescriptor, PublicKeyCredentialType, UserVerificationRequirement,
 };
 use crate::security::challenge::{base64_encode_challenge, generate_challenge};
-use crate::security::uuid::{
-    generate_credential_id, generate_user_handle, CredentialId, UserHandle,
-};
+use crate::security::uuid::{generate_user_handle, UserHandle};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PublicKeyCredentialCreationOptions {
@@ -74,27 +71,20 @@ impl PublicKeyCredentialCreationOptions {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct PublicKeyCredentialEntity {
-    pub name: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PublicKeyCredentialRpEntity {
+    pub name: String,
     pub id: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct PublicKeyCredentialUserEntity {
     pub name: String,
-    // pub id: [u8; 16],
     pub id: UserHandle,
     pub display_name: String,
 }
 
 impl PublicKeyCredentialUserEntity {
     pub async fn generate(name: String, display_name: String) -> PublicKeyCredentialUserEntity {
-        // let id = Uuid::new_v4().into_bytes();
-        // let id = generate_credential_id().await;
         let id = generate_user_handle().await;
 
         PublicKeyCredentialUserEntity {
@@ -151,6 +141,7 @@ mod tests {
     #[tokio::test]
     async fn public_key_credential_creation_options() -> Result<(), Box<dyn std::error::Error>> {
         let test_rp_entity = PublicKeyCredentialRpEntity {
+            name: String::from("some_rp_name"),
             id: String::from("some_rp_entity_id"),
         };
         let test_user_entity = PublicKeyCredentialUserEntity::generate(
@@ -231,7 +222,7 @@ mod tests {
         test_creation_options.user.id = [0; 16].to_vec();
         test_creation_options.challenge = [0; 16].to_vec();
 
-        let test_options_json = r#"{"rp":{"id":"some_rp_entity_id"},"user":{"name":"some_user_name","id":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"display_name":"some_display_name"},"challenge":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"public_key_credential_parameters":[{"type":"public-key","alg":-8},{"type":"public-key","alg":-7}],"timeout":300000,"authenticator_selection":{"authenticator_attachment":"cross-platform","resident_key":"preferred","require_resident_key":false,"user_verification":"preferred"},"attestation":"indirect"}"#;
+        let test_options_json = r#"{"rp":{"name":"some_rp_name","id":"some_rp_entity_id"},"user":{"name":"some_user_name","id":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"display_name":"some_display_name"},"challenge":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"public_key_credential_parameters":[{"type":"public-key","alg":-8},{"type":"public-key","alg":-7}],"timeout":300000,"authenticator_selection":{"authenticator_attachment":"cross-platform","resident_key":"preferred","require_resident_key":false,"user_verification":"preferred"},"attestation":"indirect"}"#;
         let test_assertion_json = serde_json::to_string(&test_creation_options)?;
 
         assert_eq!(test_options_json, test_assertion_json);

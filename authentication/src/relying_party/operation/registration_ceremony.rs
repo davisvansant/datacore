@@ -28,6 +28,7 @@ impl RegistrationCeremony {
         rp_id: &str,
     ) -> Result<PublicKeyCredentialCreationOptions, AuthenticationError> {
         let rp_entity = PublicKeyCredentialRpEntity {
+            name: String::from("some_rp_name"),
             id: rp_id.to_owned(),
         };
         let user = String::from("some_user");

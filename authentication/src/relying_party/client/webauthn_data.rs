@@ -111,6 +111,7 @@ mod tests {
     #[tokio::test]
     async fn to_outgoing_data() -> Result<(), Box<dyn std::error::Error>> {
         let test_rp_entity = PublicKeyCredentialRpEntity {
+            name: String::from("some_rp_name"),
             id: String::from("some_rp_entity_id"),
         };
         let test_user_entity = PublicKeyCredentialUserEntity::generate(
