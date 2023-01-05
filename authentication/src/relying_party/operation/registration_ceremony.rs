@@ -8,7 +8,7 @@ use crate::api::credential_creation_options::{
 };
 use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientOutputs;
 use crate::api::public_key_credential::PublicKeyCredential;
-use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
+use crate::api::supporting_data_structures::{ClientDataType, CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::{
     AttestationObject, AttestationStatement, AttestationStatementFormat,
     AttestationStatementFormatIdentifier, AttestationType, AttestationVerificationProcedureOutput,
@@ -90,11 +90,22 @@ impl RegistrationCeremony {
         }
     }
 
+    // pub async fn verify_type(
+    //     &self,
+    //     client_data: &CollectedClientData,
+    // ) -> Result<(), AuthenticationError> {
+    //     match client_data.r#type == "webauthn.create" {
+    //         true => Ok(()),
+    //         false => Err(AuthenticationError {
+    //             error: AuthenticationErrorType::OperationError,
+    //         }),
+    //     }
+    // }
     pub async fn verify_type(
         &self,
         client_data: &CollectedClientData,
     ) -> Result<(), AuthenticationError> {
-        match client_data.r#type == "webauthn.create" {
+        match client_data.r#type == ClientDataType::Create {
             true => Ok(()),
             false => Err(AuthenticationError {
                 error: AuthenticationErrorType::OperationError,
@@ -593,7 +604,8 @@ mod tests {
     async fn verify_type() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration_ceremony = RegistrationCeremony {};
         let mut test_client_data = CollectedClientData {
-            r#type: String::from("webauthn.not_create"),
+            // r#type: String::from("webauthn.not_create"),
+            r#type: ClientDataType::Get,
             challenge: String::from("c29tZV90ZXN0X2NoYWxsZW5nZQ=="),
             origin: String::from("some_test_origin"),
             cross_origin: false,
@@ -605,7 +617,8 @@ mod tests {
             .await
             .is_err());
 
-        test_client_data.r#type = String::from("webauthn.create");
+        // test_client_data.r#type = String::from("webauthn.create");
+        test_client_data.r#type = ClientDataType::Create;
 
         assert!(test_registration_ceremony
             .verify_type(&test_client_data)
@@ -623,7 +636,8 @@ mod tests {
             .await?;
 
         let mut test_client_data = CollectedClientData {
-            r#type: String::from("webauthn.create"),
+            // r#type: String::from("webauthn.create"),
+            r#type: ClientDataType::Create,
             challenge: String::from("c29tZV90ZXN0X2NoYWxsZW5nZQ=="),
             origin: String::from("some_test_origin"),
             cross_origin: false,
@@ -659,7 +673,8 @@ mod tests {
     async fn verify_origin() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration_ceremony = RegistrationCeremony {};
         let mut test_client_data = CollectedClientData {
-            r#type: String::from("webauthn.create"),
+            // r#type: String::from("webauthn.create"),
+            r#type: ClientDataType::Create,
             challenge: String::from("c29tZV90ZXN0X2NoYWxsZW5nZQ=="),
             origin: String::from("some_test_origin"),
             cross_origin: false,
@@ -690,7 +705,8 @@ mod tests {
         };
 
         let mut test_client_data = CollectedClientData {
-            r#type: String::from("webauthn.create"),
+            // r#type: String::from("webauthn.create"),
+            r#type: ClientDataType::Create,
             challenge: String::from("c29tZV90ZXN0X2NoYWxsZW5nZQ=="),
             origin: String::from("some_test_origin"),
             cross_origin: false,

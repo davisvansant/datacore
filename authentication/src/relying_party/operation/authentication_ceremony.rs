@@ -6,7 +6,7 @@ use crate::api::authenticator_responses::{
 };
 use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientOutputs;
 use crate::api::public_key_credential::PublicKeyCredential;
-use crate::api::supporting_data_structures::{CollectedClientData, TokenBinding};
+use crate::api::supporting_data_structures::{ClientDataType, CollectedClientData, TokenBinding};
 use crate::authenticator::attestation::COSEKey;
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
@@ -140,11 +140,22 @@ impl AuthenticationCeremony {
         }
     }
 
+    // pub async fn verify_client_data_type(
+    //     &self,
+    //     client_data: &CollectedClientData,
+    // ) -> Result<(), AuthenticationError> {
+    //     match client_data.r#type == "webauthn.get" {
+    //         true => Ok(()),
+    //         false => Err(AuthenticationError {
+    //             error: AuthenticationErrorType::OperationError,
+    //         }),
+    //     }
+    // }
     pub async fn verify_client_data_type(
         &self,
         client_data: &CollectedClientData,
     ) -> Result<(), AuthenticationError> {
-        match client_data.r#type == "webauthn.get" {
+        match client_data.r#type == ClientDataType::Get {
             true => Ok(()),
             false => Err(AuthenticationError {
                 error: AuthenticationErrorType::OperationError,
@@ -300,7 +311,8 @@ mod tests {
     use super::*;
     use crate::api::authenticator_responses::AuthenticatorAttestationResponse;
     use crate::api::supporting_data_structures::{
-        PublicKeyCredentialDescriptor, PublicKeyCredentialType, TokenBinding, TokenBindingStatus,
+        AuthenticatorTransport, PublicKeyCredentialDescriptor, PublicKeyCredentialType,
+        TokenBinding, TokenBindingStatus,
     };
     use crate::authenticator::attestation::COSEAlgorithm;
     use crate::relying_party::client::outgoing_data::CeremonyStatus;
@@ -474,7 +486,8 @@ mod tests {
                     credentials.push(PublicKeyCredentialDescriptor {
                         r#type: PublicKeyCredentialType::PublicKey,
                         id: [1; 16].to_vec(),
-                        transports: Some(vec![String::from("internal")]),
+                        // transports: Some(vec![String::from("internal")]),
+                        transports: Some(vec![AuthenticatorTransport::Internal]),
                     })
                 },
             );
@@ -498,7 +511,8 @@ mod tests {
                     credentials.push(PublicKeyCredentialDescriptor {
                         r#type: PublicKeyCredentialType::PublicKey,
                         id: [2; 16].to_vec(),
-                        transports: Some(vec![String::from("internal")]),
+                        // transports: Some(vec![String::from("internal")]),
+                        transports: Some(vec![AuthenticatorTransport::Internal]),
                     })
                 },
             );
@@ -748,7 +762,8 @@ mod tests {
     async fn verify_client_data_type() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
         let mut test_client_data = CollectedClientData {
-            r#type: String::from("webauthn.create"),
+            // r#type: String::from("webauthn.create"),
+            r#type: ClientDataType::Create,
             challenge: String::from("c29tZV90ZXN0X2NoYWxsZW5nZQ=="),
             origin: String::from("some_test_origin"),
             cross_origin: false,
@@ -760,7 +775,8 @@ mod tests {
             .await
             .is_err());
 
-        test_client_data.r#type = String::from("webauthn.get");
+        // test_client_data.r#type = String::from("webauthn.get");
+        test_client_data.r#type = ClientDataType::Get;
 
         assert!(test_authentication_ceremony
             .verify_client_data_type(&test_client_data)
@@ -777,7 +793,8 @@ mod tests {
             .public_key_credential_request_options("test_rp_id")
             .await?;
         let mut test_client_data = CollectedClientData {
-            r#type: String::from("webauthn.get"),
+            // r#type: String::from("webauthn.get"),
+            r#type: ClientDataType::Get,
             challenge: String::from("c29tZV90ZXN0X2NoYWxsZW5nZQ=="),
             origin: String::from("some_test_origin"),
             cross_origin: false,
@@ -813,7 +830,8 @@ mod tests {
     async fn verify_client_data_origin() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
         let test_client_data = CollectedClientData {
-            r#type: String::from("webauthn.get"),
+            // r#type: String::from("webauthn.get"),
+            r#type: ClientDataType::Get,
             challenge: String::from("c29tZV90ZXN0X2NoYWxsZW5nZQ=="),
             origin: String::from("some_test_origin"),
             cross_origin: false,
@@ -837,7 +855,8 @@ mod tests {
     async fn verify_client_data_token_binding() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
         let mut test_client_data = CollectedClientData {
-            r#type: String::from("webauthn.get"),
+            // r#type: String::from("webauthn.get"),
+            r#type: ClientDataType::Get,
             challenge: String::from("c29tZV90ZXN0X2NoYWxsZW5nZQ=="),
             origin: String::from("some_test_origin"),
             cross_origin: false,
