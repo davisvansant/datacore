@@ -11,8 +11,11 @@ use crate::authenticator::attestation::COSEKey;
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::relying_party::client::ceremony_data::CeremonyData;
-use crate::relying_party::StoreChannel;
 use crate::security::sha2::{generate_hash, Hash};
+
+use crate::relying_party::store::CredentialPublicKeyChannel;
+use crate::relying_party::store::SignatureCounterChannel;
+use crate::relying_party::store::UserAccountChannel;
 
 pub struct AuthenticationCeremony {}
 
@@ -97,11 +100,15 @@ impl AuthenticationCeremony {
 
     pub async fn identify_user_and_verify(
         &self,
-        store: &StoreChannel,
+        store: &UserAccountChannel,
+        credential: &PublicKeyCredential,
         authenticator_assertion_response: &AuthenticatorAssertionResponse,
     ) -> Result<(), AuthenticationError> {
         store
-            .identify(authenticator_assertion_response.user_handle.to_owned())
+            .verify(
+                credential.raw_id.to_owned(),
+                authenticator_assertion_response.user_handle.to_owned(),
+            )
             .await?;
 
         Ok(())
@@ -109,10 +116,10 @@ impl AuthenticationCeremony {
 
     pub async fn credential_public_key(
         &self,
-        store: &StoreChannel,
+        store: &CredentialPublicKeyChannel,
         credential: &PublicKeyCredential,
     ) -> Result<COSEKey, AuthenticationError> {
-        let credential = store.lookup(credential.id.as_bytes().to_vec()).await?;
+        let credential = store.lookup(credential.raw_id.to_vec()).await?;
 
         Ok(credential)
     }
@@ -289,14 +296,14 @@ impl AuthenticationCeremony {
 
     pub async fn stored_sign_count(
         &self,
-        store: &StoreChannel,
+        store: &SignatureCounterChannel,
         credential: &PublicKeyCredential,
         authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
         let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
 
         store
-            .sign_count(
+            .initialize(
                 credential.raw_id.to_owned(),
                 u32::from_be_bytes(authenticator_data.sign_count),
             )
@@ -310,6 +317,7 @@ impl AuthenticationCeremony {
 mod tests {
     use super::*;
     use crate::api::authenticator_responses::AuthenticatorAttestationResponse;
+    use crate::api::credential_creation_options::PublicKeyCredentialUserEntity;
     use crate::api::supporting_data_structures::{
         AuthenticatorTransport, PublicKeyCredentialDescriptor, PublicKeyCredentialType,
         TokenBinding, TokenBindingStatus,
@@ -318,8 +326,9 @@ mod tests {
     use crate::relying_party::client::outgoing_data::CeremonyStatus;
     use crate::relying_party::client::webauthn_data::WebAuthnData;
     use crate::relying_party::client::CeremonyIO;
+    use crate::relying_party::store::CredentialPublicKey;
+    use crate::relying_party::store::SignatureCounter;
     use crate::relying_party::store::UserAccount;
-    use crate::relying_party::Store;
     use chrono::{offset::Utc, SecondsFormat};
 
     #[tokio::test]
@@ -531,40 +540,96 @@ mod tests {
     #[tokio::test]
     async fn identify_user_and_verify() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
-        let mut test_authenticator_assertion_response = AuthenticatorAssertionResponse {
-            client_data_json: Vec::with_capacity(0),
-            authenticator_data: Vec::with_capacity(0),
-            signature: Vec::with_capacity(0),
-            user_handle: Vec::with_capacity(0),
-        };
+        let test_public_key_credential_request_options = test_authentication_ceremony
+            .public_key_credential_request_options("test_rp_id")
+            .await?;
 
-        let mut test_store = Store::init().await;
+        let mut test_ceremony_io = CeremonyIO::init().await;
 
         tokio::spawn(async move {
-            test_store.1.run().await.unwrap();
+            if let Some(CeremonyStatus::Continue(test_data)) = test_ceremony_io.2.recv().await {
+                let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
+
+                match test_webauthndata.message.as_str() {
+                    "public_key_credential_request_options" => {
+                        let id = [0u8; 16].to_vec();
+                        let client_data_json = Vec::with_capacity(0);
+                        let authenticator_data = Vec::with_capacity(0);
+                        let signature = Vec::with_capacity(0);
+                        let user_handle = b"some_test_id".to_vec();
+                        let response = AuthenticatorResponse::AuthenticatorAssertionResponse(
+                            AuthenticatorAssertionResponse {
+                                client_data_json,
+                                authenticator_data,
+                                signature,
+                                user_handle,
+                            },
+                        );
+                        let credential = PublicKeyCredential::generate(id, response).await;
+                        let webauthndata = WebAuthnData {
+                            message: String::from("public_key_credential"),
+                            contents: serde_json::to_vec(&credential).expect("json"),
+                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                        };
+                        let json = serde_json::to_vec(&webauthndata).expect("json");
+
+                        test_ceremony_io
+                            .5
+                            .send(json)
+                            .await
+                            .expect("test ceremony message");
+                    }
+                    _ => panic!("this is just for testing..."),
+                }
+            }
+        });
+
+        let mut test_public_key_credential = test_authentication_ceremony
+            .call_credentials_get(
+                &test_public_key_credential_request_options,
+                &test_ceremony_io.3,
+            )
+            .await?;
+
+        let test_response = test_authentication_ceremony
+            .authenticator_assertion_response(&test_public_key_credential)
+            .await?;
+
+        let mut test_user_account = UserAccount::init().await;
+
+        tokio::spawn(async move {
+            test_user_account.1.run().await;
         });
 
         assert!(test_authentication_ceremony
-            .identify_user_and_verify(&test_store.0, &test_authenticator_assertion_response)
+            .identify_user_and_verify(
+                &test_user_account.0,
+                &test_public_key_credential,
+                &test_response,
+            )
             .await
             .is_err());
 
-        test_authenticator_assertion_response.user_handle = b"some_other_id".to_vec();
+        test_public_key_credential.raw_id = b"some_other_id".to_vec();
 
-        test_store
+        test_user_account
             .0
             .register(
                 b"some_other_id".to_vec(),
-                UserAccount {
-                    public_key: COSEKey::generate(COSEAlgorithm::EdDSA).await.0,
-                    signature_counter: 0,
-                    transports: None,
+                PublicKeyCredentialUserEntity {
+                    name: String::from("some_test_name"),
+                    id: b"some_test_id".to_vec(),
+                    display_name: String::from("some_display_name"),
                 },
             )
             .await?;
 
         assert!(test_authentication_ceremony
-            .identify_user_and_verify(&test_store.0, &test_authenticator_assertion_response)
+            .identify_user_and_verify(
+                &test_user_account.0,
+                &test_public_key_credential,
+                &test_response,
+            )
             .await
             .is_ok());
 
@@ -625,35 +690,29 @@ mod tests {
             )
             .await?;
 
-        let mut test_store = Store::init().await;
+        let mut test_credential_public_key = CredentialPublicKey::init().await;
 
         tokio::spawn(async move {
-            if let Err(error) = test_store.1.run().await {
-                println!("test store error -> {:?}", error);
-            }
+            test_credential_public_key.1.run().await;
         });
 
-        test_store
+        test_credential_public_key
             .0
             .register(
                 b"some_id".to_vec(),
-                UserAccount {
-                    public_key: COSEKey::generate(COSEAlgorithm::EdDSA).await.0,
-                    signature_counter: 0,
-                    transports: None,
-                },
+                COSEKey::generate(COSEAlgorithm::EdDSA).await.0,
             )
             .await?;
 
         assert!(test_authentication_ceremony
-            .credential_public_key(&test_store.0, &test_public_key_credential)
+            .credential_public_key(&test_credential_public_key.0, &test_public_key_credential)
             .await
             .is_err());
 
-        test_public_key_credential.id = String::from("some_id");
+        test_public_key_credential.raw_id = b"some_id".to_vec();
 
         assert!(test_authentication_ceremony
-            .credential_public_key(&test_store.0, &test_public_key_credential)
+            .credential_public_key(&test_credential_public_key.0, &test_public_key_credential)
             .await
             .is_ok());
 
@@ -1135,29 +1194,20 @@ mod tests {
         )
         .await;
 
-        let mut test_store = Store::init().await;
+        let mut test_signature_counter = SignatureCounter::init().await;
 
         tokio::spawn(async move {
-            if let Err(error) = test_store.1.run().await {
-                println!("test store error -> {:?}", error);
-            }
+            test_signature_counter.1.run().await;
         });
 
-        test_store
+        test_signature_counter
             .0
-            .register(
-                [0u8; 16].to_vec(),
-                UserAccount {
-                    public_key: COSEKey::generate(COSEAlgorithm::EdDSA).await.0,
-                    signature_counter: 0,
-                    transports: None,
-                },
-            )
+            .initialize([0u8; 16].to_vec(), 0)
             .await?;
 
         assert!(test_authentication_ceremony
             .stored_sign_count(
-                &test_store.0,
+                &test_signature_counter.0,
                 &test_public_key_credential,
                 &test_authenticator_data,
             )

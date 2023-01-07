@@ -7,8 +7,11 @@ use crate::relying_party::client::ceremony_data::CeremonyData;
 use crate::relying_party::client::outgoing_data::ConnectedClient;
 use crate::relying_party::operation::{AuthenticationCeremony, RegistrationCeremony};
 use crate::relying_party::session::{Active, Available, SessionInfo};
-use crate::relying_party::store::{Store, StoreChannel};
 use crate::security::uuid::SessionId;
+
+use crate::relying_party::store::{CredentialPublicKey, CredentialPublicKeyChannel};
+use crate::relying_party::store::{SignatureCounter, SignatureCounterChannel};
+use crate::relying_party::store::{UserAccount, UserAccountChannel};
 
 pub mod client;
 pub mod operation;
@@ -163,7 +166,9 @@ impl RelyingParty {
     pub async fn run(&mut self) -> Result<(), StatusCode> {
         let mut active = Active::init().await;
         let mut available = Available::init().await;
-        let mut store = Store::init().await;
+        let mut credential_public_key = CredentialPublicKey::init().await;
+        let mut signature_counter = SignatureCounter::init().await;
+        let mut user_account = UserAccount::init().await;
 
         tokio::spawn(async move {
             active.1.run().await;
@@ -174,9 +179,15 @@ impl RelyingParty {
         });
 
         tokio::spawn(async move {
-            if let Err(error) = store.1.run().await {
-                println!("store error -> {:?}", error);
-            }
+            credential_public_key.1.run().await;
+        });
+
+        tokio::spawn(async move {
+            signature_counter.1.run().await;
+        });
+
+        tokio::spawn(async move {
+            user_account.1.run().await;
         });
 
         while let Some((operation, response)) = self.operation.recv().await {
@@ -195,7 +206,9 @@ impl RelyingParty {
                 },
                 Operation::RegistrationCeremony((session_id, ceremony_data, connected_client)) => {
                     let identifier = self.identifier.to_owned();
-                    let store = store.0.to_owned();
+                    let credential_public_key = credential_public_key.0.to_owned();
+                    let signature_counter = signature_counter.0.to_owned();
+                    let user_account = user_account.0.to_owned();
 
                     let task_id = session_id.to_owned();
                     let task = active.0.to_owned();
@@ -203,9 +216,10 @@ impl RelyingParty {
                     let handle = tokio::spawn(async move {
                         if let Err(error) = RelyingParty::register_new_credential(
                             &identifier,
-                            // client_channel,
                             ceremony_data,
-                            store,
+                            credential_public_key,
+                            signature_counter,
+                            user_account,
                         )
                         .await
                         {
@@ -224,7 +238,9 @@ impl RelyingParty {
                     connected_client,
                 )) => {
                     let identifier = self.identifier.to_owned();
-                    let store = store.0.to_owned();
+                    let credential_public_key = credential_public_key.0.to_owned();
+                    let signature_counter = signature_counter.0.to_owned();
+                    let user_account = user_account.0.to_owned();
 
                     let task_id = session_id.to_owned();
                     let task = active.0.to_owned();
@@ -233,7 +249,9 @@ impl RelyingParty {
                         if let Err(error) = RelyingParty::verify_authentication_assertion(
                             &identifier,
                             ceremony_data,
-                            store,
+                            credential_public_key,
+                            signature_counter,
+                            user_account,
                         )
                         .await
                         {
@@ -254,7 +272,9 @@ impl RelyingParty {
     async fn register_new_credential(
         identifier: &str,
         client: CeremonyData,
-        store: StoreChannel,
+        credential_public_key: CredentialPublicKeyChannel,
+        signature_counter: SignatureCounterChannel,
+        user_account: UserAccountChannel,
     ) -> Result<(), AuthenticationError> {
         let operation = RegistrationCeremony {};
         let options = operation
@@ -313,11 +333,19 @@ impl RelyingParty {
         operation
             .assess_attestation_trustworthiness(attestation_statement_output)
             .await?;
+
         operation
-            .check_credential_id(&store, &authenticator_data)
+            .check_credential_id(&user_account, &authenticator_data)
             .await?;
+
         operation
-            .register(&store, options, &authenticator_data)
+            .register(
+                &credential_public_key,
+                &signature_counter,
+                &user_account,
+                options,
+                &authenticator_data,
+            )
             .await?;
 
         Ok(())
@@ -326,7 +354,9 @@ impl RelyingParty {
     pub async fn verify_authentication_assertion(
         identifier: &str,
         client: CeremonyData,
-        store: StoreChannel,
+        credential_public_key: CredentialPublicKeyChannel,
+        signature_counter: SignatureCounterChannel,
+        user_account: UserAccountChannel,
     ) -> Result<(), AuthenticationError> {
         let operation = AuthenticationCeremony {};
         let options = operation
@@ -343,10 +373,13 @@ impl RelyingParty {
             .await?;
 
         operation
-            .identify_user_and_verify(&store, &response)
+            .identify_user_and_verify(&user_account, &credential, &response)
             .await?;
 
-        let credential_public_key = operation.credential_public_key(&store, &credential).await?;
+        let credential_public_key = operation
+            .credential_public_key(&credential_public_key, &credential)
+            .await?;
+
         let (client_data_json, authenticator_data, signature) =
             operation.response_values(response).await?;
         let client_data = operation.client_data(&client_data_json).await?;
@@ -386,7 +419,7 @@ impl RelyingParty {
             .await?;
 
         operation
-            .stored_sign_count(&store, &credential, &authenticator_data)
+            .stored_sign_count(&signature_counter, &credential, &authenticator_data)
             .await?;
 
         Ok(())

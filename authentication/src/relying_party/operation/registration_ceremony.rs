@@ -17,8 +17,11 @@ use crate::authenticator::attestation::{
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::relying_party::client::ceremony_data::CeremonyData;
-use crate::relying_party::store::{StoreChannel, UserAccount};
 use crate::security::sha2::{generate_hash, Hash};
+
+use crate::relying_party::store::CredentialPublicKeyChannel;
+use crate::relying_party::store::SignatureCounterChannel;
+use crate::relying_party::store::UserAccountChannel;
 
 pub struct RegistrationCeremony {}
 
@@ -337,13 +340,13 @@ impl RegistrationCeremony {
 
     pub async fn check_credential_id(
         &self,
-        store: &StoreChannel,
+        user_account: &UserAccountChannel,
         authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
         let attested_credential_data =
             AuthenticatorData::attested_credential_data(authenticator_data).await?;
 
-        store
+        user_account
             .check(attested_credential_data.credential_id.to_vec())
             .await?;
 
@@ -352,7 +355,9 @@ impl RegistrationCeremony {
 
     pub async fn register(
         &self,
-        store: &StoreChannel,
+        credential_public_key: &CredentialPublicKeyChannel,
+        signature_counter: &SignatureCounterChannel,
+        user_account: &UserAccountChannel,
         options: PublicKeyCredentialCreationOptions,
         authenticator_data: &[u8],
     ) -> Result<(), AuthenticationError> {
@@ -360,14 +365,25 @@ impl RegistrationCeremony {
             AuthenticatorData::attested_credential_data(authenticator_data).await?;
         let authenticator_data = AuthenticatorData::from_byte_array(authenticator_data).await;
 
-        let new_account = UserAccount {
-            public_key: attested_credential_data.credential_public_key,
-            signature_counter: u32::from_be_bytes(authenticator_data.sign_count),
-            transports: None,
-        };
+        user_account
+            .register(
+                attested_credential_data.credential_id.to_owned(),
+                options.user,
+            )
+            .await?;
 
-        store
-            .register(options.user.id.to_vec(), new_account)
+        credential_public_key
+            .register(
+                attested_credential_data.credential_id.to_owned(),
+                attested_credential_data.credential_public_key,
+            )
+            .await?;
+
+        signature_counter
+            .initialize(
+                attested_credential_data.credential_id,
+                u32::from_be_bytes(authenticator_data.sign_count),
+            )
             .await?;
 
         Ok(())
@@ -386,7 +402,9 @@ mod tests {
     use crate::relying_party::client::outgoing_data::CeremonyStatus;
     use crate::relying_party::client::webauthn_data::WebAuthnData;
     use crate::relying_party::client::CeremonyIO;
-    use crate::relying_party::Store;
+    use crate::relying_party::store::CredentialPublicKey;
+    use crate::relying_party::store::SignatureCounter;
+    use crate::relying_party::store::UserAccount;
     use chrono::{offset::Utc, SecondsFormat};
     use ciborium::cbor;
 
@@ -1138,29 +1156,28 @@ mod tests {
             None,
         )
         .await;
+
         let test_registration_ceremony = RegistrationCeremony {};
-        let mut test_store = Store::init().await;
+        let mut test_user_account = UserAccount::init().await;
 
         tokio::spawn(async move {
-            if let Err(error) = test_store.1.run().await {
-                println!("test store error -> {:?}", error);
-            }
+            test_user_account.1.run().await;
         });
 
-        test_store
+        test_user_account
             .0
             .register(
                 [0; 16].to_vec(),
-                UserAccount {
-                    public_key: COSEKey::generate(COSEAlgorithm::EdDSA).await.0,
-                    signature_counter: 0,
-                    transports: None,
+                PublicKeyCredentialUserEntity {
+                    name: String::from("some_name"),
+                    id: b"some_generated_id".to_vec(),
+                    display_name: String::from("some_display_name"),
                 },
             )
             .await?;
 
         assert!(test_registration_ceremony
-            .check_credential_id(&test_store.0, &test_authenticator_data)
+            .check_credential_id(&test_user_account.0, &test_authenticator_data)
             .await
             .is_err());
 
@@ -1183,7 +1200,7 @@ mod tests {
         .await;
 
         assert!(test_registration_ceremony
-            .check_credential_id(&test_store.0, &test_authenticator_data)
+            .check_credential_id(&test_user_account.0, &test_authenticator_data)
             .await
             .is_ok());
 
@@ -1213,16 +1230,31 @@ mod tests {
         let test_options = test_registration_ceremony
             .public_key_credential_creation_options("test_rp_id")
             .await?;
-        let mut test_store = Store::init().await;
+
+        let mut test_credential_public_key = CredentialPublicKey::init().await;
+        let mut test_signature_counter = SignatureCounter::init().await;
+        let mut test_user_account = UserAccount::init().await;
 
         tokio::spawn(async move {
-            if let Err(error) = test_store.1.run().await {
-                println!("test store error -> {:?}", error);
-            }
+            test_credential_public_key.1.run().await;
+        });
+
+        tokio::spawn(async move {
+            test_signature_counter.1.run().await;
+        });
+
+        tokio::spawn(async move {
+            test_user_account.1.run().await;
         });
 
         assert!(test_registration_ceremony
-            .register(&test_store.0, test_options, &test_authenticator_data)
+            .register(
+                &test_credential_public_key.0,
+                &test_signature_counter.0,
+                &test_user_account.0,
+                test_options,
+                &test_authenticator_data,
+            )
             .await
             .is_ok());
 
