@@ -181,6 +181,7 @@ async fn handle_registration_ceremony_session(
     let (outgoing_message, mut outgoing_messages) = channel::<Message>(1);
     let relying_party_channel_error = outgoing_message.to_owned();
     let relying_party_outgoing_message = outgoing_message.to_owned();
+    let fail_ceremony = outgoing_message.to_owned();
 
     let mut ceremony_io = CeremonyIO::init().await;
 
@@ -220,6 +221,13 @@ async fn handle_registration_ceremony_session(
             CeremonyStatus::Fail(error) => {
                 println!("fail ceremony");
 
+                let close_frame = CloseFrame {
+                    code: close_code::ERROR,
+                    reason: Cow::from(error.to_string()),
+                };
+
+                let _ = fail_ceremony.send(Message::Close(Some(close_frame))).await;
+
                 ceremony_io.0.shutdown().await;
 
                 for task in &session_tasks {
@@ -247,6 +255,7 @@ async fn handle_authentication_ceremony_session(
     let (outgoing_message, mut outgoing_messages) = channel::<Message>(1);
     let relying_party_channel_error = outgoing_message.to_owned();
     let relying_party_outgoing_message = outgoing_message.to_owned();
+    let fail_ceremony = outgoing_message.to_owned();
 
     let mut ceremony_io = CeremonyIO::init().await;
 
@@ -285,6 +294,13 @@ async fn handle_authentication_ceremony_session(
             }
             CeremonyStatus::Fail(error) => {
                 println!("fail ceremony");
+
+                let close_frame = CloseFrame {
+                    code: close_code::ERROR,
+                    reason: Cow::from(error.to_string()),
+                };
+
+                let _ = fail_ceremony.send(Message::Close(Some(close_frame))).await;
 
                 ceremony_io.0.shutdown().await;
 

@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 pub use crate::authenticator::attestation::cose_key_format::{COSEAlgorithm, COSEKey};
 pub use crate::authenticator::attestation::statement_format::{
