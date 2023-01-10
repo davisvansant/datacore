@@ -5,6 +5,10 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name = "webauthn_relying_party"
+path = "../bin/webauthn_relying_party.rs"
+
 [dependencies]
 axum = { workspace = true, features = ["ws"] }
 base64 = "0.13.1"
