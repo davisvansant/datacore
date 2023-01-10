@@ -1,4 +1,4 @@
-use axum::http::StatusCode;
+use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::task::JoinHandle;
 
@@ -28,26 +28,16 @@ impl ActiveChannel {
         &self,
         id: SessionId,
         join_handle: JoinHandle<()>,
-    ) -> Result<(), StatusCode> {
-        match self.request.send(Request::Insert((id, join_handle))).await {
-            Ok(()) => Ok(()),
-            Err(error) => {
-                println!("spawn -> {:?}", error);
+    ) -> Result<(), SendError<Request>> {
+        self.request
+            .send(Request::Insert((id, join_handle)))
+            .await?;
 
-                Err(StatusCode::INTERNAL_SERVER_ERROR)
-            }
-        }
+        Ok(())
     }
 
-    pub async fn abort(&self, id: SessionId) -> Result<(), StatusCode> {
-        match self.request.send(Request::Abort(id)).await {
-            Ok(()) => Ok(()),
-            Err(error) => {
-                println!("abort -> {:?}", error);
-
-                Err(StatusCode::INTERNAL_SERVER_ERROR)
-            }
-        }
+    pub async fn abort(&self, id: SessionId) {
+        let _ = self.request.send(Request::Abort(id)).await;
     }
 }
 
@@ -88,7 +78,6 @@ impl Active {
     }
 
     async fn abort(&mut self, id: SessionId) {
-        // self.session.remove(&id);
         if let Some(join_handle) = self.session.remove(&id) {
             join_handle.abort();
         };

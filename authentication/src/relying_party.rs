@@ -2,7 +2,7 @@ use axum::http::StatusCode;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::api::supporting_data_structures::TokenBinding;
-use crate::error::AuthenticationError;
+use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::relying_party::client::ceremony_data::CeremonyData;
 use crate::relying_party::client::outgoing_data::ConnectedClient;
 use crate::relying_party::operation::{AuthenticationCeremony, RegistrationCeremony};
@@ -92,25 +92,40 @@ impl RelyingPartyOperation {
         session_id: SessionId,
         ceremony_data: CeremonyData,
         connected_client: ConnectedClient,
-    ) -> Result<(), StatusCode> {
-        let (_request, _response) = oneshot::channel();
+    ) -> Result<(), AuthenticationError> {
+        let (request, response) = oneshot::channel();
 
         match self
             .run
             .send((
                 Operation::RegistrationCeremony((session_id, ceremony_data, connected_client)),
-                _request,
+                request,
             ))
             .await
         {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+                if let Err(error) = response.await {
+                    println!(
+                        "relying party operation | registration ceremony -> {:?}",
+                        error,
+                    );
+
+                    Err(AuthenticationError {
+                        error: AuthenticationErrorType::OperationError,
+                    })
+                } else {
+                    Ok(())
+                }
+            }
             Err(error) => {
                 println!(
                     "relying party operation | registration ceremony -> {:?}",
                     error,
                 );
 
-                Err(StatusCode::INTERNAL_SERVER_ERROR)
+                Err(AuthenticationError {
+                    error: AuthenticationErrorType::OperationError,
+                })
             }
         }
     }
@@ -120,25 +135,40 @@ impl RelyingPartyOperation {
         session_id: SessionId,
         ceremony_data: CeremonyData,
         connected_client: ConnectedClient,
-    ) -> Result<(), StatusCode> {
-        let (_request, _response) = oneshot::channel();
+    ) -> Result<(), AuthenticationError> {
+        let (request, response) = oneshot::channel();
 
         match self
             .run
             .send((
                 Operation::AuthenticationCeremony((session_id, ceremony_data, connected_client)),
-                _request,
+                request,
             ))
             .await
         {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+                if let Err(error) = response.await {
+                    println!(
+                        "relying party operation | registration ceremony -> {:?}",
+                        error,
+                    );
+
+                    Err(AuthenticationError {
+                        error: AuthenticationErrorType::OperationError,
+                    })
+                } else {
+                    Ok(())
+                }
+            }
             Err(error) => {
                 println!(
                     "relying party operation | authentication ceremony -> {:?}",
                     error,
                 );
 
-                Err(StatusCode::INTERNAL_SERVER_ERROR)
+                Err(AuthenticationError {
+                    error: AuthenticationErrorType::OperationError,
+                })
             }
         }
     }
@@ -163,7 +193,7 @@ impl RelyingParty {
         )
     }
 
-    pub async fn run(&mut self) -> Result<(), StatusCode> {
+    pub async fn run(&mut self) {
         let mut active = Active::init().await;
         let mut available = Available::init().await;
         let mut credential_public_key = CredentialPublicKey::init().await;
@@ -192,10 +222,16 @@ impl RelyingParty {
 
         while let Some((operation, response)) = self.operation.recv().await {
             match operation {
-                Operation::Allocate => {
-                    let session_info = available.0.allocate().await?;
-                    let _ = response.send(Response::SessionInfo(session_info));
-                }
+                Operation::Allocate => match available.0.allocate().await {
+                    Ok(session_info) => {
+                        let _ = response.send(Response::SessionInfo(session_info));
+                    }
+                    Err(error) => {
+                        println!("relying party operation | allocate -> {:?}", error);
+
+                        let _ = response.send(Response::Error);
+                    }
+                },
                 Operation::Consume(id) => match available.0.consume(id).await {
                     Ok(session_info) => {
                         let _ = response.send(Response::SessionInfo(session_info));
@@ -225,12 +261,21 @@ impl RelyingParty {
                         {
                             println!("ceremony error -> {:?}", error);
 
-                            let _ = task.abort(task_id).await;
+                            task.abort(task_id).await;
                             connected_client.fail_ceremony(error).await;
                         }
                     });
 
-                    active.0.insert(session_id, handle).await?;
+                    if let Err(error) = active.0.insert(session_id, handle).await {
+                        println!(
+                            "relying party operation | registration ceremony -> {:?}",
+                            error,
+                        );
+
+                        active.0.abort(session_id).await;
+
+                        let _ = response.send(Response::Error);
+                    }
                 }
                 Operation::AuthenticationCeremony((
                     session_id,
@@ -257,16 +302,24 @@ impl RelyingParty {
                         {
                             println!("ceremony error -> {:?}", error);
 
-                            let _ = task.abort(task_id).await;
+                            task.abort(task_id).await;
                             connected_client.fail_ceremony(error).await;
                         }
                     });
 
-                    active.0.insert(session_id, handle).await?;
+                    if let Err(error) = active.0.insert(session_id, handle).await {
+                        println!(
+                            "relying party operation | authentication ceremony -> {:?}",
+                            error,
+                        );
+
+                        active.0.abort(session_id).await;
+
+                        let _ = response.send(Response::Error);
+                    }
                 }
             }
         }
-        Ok(())
     }
 
     async fn register_new_credential(

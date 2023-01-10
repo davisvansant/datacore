@@ -203,7 +203,7 @@ async fn handle_registration_ceremony_session(
 
         let close_frame = CloseFrame {
             code: close_code::ERROR,
-            reason: Cow::from(error.as_str().to_owned()),
+            reason: Cow::from(error.to_string()),
         };
 
         let _ = relying_party_channel_error
@@ -277,7 +277,7 @@ async fn handle_authentication_ceremony_session(
 
         let close_frame = CloseFrame {
             code: close_code::ERROR,
-            reason: Cow::from(error.as_str().to_owned()),
+            reason: Cow::from(error.to_string()),
         };
 
         let _ = relying_party_channel_error
@@ -413,7 +413,7 @@ mod tests {
         let mut test_relying_party = RelyingParty::init().await;
 
         tokio::spawn(async move {
-            test_relying_party.1.run().await.unwrap();
+            test_relying_party.1.run().await;
         });
 
         let mut test_websockets = Websockets::init(test_relying_party.0).await;
@@ -511,7 +511,7 @@ mod tests {
         let mut test_relying_party = RelyingParty::init().await;
 
         tokio::spawn(async move {
-            test_relying_party.1.run().await.unwrap();
+            test_relying_party.1.run().await;
         });
 
         let mut test_websockets = Websockets::init(test_relying_party.0).await;

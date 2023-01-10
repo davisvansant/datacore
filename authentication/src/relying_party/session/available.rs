@@ -1,7 +1,7 @@
-use axum::http::StatusCode;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{sleep, Duration};
 
+use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::relying_party::SessionInfo;
 use crate::security::session_token::SessionToken;
 use crate::security::uuid::SessionId;
@@ -35,43 +35,27 @@ impl AvailableChannel {
         (AvailableChannel { request }, receiver)
     }
 
-    pub async fn allocate(&self) -> Result<SessionInfo, StatusCode> {
+    pub async fn allocate(&self) -> Result<SessionInfo, Box<dyn std::error::Error>> {
         let (request, response) = oneshot::channel();
 
-        match self.request.send((Request::Allocate, request)).await {
-            Ok(()) => {
-                if let Ok(Response::SessionInfo(session_info)) = response.await {
-                    Ok(session_info)
-                } else {
-                    Err(StatusCode::INTERNAL_SERVER_ERROR)
-                }
-            }
-            Err(error) => {
-                println!("allocate request -> {:?}", error);
+        self.request.send((Request::Allocate, request)).await?;
 
-                Err(StatusCode::INTERNAL_SERVER_ERROR)
-            }
+        match response.await? {
+            Response::SessionInfo(session_info) => Ok(session_info),
+            Response::Error => panic!("unexpected response!"),
         }
     }
 
-    pub async fn consume(&self, id: SessionId) -> Result<SessionInfo, StatusCode> {
+    pub async fn consume(&self, id: SessionId) -> Result<SessionInfo, Box<dyn std::error::Error>> {
         let (request, response) = oneshot::channel();
 
-        match self.request.send((Request::Consume(id), request)).await {
-            Ok(()) => match response.await {
-                Ok(Response::SessionInfo(session_info)) => Ok(session_info),
-                Ok(Response::Error) => Err(StatusCode::BAD_REQUEST),
-                Err(error) => {
-                    println!("consume response -> {:?}", error);
+        self.request.send((Request::Consume(id), request)).await?;
 
-                    Err(StatusCode::INTERNAL_SERVER_ERROR)
-                }
-            },
-            Err(error) => {
-                println!("consume request -> {:?}", error);
-
-                Err(StatusCode::INTERNAL_SERVER_ERROR)
-            }
+        match response.await? {
+            Response::SessionInfo(session_info) => Ok(session_info),
+            Response::Error => Err(Box::new(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            })),
         }
     }
 }
