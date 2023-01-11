@@ -31,6 +31,7 @@ pub enum Operation {
 #[derive(Debug)]
 pub enum Response {
     SessionInfo(SessionInfo),
+    Start,
     Error,
 }
 
@@ -72,6 +73,7 @@ impl RelyingPartyOperation {
         match self.run.send((Operation::Consume(id), request)).await {
             Ok(()) => match response.await {
                 Ok(Response::SessionInfo(session_info)) => Ok(session_info),
+                Ok(Response::Start) => Err(StatusCode::BAD_REQUEST),
                 Ok(Response::Error) => Err(StatusCode::BAD_REQUEST),
                 Err(error) => {
                     println!("consume response -> {:?}", error);
@@ -266,15 +268,20 @@ impl RelyingParty {
                         }
                     });
 
-                    if let Err(error) = active.0.insert(session_id, handle).await {
-                        println!(
-                            "relying party operation | registration ceremony -> {:?}",
-                            error,
-                        );
+                    match active.0.insert(session_id, handle).await {
+                        Ok(()) => {
+                            let _ = response.send(Response::Start);
+                        }
+                        Err(error) => {
+                            println!(
+                                "relying party operation | registration ceremony -> {:?}",
+                                error,
+                            );
 
-                        active.0.abort(session_id).await;
+                            active.0.abort(session_id).await;
 
-                        let _ = response.send(Response::Error);
+                            let _ = response.send(Response::Error);
+                        }
                     }
                 }
                 Operation::AuthenticationCeremony((
