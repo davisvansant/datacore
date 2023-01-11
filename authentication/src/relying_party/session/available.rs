@@ -1,4 +1,5 @@
 use tokio::sync::{mpsc, oneshot};
+use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
 
 use crate::error::{AuthenticationError, AuthenticationErrorType};
@@ -63,6 +64,7 @@ impl AvailableChannel {
 pub struct Available {
     session: HashMap<SessionId, SessionToken>,
     timeout: AvailableChannel,
+    timeout_handles: HashMap<SessionId, JoinHandle<()>>,
     receiver: mpsc::Receiver<(Request, oneshot::Sender<Response>)>,
 }
 
@@ -70,12 +72,14 @@ impl Available {
     pub async fn init() -> (AvailableChannel, Available) {
         let session = HashMap::with_capacity(100);
         let available_channel = AvailableChannel::init().await;
+        let timeout_handles = HashMap::with_capacity(100);
 
         (
             available_channel.0.to_owned(),
             Available {
                 session,
                 timeout: available_channel.0,
+                timeout_handles,
                 receiver: available_channel.1,
             },
         )
@@ -108,20 +112,30 @@ impl Available {
         let timeout = self.timeout.to_owned();
         let id = session_info.id.to_owned();
 
-        tokio::spawn(async move {
-            sleep(Duration::from_millis(30000)).await;
+        let timeout_handle = tokio::spawn(async move {
+            sleep(Duration::from_millis(300000)).await;
 
             if let Err(error) = timeout.consume(id).await {
-                println!("timeout error -> {:?}", error);
+                println!(
+                    "relying party | available session | allocate timeout -> {:?}",
+                    error,
+                );
             }
         });
+
+        self.timeout_handles.insert(session_info.id, timeout_handle);
 
         session_info
     }
 
     async fn consume(&mut self, id: SessionId) -> Option<SessionInfo> {
-        self.session
-            .remove_entry(&id)
-            .map(|(id, token)| SessionInfo { id, token })
+        self.session.remove_entry(&id).map(|(id, token)| {
+            match self.timeout_handles.remove(&id) {
+                Some(timeout_handle) => timeout_handle.abort(),
+                None => println!("handle already removed!"),
+            }
+
+            SessionInfo { id, token }
+        })
     }
 }
