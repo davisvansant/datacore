@@ -57,7 +57,7 @@ impl CeremonyData {
                         }
                     }
                     Err(timeout_error) => {
-                        println!("timeout reached! {:?}", timeout_error);
+                        println!("ceremony data | credentials create -> {:?}", timeout_error);
 
                         Err(error)
                     }
