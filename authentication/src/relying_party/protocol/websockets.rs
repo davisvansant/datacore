@@ -171,69 +171,77 @@ async fn handle_registration_ceremony_session(
 ) {
     let (mut socket_outgoing, mut socket_incoming) = socket.split();
 
-    token_verification(
+    match token_verification(
         &mut socket_outgoing,
         &mut socket_incoming,
         session_info.token,
     )
-    .await;
-
-    let (outgoing_message, mut outgoing_messages) = channel::<Message>(1);
-    let relying_party_channel_error = outgoing_message.to_owned();
-    let relying_party_outgoing_message = outgoing_message.to_owned();
-    let fail_ceremony = outgoing_message.to_owned();
-
-    let mut ceremony_io = CeremonyIO::init().await;
-
-    let socket_incoming_task = tokio::spawn(async move {
-        handle_socket_incoming(&mut socket_incoming, outgoing_message).await;
-    });
-
-    let socket_outgoing_task = tokio::spawn(async move {
-        handle_socket_outgoing(&mut outgoing_messages, &mut socket_outgoing).await;
-    });
-
-    let session_tasks = vec![socket_incoming_task, socket_outgoing_task];
-
-    if let Err(error) = relying_party_operation
-        .registration_ceremony(session_info.id, ceremony_io.3, ceremony_io.4)
-        .await
+    .await
     {
-        println!("relying party operation -> {:?}", error);
+        true => {
+            let (outgoing_message, mut outgoing_messages) = channel::<Message>(1);
+            let relying_party_channel_error = outgoing_message.to_owned();
+            let relying_party_outgoing_message = outgoing_message.to_owned();
+            let fail_ceremony = outgoing_message.to_owned();
 
-        let close_frame = CloseFrame {
-            code: close_code::ERROR,
-            reason: Cow::from(error.to_string()),
-        };
+            let mut ceremony_io = CeremonyIO::init().await;
 
-        let _ = relying_party_channel_error
-            .send(Message::Close(Some(close_frame)))
-            .await;
-    };
+            let socket_incoming_task = tokio::spawn(async move {
+                handle_socket_incoming(&mut socket_incoming, outgoing_message).await;
+            });
 
-    while let Some(ceremony_status) = ceremony_io.2.recv().await {
-        match ceremony_status {
-            CeremonyStatus::Continue(data) => {
-                let _ = relying_party_outgoing_message
-                    .send(Message::Binary(data))
-                    .await;
-            }
-            CeremonyStatus::Fail(error) => {
-                println!("fail ceremony");
+            let socket_outgoing_task = tokio::spawn(async move {
+                handle_socket_outgoing(&mut outgoing_messages, &mut socket_outgoing).await;
+            });
+
+            let session_tasks = vec![socket_incoming_task, socket_outgoing_task];
+
+            if let Err(error) = relying_party_operation
+                .registration_ceremony(session_info.id, ceremony_io.3, ceremony_io.4)
+                .await
+            {
+                println!("relying party operation -> {:?}", error);
 
                 let close_frame = CloseFrame {
                     code: close_code::ERROR,
                     reason: Cow::from(error.to_string()),
                 };
 
-                let _ = fail_ceremony.send(Message::Close(Some(close_frame))).await;
+                let _ = relying_party_channel_error
+                    .send(Message::Close(Some(close_frame)))
+                    .await;
+            };
 
-                ceremony_io.0.shutdown().await;
+            while let Some(ceremony_status) = ceremony_io.2.recv().await {
+                match ceremony_status {
+                    CeremonyStatus::Continue(data) => {
+                        let _ = relying_party_outgoing_message
+                            .send(Message::Binary(data))
+                            .await;
+                    }
+                    CeremonyStatus::Fail(error) => {
+                        println!("fail ceremony");
 
-                for task in &session_tasks {
-                    task.abort();
+                        let close_frame = CloseFrame {
+                            code: close_code::ERROR,
+                            reason: Cow::from(error.to_string()),
+                        };
+
+                        let _ = fail_ceremony.send(Message::Close(Some(close_frame))).await;
+
+                        ceremony_io.0.shutdown().await;
+
+                        for task in &session_tasks {
+                            task.abort();
+                        }
+                    }
                 }
             }
+        }
+        false => {
+            let _ = relying_party_operation.consume(session_info.id).await;
+
+            println!("connection closed");
         }
     }
 }
@@ -316,8 +324,8 @@ async fn token_verification(
     socket_outgoing: &mut SplitSink<WebSocket, Message>,
     socket_incoming: &mut SplitStream<WebSocket>,
     token: SessionToken,
-) {
-    match timeout(Duration::from_millis(30000), socket_incoming.next()).await {
+) -> bool {
+    match timeout(Duration::from_millis(300000), socket_incoming.next()).await {
         Ok(incoming_message) => {
             if let Some(Ok(Message::Binary(data))) = incoming_message {
                 match data == token {
@@ -325,19 +333,27 @@ async fn token_verification(
                         let data = b"ok".to_vec();
 
                         let _ = socket_outgoing.send(Message::Binary(data)).await;
+
+                        true
                     }
                     false => {
                         let _ = socket_outgoing.close().await;
+
+                        false
                     }
                 }
             } else {
                 let _ = socket_outgoing.close().await;
+
+                false
             }
         }
         Err(error) => {
-            println!("timeout! -> {:?}", error);
+            println!("token verification timeout! -> {:?}", error);
 
             let _ = socket_outgoing.close().await;
+
+            false
         }
     }
 }
