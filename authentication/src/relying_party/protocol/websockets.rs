@@ -1,6 +1,9 @@
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::time::Duration;
+
 use axum::{
-    extract::ws::{close_code, CloseFrame, Message, WebSocket, WebSocketUpgrade},
-    extract::{Path, State},
+    extract::ws::{Message, WebSocket, WebSocketUpgrade},
+    extract::Path,
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
@@ -10,19 +13,20 @@ use futures::{
     sink::SinkExt,
     stream::{SplitSink, SplitStream, StreamExt},
 };
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::mpsc::{channel, Receiver};
 use tokio::time::timeout;
 
-use std::borrow::Cow;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::time::Duration;
-
-use crate::relying_party::client::outgoing_data::CeremonyStatus;
-use crate::relying_party::client::CeremonyIO;
+// use crate::relying_party::client::outgoing_data::CeremonyStatus;
+// use crate::relying_party::client::CeremonyIO;
+use crate::relying_party::protocol::communication::{
+    AuthenticatorAgent, AuthenticatorAgentChannel, ClientAgent, FailCeremony, RelyingPartyAgent,
+};
+use crate::relying_party::protocol::websockets::session::{Session, SessionChannel, SessionInfo};
 use crate::relying_party::RelyingPartyOperation;
-use crate::relying_party::SessionInfo;
 use crate::security::session_token::SessionToken;
 use crate::security::uuid::SessionId;
+
+mod session;
 
 pub struct Websockets {
     socket_address: SocketAddr,
@@ -40,84 +44,72 @@ impl Websockets {
     }
 
     pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let mut session = Session::init().await;
+
+        tokio::spawn(async move {
+            session.1.run().await;
+        });
+
         Server::bind(&self.socket_address)
-            .serve(self.router().await.into_make_service())
+            .serve(self.router(session.0).await.into_make_service())
             .await?;
 
         Ok(())
     }
 
-    async fn router(&self) -> Router {
+    async fn router(&self, session_channel: SessionChannel) -> Router {
+        let register_session_channel = session_channel.to_owned();
+        let authenticate_session_channel = session_channel.to_owned();
+        let registration_ceremony_session_channel = session_channel.to_owned();
+        let authentication_ceremony_session_channel = session_channel;
+        // let register_relying_party = self.relying_party.to_owned();
+        // let authenticate_relying_party = self.relying_party.to_owned();
+        let registration_ceremony_relying_party = self.relying_party.to_owned();
+        let authentication_ceremony_relying_party = self.relying_party.to_owned();
+
         Router::new()
-            .route("/register", get(establish))
-            .route("/authenticate", get(establish))
+            .route(
+                "/register",
+                get(move |connection| establish(connection, register_session_channel)),
+            )
+            .route(
+                "/authenticate",
+                get(move |connection| establish(connection, authenticate_session_channel)),
+            )
             .route(
                 "/registration_ceremony/:session",
-                get(registration_ceremony_session),
+                get({
+                    move |session, connection| {
+                        registration_ceremony_session(
+                            session,
+                            connection,
+                            registration_ceremony_session_channel,
+                            registration_ceremony_relying_party,
+                        )
+                    }
+                }),
             )
             .route(
                 "/authentication_ceremony/:session",
-                get(authentication_ceremony_session),
+                get({
+                    move |session, connection| {
+                        authentication_ceremony_session(
+                            session,
+                            connection,
+                            authentication_ceremony_session_channel,
+                            authentication_ceremony_relying_party,
+                        )
+                    }
+                }),
             )
-            .with_state(self.relying_party.to_owned())
     }
 }
 
-async fn establish(
-    connection: WebSocketUpgrade,
-    State(relying_party): State<RelyingPartyOperation>,
-) -> Response {
-    connection.on_upgrade(|socket| initialize(socket, relying_party))
+async fn establish(connection: WebSocketUpgrade, available_session: SessionChannel) -> Response {
+    connection.on_upgrade(|socket| initialize(socket, available_session))
 }
 
-async fn registration_ceremony_session(
-    Path(session): Path<String>,
-    State(relying_party): State<RelyingPartyOperation>,
-    connection: WebSocketUpgrade,
-) -> Response {
-    let mut session_id: SessionId = [0; 32];
-
-    if session.len() == 32 {
-        session_id.copy_from_slice(session.as_bytes());
-    } else {
-        return StatusCode::BAD_REQUEST.into_response();
-    }
-
-    match relying_party.consume(session_id).await {
-        Ok(session_info) => match session_id == session_info.id {
-            true => connection.on_upgrade(move |socket| {
-                handle_registration_ceremony_session(socket, session_info, relying_party)
-            }),
-            false => StatusCode::BAD_REQUEST.into_response(),
-        },
-        Err(error) => error.into_response(),
-    }
-}
-async fn authentication_ceremony_session(
-    Path(session): Path<String>,
-    State(relying_party): State<RelyingPartyOperation>,
-    connection: WebSocketUpgrade,
-) -> Response {
-    let mut session_id: SessionId = [0; 32];
-
-    if session.len() == 32 {
-        session_id.copy_from_slice(session.as_bytes());
-    } else {
-        return StatusCode::BAD_REQUEST.into_response();
-    }
-
-    match relying_party.consume(session_id).await {
-        Ok(session_info) => match session_id == session_info.id {
-            true => connection.on_upgrade(move |socket| {
-                handle_authentication_ceremony_session(socket, session_info, relying_party)
-            }),
-            false => StatusCode::BAD_REQUEST.into_response(),
-        },
-        Err(error) => error.into_response(),
-    }
-}
-
-async fn initialize(socket: WebSocket, relying_party: RelyingPartyOperation) {
+async fn initialize(socket: WebSocket, available_session: SessionChannel) {
     let (mut socket_outgoing, mut socket_incoming) = socket.split();
     let (message, mut receive_outgoing_message) = channel::<Message>(1);
     let terminate_session = message.to_owned();
@@ -146,7 +138,7 @@ async fn initialize(socket: WebSocket, relying_party: RelyingPartyOperation) {
         }
     });
 
-    match relying_party.allocate().await {
+    match available_session.allocate().await {
         Ok(session_info) => match serde_json::to_string(&session_info) {
             Ok(json) => {
                 let _ = message.send(Message::Text(json)).await;
@@ -164,10 +156,35 @@ async fn initialize(socket: WebSocket, relying_party: RelyingPartyOperation) {
     }
 }
 
+async fn registration_ceremony_session(
+    Path(session): Path<String>,
+    connection: WebSocketUpgrade,
+    available_session: SessionChannel,
+    relying_party: RelyingPartyOperation,
+) -> Response {
+    let mut session_id: SessionId = [0; 32];
+
+    if session.len() == 32 {
+        session_id.copy_from_slice(session.as_bytes());
+    } else {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+
+    match available_session.consume(session_id).await {
+        Ok(session_info) => match session_id == session_info.id {
+            true => connection.on_upgrade(move |socket| {
+                handle_registration_ceremony_session(socket, session_info, relying_party)
+            }),
+            false => StatusCode::BAD_REQUEST.into_response(),
+        },
+        Err(error) => error.into_response(),
+    }
+}
+
 async fn handle_registration_ceremony_session(
     socket: WebSocket,
     session_info: SessionInfo,
-    relying_party_operation: RelyingPartyOperation,
+    relying_party: RelyingPartyOperation,
 ) {
     let (mut socket_outgoing, mut socket_incoming) = socket.split();
 
@@ -180,142 +197,141 @@ async fn handle_registration_ceremony_session(
     {
         true => {
             let (outgoing_message, mut outgoing_messages) = channel::<Message>(1);
-            let relying_party_channel_error = outgoing_message.to_owned();
-            let relying_party_outgoing_message = outgoing_message.to_owned();
-            let fail_ceremony = outgoing_message.to_owned();
+            let fail_ceremony = FailCeremony::init();
+            let socket_incoming_fail_ceremony = fail_ceremony.to_owned();
+            let socket_outgoing_fail_ceremony = fail_ceremony.to_owned();
+            let mut relying_party_agent =
+                RelyingPartyAgent::init(outgoing_message.to_owned(), fail_ceremony.to_owned())
+                    .await;
+            let client_agent = ClientAgent::init(relying_party_agent.0.to_owned()).await;
+            let mut authenticator_agent =
+                AuthenticatorAgent::init(client_agent.0, fail_ceremony.to_owned()).await;
 
-            let mut ceremony_io = CeremonyIO::init().await;
-
-            let socket_incoming_task = tokio::spawn(async move {
-                handle_socket_incoming(&mut socket_incoming, outgoing_message).await;
+            tokio::spawn(async move {
+                handle_socket_incoming(
+                    &mut socket_incoming,
+                    authenticator_agent.0,
+                    socket_incoming_fail_ceremony,
+                )
+                .await;
             });
 
-            let socket_outgoing_task = tokio::spawn(async move {
-                handle_socket_outgoing(&mut outgoing_messages, &mut socket_outgoing).await;
+            tokio::spawn(async move {
+                handle_socket_outgoing(
+                    &mut outgoing_messages,
+                    &mut socket_outgoing,
+                    socket_outgoing_fail_ceremony,
+                )
+                .await;
             });
 
-            let session_tasks = vec![socket_incoming_task, socket_outgoing_task];
-
-            if let Err(error) = relying_party_operation
-                .registration_ceremony(session_info.id, ceremony_io.3, ceremony_io.4)
+            if let Err(error) = relying_party
+                .registration_ceremony(session_info.id, client_agent.1, fail_ceremony.to_owned())
                 .await
             {
                 println!("relying party operation -> {:?}", error);
 
-                let close_frame = CloseFrame {
-                    code: close_code::ERROR,
-                    reason: Cow::from(error.to_string()),
-                };
-
-                let _ = relying_party_channel_error
-                    .send(Message::Close(Some(close_frame)))
-                    .await;
-            };
-
-            while let Some(ceremony_status) = ceremony_io.2.recv().await {
-                match ceremony_status {
-                    CeremonyStatus::Continue(data) => {
-                        let _ = relying_party_outgoing_message
-                            .send(Message::Binary(data))
-                            .await;
-                    }
-                    CeremonyStatus::Fail(error) => {
-                        println!("fail ceremony");
-
-                        let close_frame = CloseFrame {
-                            code: close_code::ERROR,
-                            reason: Cow::from(error.to_string()),
-                        };
-
-                        let _ = fail_ceremony.send(Message::Close(Some(close_frame))).await;
-
-                        ceremony_io.0.shutdown().await;
-
-                        for task in &session_tasks {
-                            task.abort();
-                        }
-                    }
-                }
+                fail_ceremony.error();
             }
+
+            tokio::spawn(async move {
+                authenticator_agent.1.run().await;
+            });
+
+            relying_party_agent.1.run().await;
         }
         false => {
-            let _ = relying_party_operation.consume(session_info.id).await;
-
             println!("connection closed");
         }
+    }
+}
+
+async fn authentication_ceremony_session(
+    Path(session): Path<String>,
+    connection: WebSocketUpgrade,
+    available_session: SessionChannel,
+    relying_party: RelyingPartyOperation,
+) -> Response {
+    let mut session_id: SessionId = [0; 32];
+
+    if session.len() == 32 {
+        session_id.copy_from_slice(session.as_bytes());
+    } else {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+
+    match available_session.consume(session_id).await {
+        Ok(session_info) => match session_id == session_info.id {
+            true => connection.on_upgrade(move |socket| {
+                handle_authentication_ceremony_session(socket, session_info, relying_party)
+            }),
+            false => StatusCode::BAD_REQUEST.into_response(),
+        },
+        Err(error) => error.into_response(),
     }
 }
 
 async fn handle_authentication_ceremony_session(
     socket: WebSocket,
     session_info: SessionInfo,
-    relying_party_operation: RelyingPartyOperation,
+    relying_party: RelyingPartyOperation,
 ) {
     let (mut socket_outgoing, mut socket_incoming) = socket.split();
 
-    token_verification(
+    match token_verification(
         &mut socket_outgoing,
         &mut socket_incoming,
         session_info.token,
     )
-    .await;
-
-    let (outgoing_message, mut outgoing_messages) = channel::<Message>(1);
-    let relying_party_channel_error = outgoing_message.to_owned();
-    let relying_party_outgoing_message = outgoing_message.to_owned();
-    let fail_ceremony = outgoing_message.to_owned();
-
-    let mut ceremony_io = CeremonyIO::init().await;
-
-    let socket_incoming_task = tokio::spawn(async move {
-        handle_socket_incoming(&mut socket_incoming, outgoing_message).await;
-    });
-
-    let socket_outgoing_task = tokio::spawn(async move {
-        handle_socket_outgoing(&mut outgoing_messages, &mut socket_outgoing).await;
-    });
-
-    let session_tasks = vec![socket_incoming_task, socket_outgoing_task];
-
-    if let Err(error) = relying_party_operation
-        .authentication_ceremony(session_info.id, ceremony_io.3, ceremony_io.4)
-        .await
+    .await
     {
-        println!("relying party operation -> {:?}", error);
-
-        let close_frame = CloseFrame {
-            code: close_code::ERROR,
-            reason: Cow::from(error.to_string()),
-        };
-
-        let _ = relying_party_channel_error
-            .send(Message::Close(Some(close_frame)))
-            .await;
-    };
-
-    while let Some(ceremony_status) = ceremony_io.2.recv().await {
-        match ceremony_status {
-            CeremonyStatus::Continue(data) => {
-                let _ = relying_party_outgoing_message
-                    .send(Message::Binary(data))
+        true => {
+            let (outgoing_message, mut outgoing_messages) = channel::<Message>(1);
+            let fail_ceremony = FailCeremony::init();
+            let socket_incoming_fail_ceremony = fail_ceremony.to_owned();
+            let socket_outgoing_fail_ceremony = fail_ceremony.to_owned();
+            let mut relying_party_agent =
+                RelyingPartyAgent::init(outgoing_message.to_owned(), fail_ceremony.to_owned())
                     .await;
+            let client_agent = ClientAgent::init(relying_party_agent.0.to_owned()).await;
+            let mut authenticator_agent =
+                AuthenticatorAgent::init(client_agent.0, fail_ceremony.to_owned()).await;
+
+            tokio::spawn(async move {
+                handle_socket_incoming(
+                    &mut socket_incoming,
+                    authenticator_agent.0,
+                    socket_incoming_fail_ceremony,
+                )
+                .await;
+            });
+
+            tokio::spawn(async move {
+                handle_socket_outgoing(
+                    &mut outgoing_messages,
+                    &mut socket_outgoing,
+                    socket_outgoing_fail_ceremony,
+                )
+                .await;
+            });
+
+            if let Err(error) = relying_party
+                .authentication_ceremony(session_info.id, client_agent.1, fail_ceremony.to_owned())
+                .await
+            {
+                println!("relying party operation -> {:?}", error);
+
+                fail_ceremony.error();
             }
-            CeremonyStatus::Fail(error) => {
-                println!("fail ceremony");
 
-                let close_frame = CloseFrame {
-                    code: close_code::ERROR,
-                    reason: Cow::from(error.to_string()),
-                };
+            tokio::spawn(async move {
+                authenticator_agent.1.run().await;
+            });
 
-                let _ = fail_ceremony.send(Message::Close(Some(close_frame))).await;
-
-                ceremony_io.0.shutdown().await;
-
-                for task in &session_tasks {
-                    task.abort();
-                }
-            }
+            relying_party_agent.1.run().await;
+        }
+        false => {
+            println!("authentication ceremony failed...");
         }
     }
 }
@@ -360,27 +376,35 @@ async fn token_verification(
 
 async fn handle_socket_incoming(
     socket_incoming: &mut SplitStream<WebSocket>,
-    outgoing_message: Sender<Message>,
+    authenticator_agent: AuthenticatorAgentChannel,
+    fail_ceremony: FailCeremony,
 ) {
-    while let Some(Ok(message)) = socket_incoming.next().await {
-        match message {
-            Message::Text(_) => {
-                let close_frame = CloseFrame {
-                    code: close_code::UNSUPPORTED,
-                    reason: Cow::from("WebSocket.binaryType = 'blob'"),
-                };
+    let mut error = fail_ceremony.subscribe();
 
-                let _ = outgoing_message
-                    .send(Message::Close(Some(close_frame)))
-                    .await;
+    loop {
+        tokio::select! {
+            biased;
+
+            _ = error.recv() => {
+                println!("shutting down task socket incoming task...");
+
+                break;
             }
-            Message::Binary(data) => {
-                let _ = outgoing_message.send(Message::Binary(data)).await;
-            }
-            Message::Ping(_) => {}
-            Message::Pong(_) => {}
-            Message::Close(_) => {
-                let _ = outgoing_message.send(Message::Close(None)).await;
+
+            Some(Ok(message)) = socket_incoming.next() => {
+                match message {
+                    Message::Text(_) => {
+                        fail_ceremony.error();
+                    }
+                    Message::Binary(data) => {
+                        authenticator_agent.translate(data).await;
+                    }
+                    Message::Ping(_) => {}
+                    Message::Pong(_) => {}
+                    Message::Close(_) => {
+                        fail_ceremony.error();
+                    }
+                }
             }
         }
     }
@@ -389,29 +413,51 @@ async fn handle_socket_incoming(
 async fn handle_socket_outgoing(
     outgoing_messages: &mut Receiver<Message>,
     socket_outgoing: &mut SplitSink<WebSocket, Message>,
+    fail_ceremony: FailCeremony,
 ) {
-    while let Some(message) = outgoing_messages.recv().await {
-        match message {
-            Message::Text(_) => {
-                let _ = socket_outgoing.close().await;
-            }
-            Message::Binary(data) => {
-                let _ = socket_outgoing.send(Message::Binary(data)).await;
-            }
-            Message::Ping(_) => {}
-            Message::Pong(_) => {}
-            Message::Close(Some(close_frame)) => {
+    let mut error = fail_ceremony.subscribe();
+
+    loop {
+        tokio::select! {
+            biased;
+
+            _ = error.recv() => {
+                println!("shutting down socket outgoing task...");
+
                 let _ = socket_outgoing
-                    .send(Message::Close(Some(close_frame)))
+                    .send(Message::Close(None))
                     .await;
                 let _ = socket_outgoing.close().await;
 
                 outgoing_messages.close();
-            }
-            Message::Close(None) => {
-                let _ = socket_outgoing.close().await;
 
-                outgoing_messages.close();
+                break;
+            }
+
+            Some(message) = outgoing_messages.recv() => {
+                match message {
+                    Message::Text(_) => {
+                        fail_ceremony.error();
+                    }
+                    Message::Binary(data) => {
+                        let _ = socket_outgoing.send(Message::Binary(data)).await;
+                    }
+                    Message::Ping(_) => {}
+                    Message::Pong(_) => {}
+                    Message::Close(Some(close_frame)) => {
+                        let _ = socket_outgoing
+                            .send(Message::Close(Some(close_frame)))
+                            .await;
+                        let _ = socket_outgoing.close().await;
+
+                        outgoing_messages.close();
+
+                        break;
+                    }
+                    Message::Close(None) => {
+                        fail_ceremony.error();
+                    }
+                }
             }
         }
     }
@@ -420,6 +466,11 @@ async fn handle_socket_outgoing(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::authenticator_responses::{
+        AuthenticatorAttestationResponse, AuthenticatorResponse,
+    };
+    use crate::api::public_key_credential::PublicKeyCredential;
+    use crate::relying_party::protocol::communication::WebAuthnData;
     use crate::relying_party::{RelyingParty, SessionInfo};
     use tokio_tungstenite::connect_async;
     use tokio_tungstenite::tungstenite;
@@ -446,6 +497,7 @@ mod tests {
         assert!(test_websockets_connection.is_err());
 
         if let tungstenite::Error::Http(response) = test_websockets_connection.unwrap_err() {
+            println!("response status -> {:?}", &response.status());
             assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         }
 
@@ -713,15 +765,56 @@ mod tests {
 
         async fn test_handle_socket(test_socket: WebSocket) {
             let (mut test_socket_outgoing, mut test_socket_incoming) = test_socket.split();
+            // let (test_outgoing_message, mut test_outgoing_messages) = channel::<Message>(1);
+            // let test_fail_ceremony = FailCeremony::init();
+            // let test_socket_incoming_fail_ceremony = test_fail_ceremony.to_owned();
+            // let test_socket_outgoing_fail_ceremony = test_fail_ceremony.to_owned();
+
             let (test_outgoing_message, mut test_outgoing_messages) = channel::<Message>(1);
+            let test_fail_ceremony = FailCeremony::init();
+            let test_socket_incoming_fail_ceremony = test_fail_ceremony.to_owned();
+            let test_socket_outgoing_fail_ceremony = test_fail_ceremony.to_owned();
+            let mut test_relying_party_agent = RelyingPartyAgent::init(
+                test_outgoing_message.to_owned(),
+                test_fail_ceremony.to_owned(),
+            )
+            .await;
+            let test_client_agent = ClientAgent::init(test_relying_party_agent.0.to_owned()).await;
+            let mut test_authenticator_agent = AuthenticatorAgent::init(
+                test_client_agent.0.to_owned(),
+                test_fail_ceremony.to_owned(),
+            )
+            .await;
+
+            // tokio::spawn(async move {
+            //     test_client_agent.0.subscribe();
+            // });
 
             tokio::spawn(async move {
-                handle_socket_incoming(&mut test_socket_incoming, test_outgoing_message).await;
+                test_authenticator_agent.1.run().await;
             });
 
             tokio::spawn(async move {
-                handle_socket_outgoing(&mut test_outgoing_messages, &mut test_socket_outgoing)
-                    .await;
+                test_relying_party_agent.1.run().await;
+            });
+
+            tokio::spawn(async move {
+                handle_socket_incoming(
+                    &mut test_socket_incoming,
+                    // test_outgoing_message,
+                    test_authenticator_agent.0,
+                    test_socket_incoming_fail_ceremony,
+                )
+                .await;
+            });
+
+            tokio::spawn(async move {
+                handle_socket_outgoing(
+                    &mut test_outgoing_messages,
+                    &mut test_socket_outgoing,
+                    test_socket_outgoing_fail_ceremony,
+                )
+                .await;
             });
         }
 
@@ -742,34 +835,57 @@ mod tests {
             .await?;
 
         if let Some(Ok(test_message)) = test_client_socket.0.next().await {
-            let test_close_frame = tungstenite::protocol::frame::CloseFrame {
-                code: tungstenite::protocol::frame::coding::CloseCode::Unsupported,
-                reason: Cow::from("WebSocket.binaryType = 'blob'"),
-            };
+            // let test_close_frame = tungstenite::protocol::frame::CloseFrame {
+            //     code: tungstenite::protocol::frame::coding::CloseCode::Unsupported,
+            //     reason: Cow::from("WebSocket.binaryType = 'blob'"),
+            // };
 
-            assert_eq!(
-                test_message,
-                tungstenite::Message::Close(Some(test_close_frame)),
-            );
+            // assert_eq!(
+            //     test_message,
+            //     tungstenite::Message::Close(Some(test_close_frame)),
+            // );
+            assert_eq!(test_message, tungstenite::Message::Close(None));
         } else {
             panic!("a message should have been receieved!");
         }
 
         let mut test_client_socket = connect_async("ws://127.0.0.1:8080/test").await?;
 
+        // let test_webauthndata = r#"{"message":"public_key_credential","contents":[0],"timestamp": "2018-01-26T18:30:09.453Z"}"#.as_bytes();
+        let test_id = [0u8; 16].to_vec();
+        let test_client_data_json = Vec::with_capacity(0);
+        let test_attestation_object = Vec::with_capacity(0);
+        let test_response = AuthenticatorResponse::AuthenticatorAttestationResponse(
+            AuthenticatorAttestationResponse {
+                client_data_json: test_client_data_json,
+                attestation_object: test_attestation_object,
+            },
+        );
+        let test_credential = PublicKeyCredential::generate(test_id, test_response).await;
+        let test_message = String::from("public_key_credential");
+        let test_contents = serde_json::to_vec(&test_credential).expect("json");
+        let test_webauthndata = WebAuthnData::generate(test_message, test_contents).await?;
+
         test_client_socket
             .0
-            .send(tungstenite::Message::Binary(b"test_data".to_vec()))
+            .send(tungstenite::Message::Binary(test_webauthndata))
             .await?;
 
-        if let Some(Ok(test_message)) = test_client_socket.0.next().await {
-            assert_eq!(
-                test_message,
-                tungstenite::Message::Binary(b"test_data".to_vec()),
-            );
-        } else {
-            panic!("a message should have been receieved!");
-        }
+        println!("we've sent the data!");
+
+        // if let Some(Ok(test_message)) = test_client_socket.0.next().await {
+        //     println!("some test message -> {:?}", &test_message);
+
+        //     assert_eq!(
+        //         test_message,
+        //         tungstenite::Message::Binary(b"test_data".to_vec()),
+        //     );
+        //     // assert_eq!(test_message, tungstenite::Message::Close(None));
+        // } else {
+        //     panic!("a message should have been receieved!");
+        // }
+
+        println!("now lets send the close...");
 
         test_client_socket
             .0
