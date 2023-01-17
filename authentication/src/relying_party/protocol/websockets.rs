@@ -16,8 +16,6 @@ use futures::{
 use tokio::sync::mpsc::{channel, Receiver};
 use tokio::time::timeout;
 
-// use crate::relying_party::client::outgoing_data::CeremonyStatus;
-// use crate::relying_party::client::CeremonyIO;
 use crate::relying_party::protocol::communication::{
     AuthenticatorAgent, AuthenticatorAgentChannel, ClientAgent, FailCeremony, RelyingPartyAgent,
 };

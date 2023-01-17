@@ -16,7 +16,6 @@ use crate::authenticator::attestation::{
 };
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
-// use crate::relying_party::client::ceremony_data::CeremonyData;
 use crate::security::sha2::{generate_hash, Hash};
 
 use crate::relying_party::store::CredentialPublicKeyChannel;
@@ -392,9 +391,6 @@ mod tests {
     use crate::authenticator::attestation::{
         AttestedCredentialData, COSEAlgorithm, COSEKey, PackedAttestationStatementSyntax,
     };
-    // use crate::relying_party::client::outgoing_data::CeremonyStatus;
-    // use crate::relying_party::client::webauthn_data::WebAuthnData;
-    // use crate::relying_party::client::CeremonyIO;
     use crate::relying_party::protocol::communication::{
         AuthenticatorAgent, FailCeremony, RelyingPartyAgent, WebAuthnData,
     };
@@ -579,20 +575,6 @@ mod tests {
     #[tokio::test]
     async fn client_extension_results() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration_ceremony = RegistrationCeremony {};
-
-        // let test_rp_entity = PublicKeyCredentialRpEntity {
-        //     name: String::from("some_rp_name"),
-        //     id: String::from("some_rp_entity_id"),
-        // };
-
-        // let test_user_entity = PublicKeyCredentialUserEntity::generate(
-        //     String::from("some_user_name"),
-        //     String::from("some_display_name"),
-        // )
-        // .await;
-
-        // let test_public_key_credential_creation_options =
-        //     PublicKeyCredentialCreationOptions::generate(test_rp_entity, test_user_entity).await;
 
         let test_id = [0u8; 16].to_vec();
         let test_client_data_json = Vec::with_capacity(0);

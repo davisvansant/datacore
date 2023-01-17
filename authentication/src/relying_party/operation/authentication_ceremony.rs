@@ -10,7 +10,6 @@ use crate::api::supporting_data_structures::{ClientDataType, CollectedClientData
 use crate::authenticator::attestation::COSEKey;
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
-// use crate::relying_party::client::ceremony_data::CeremonyData;
 use crate::security::sha2::{generate_hash, Hash};
 
 use crate::relying_party::store::CredentialPublicKeyChannel;
@@ -35,7 +34,6 @@ impl AuthenticationCeremony {
     pub async fn call_credentials_get(
         &self,
         options: &PublicKeyCredentialRequestOptions,
-        // client: &CeremonyData,
         client: &ClientAgent,
     ) -> Result<PublicKeyCredential, AuthenticationError> {
         let credential = client.credentials_get(options.to_owned()).await?;
@@ -315,9 +313,6 @@ mod tests {
         TokenBinding, TokenBindingStatus,
     };
     use crate::authenticator::attestation::COSEAlgorithm;
-    // use crate::relying_party::client::outgoing_data::CeremonyStatus;
-    // use crate::relying_party::client::webauthn_data::WebAuthnData;
-    // use crate::relying_party::client::CeremonyIO;
     use crate::relying_party::protocol::communication::{
         AuthenticatorAgent, FailCeremony, RelyingPartyAgent, WebAuthnData,
     };
@@ -661,7 +656,6 @@ mod tests {
     async fn response_values() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
 
-        // let test_id = [0u8; 16].to_vec();
         let test_client_data_json = Vec::with_capacity(0);
         let test_authenticator_data = Vec::with_capacity(0);
         let test_signature = Vec::with_capacity(0);
