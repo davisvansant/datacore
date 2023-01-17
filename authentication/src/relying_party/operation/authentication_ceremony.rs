@@ -10,12 +10,14 @@ use crate::api::supporting_data_structures::{ClientDataType, CollectedClientData
 use crate::authenticator::attestation::COSEKey;
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
-use crate::relying_party::client::ceremony_data::CeremonyData;
+// use crate::relying_party::client::ceremony_data::CeremonyData;
 use crate::security::sha2::{generate_hash, Hash};
 
 use crate::relying_party::store::CredentialPublicKeyChannel;
 use crate::relying_party::store::SignatureCounterChannel;
 use crate::relying_party::store::UserAccountChannel;
+
+use crate::relying_party::protocol::communication::ClientAgent;
 
 pub struct AuthenticationCeremony {}
 
@@ -33,7 +35,8 @@ impl AuthenticationCeremony {
     pub async fn call_credentials_get(
         &self,
         options: &PublicKeyCredentialRequestOptions,
-        client: &CeremonyData,
+        // client: &CeremonyData,
+        client: &ClientAgent,
     ) -> Result<PublicKeyCredential, AuthenticationError> {
         let credential = client.credentials_get(options.to_owned()).await?;
 
@@ -312,13 +315,18 @@ mod tests {
         TokenBinding, TokenBindingStatus,
     };
     use crate::authenticator::attestation::COSEAlgorithm;
-    use crate::relying_party::client::outgoing_data::CeremonyStatus;
-    use crate::relying_party::client::webauthn_data::WebAuthnData;
-    use crate::relying_party::client::CeremonyIO;
+    // use crate::relying_party::client::outgoing_data::CeremonyStatus;
+    // use crate::relying_party::client::webauthn_data::WebAuthnData;
+    // use crate::relying_party::client::CeremonyIO;
+    use crate::relying_party::protocol::communication::{
+        AuthenticatorAgent, FailCeremony, RelyingPartyAgent, WebAuthnData,
+    };
     use crate::relying_party::store::CredentialPublicKey;
     use crate::relying_party::store::SignatureCounter;
     use crate::relying_party::store::UserAccount;
+    use axum::extract::ws::Message;
     use chrono::{offset::Utc, SecondsFormat};
+    use tokio::sync::mpsc::channel;
 
     #[tokio::test]
     async fn public_key_credential_request_options() -> Result<(), Box<dyn std::error::Error>> {
@@ -339,10 +347,27 @@ mod tests {
             .public_key_credential_request_options("test_rp_id")
             .await?;
 
-        let mut test_ceremony_io = CeremonyIO::init().await;
+        let (test_outgoing_message, mut test_outgoing_messages) = channel::<Message>(1);
+        let test_fail_ceremony = FailCeremony::init();
+        let mut test_relying_party_agent = RelyingPartyAgent::init(
+            test_outgoing_message.to_owned(),
+            test_fail_ceremony.to_owned(),
+        )
+        .await;
+        let test_client_agent = ClientAgent::init(test_relying_party_agent.0.to_owned()).await;
+        let mut test_authenticator_agent =
+            AuthenticatorAgent::init(test_client_agent.0, test_fail_ceremony.to_owned()).await;
 
         tokio::spawn(async move {
-            if let Some(CeremonyStatus::Continue(test_data)) = test_ceremony_io.2.recv().await {
+            test_authenticator_agent.1.run().await;
+        });
+
+        tokio::spawn(async move {
+            test_relying_party_agent.1.run().await;
+        });
+
+        tokio::spawn(async move {
+            if let Some(Message::Binary(test_data)) = test_outgoing_messages.recv().await {
                 let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
 
                 match test_webauthndata.message.as_str() {
@@ -368,11 +393,7 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_ceremony_io
-                            .5
-                            .send(json)
-                            .await
-                            .expect("test ceremony message");
+                        test_authenticator_agent.0.translate(json).await;
                     }
                     _ => panic!("this is just for testing..."),
                 }
@@ -382,7 +403,7 @@ mod tests {
         assert!(test_authentication_ceremony
             .call_credentials_get(
                 &test_public_key_credential_request_options,
-                &test_ceremony_io.3,
+                &test_client_agent.1,
             )
             .await
             .is_ok());
@@ -527,56 +548,21 @@ mod tests {
     #[tokio::test]
     async fn identify_user_and_verify() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
-        let test_public_key_credential_request_options = test_authentication_ceremony
-            .public_key_credential_request_options("test_rp_id")
-            .await?;
 
-        let mut test_ceremony_io = CeremonyIO::init().await;
-
-        tokio::spawn(async move {
-            if let Some(CeremonyStatus::Continue(test_data)) = test_ceremony_io.2.recv().await {
-                let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
-
-                match test_webauthndata.message.as_str() {
-                    "public_key_credential_request_options" => {
-                        let id = [0u8; 16].to_vec();
-                        let client_data_json = Vec::with_capacity(0);
-                        let authenticator_data = Vec::with_capacity(0);
-                        let signature = Vec::with_capacity(0);
-                        let user_handle = b"some_test_id".to_vec();
-                        let response = AuthenticatorResponse::AuthenticatorAssertionResponse(
-                            AuthenticatorAssertionResponse {
-                                client_data_json,
-                                authenticator_data,
-                                signature,
-                                user_handle,
-                            },
-                        );
-                        let credential = PublicKeyCredential::generate(id, response).await;
-                        let webauthndata = WebAuthnData {
-                            message: String::from("public_key_credential"),
-                            contents: serde_json::to_vec(&credential).expect("json"),
-                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                        };
-                        let json = serde_json::to_vec(&webauthndata).expect("json");
-
-                        test_ceremony_io
-                            .5
-                            .send(json)
-                            .await
-                            .expect("test ceremony message");
-                    }
-                    _ => panic!("this is just for testing..."),
-                }
-            }
-        });
-
-        let mut test_public_key_credential = test_authentication_ceremony
-            .call_credentials_get(
-                &test_public_key_credential_request_options,
-                &test_ceremony_io.3,
-            )
-            .await?;
+        let test_id = [0u8; 16].to_vec();
+        let test_client_data_json = Vec::with_capacity(0);
+        let test_authenticator_data = Vec::with_capacity(0);
+        let test_signature = Vec::with_capacity(0);
+        let test_user_handle = b"some_test_id".to_vec();
+        let test_response =
+            AuthenticatorResponse::AuthenticatorAssertionResponse(AuthenticatorAssertionResponse {
+                client_data_json: test_client_data_json,
+                authenticator_data: test_authenticator_data,
+                signature: test_signature,
+                user_handle: test_user_handle,
+            });
+        let mut test_public_key_credential =
+            PublicKeyCredential::generate(test_id, test_response).await;
 
         let test_response = test_authentication_ceremony
             .authenticator_assertion_response(&test_public_key_credential)
@@ -626,56 +612,21 @@ mod tests {
     #[tokio::test]
     async fn credential_public_key() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
-        let test_public_key_credential_request_options = test_authentication_ceremony
-            .public_key_credential_request_options("test_rp_id")
-            .await?;
 
-        let mut test_ceremony_io = CeremonyIO::init().await;
-
-        tokio::spawn(async move {
-            if let Some(CeremonyStatus::Continue(test_data)) = test_ceremony_io.2.recv().await {
-                let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
-
-                match test_webauthndata.message.as_str() {
-                    "public_key_credential_request_options" => {
-                        let id = [0u8; 16].to_vec();
-                        let client_data_json = Vec::with_capacity(0);
-                        let authenticator_data = Vec::with_capacity(0);
-                        let signature = Vec::with_capacity(0);
-                        let user_handle = Vec::with_capacity(0);
-                        let response = AuthenticatorResponse::AuthenticatorAssertionResponse(
-                            AuthenticatorAssertionResponse {
-                                client_data_json,
-                                authenticator_data,
-                                signature,
-                                user_handle,
-                            },
-                        );
-                        let credential = PublicKeyCredential::generate(id, response).await;
-                        let webauthndata = WebAuthnData {
-                            message: String::from("public_key_credential"),
-                            contents: serde_json::to_vec(&credential).expect("json"),
-                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                        };
-                        let json = serde_json::to_vec(&webauthndata).expect("json");
-
-                        test_ceremony_io
-                            .5
-                            .send(json)
-                            .await
-                            .expect("test ceremony message");
-                    }
-                    _ => panic!("this is just for testing..."),
-                }
-            }
-        });
-
-        let mut test_public_key_credential = test_authentication_ceremony
-            .call_credentials_get(
-                &test_public_key_credential_request_options,
-                &test_ceremony_io.3,
-            )
-            .await?;
+        let test_id = [0u8; 16].to_vec();
+        let test_client_data_json = Vec::with_capacity(0);
+        let test_authenticator_data = Vec::with_capacity(0);
+        let test_signature = Vec::with_capacity(0);
+        let test_user_handle = b"some_test_id".to_vec();
+        let test_response =
+            AuthenticatorResponse::AuthenticatorAssertionResponse(AuthenticatorAssertionResponse {
+                client_data_json: test_client_data_json,
+                authenticator_data: test_authenticator_data,
+                signature: test_signature,
+                user_handle: test_user_handle,
+            });
+        let mut test_public_key_credential =
+            PublicKeyCredential::generate(test_id, test_response).await;
 
         let mut test_credential_public_key = CredentialPublicKey::init().await;
 
@@ -709,59 +660,18 @@ mod tests {
     #[tokio::test]
     async fn response_values() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
-        let test_public_key_credential_request_options = test_authentication_ceremony
-            .public_key_credential_request_options("test_rp_id")
-            .await?;
 
-        let mut test_ceremony_io = CeremonyIO::init().await;
-
-        tokio::spawn(async move {
-            if let Some(CeremonyStatus::Continue(test_data)) = test_ceremony_io.2.recv().await {
-                let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
-
-                match test_webauthndata.message.as_str() {
-                    "public_key_credential_request_options" => {
-                        let id = [0u8; 16].to_vec();
-                        let client_data_json = Vec::with_capacity(0);
-                        let authenticator_data = Vec::with_capacity(0);
-                        let signature = Vec::with_capacity(0);
-                        let user_handle = Vec::with_capacity(0);
-                        let response = AuthenticatorResponse::AuthenticatorAssertionResponse(
-                            AuthenticatorAssertionResponse {
-                                client_data_json,
-                                authenticator_data,
-                                signature,
-                                user_handle,
-                            },
-                        );
-                        let credential = PublicKeyCredential::generate(id, response).await;
-                        let webauthndata = WebAuthnData {
-                            message: String::from("public_key_credential"),
-                            contents: serde_json::to_vec(&credential).expect("json"),
-                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                        };
-                        let json = serde_json::to_vec(&webauthndata).expect("json");
-
-                        test_ceremony_io
-                            .5
-                            .send(json)
-                            .await
-                            .expect("test ceremony message");
-                    }
-                    _ => panic!("this is just for testing..."),
-                }
-            }
-        });
-
-        let test_public_key_credential = test_authentication_ceremony
-            .call_credentials_get(
-                &test_public_key_credential_request_options,
-                &test_ceremony_io.3,
-            )
-            .await?;
-        let test_authenticator_assertion_response = test_authentication_ceremony
-            .authenticator_assertion_response(&test_public_key_credential)
-            .await?;
+        // let test_id = [0u8; 16].to_vec();
+        let test_client_data_json = Vec::with_capacity(0);
+        let test_authenticator_data = Vec::with_capacity(0);
+        let test_signature = Vec::with_capacity(0);
+        let test_user_handle = b"some_test_id".to_vec();
+        let test_authenticator_assertion_response = AuthenticatorAssertionResponse {
+            client_data_json: test_client_data_json,
+            authenticator_data: test_authenticator_data,
+            signature: test_signature,
+            user_handle: test_user_handle,
+        };
 
         assert!(test_authentication_ceremony
             .response_values(test_authenticator_assertion_response)
@@ -1111,56 +1021,21 @@ mod tests {
     #[tokio::test]
     async fn stored_sign_count() -> Result<(), Box<dyn std::error::Error>> {
         let test_authentication_ceremony = AuthenticationCeremony {};
-        let test_public_key_credential_request_options = test_authentication_ceremony
-            .public_key_credential_request_options("test_rp_id")
-            .await?;
 
-        let mut test_ceremony_io = CeremonyIO::init().await;
-
-        tokio::spawn(async move {
-            if let Some(CeremonyStatus::Continue(test_data)) = test_ceremony_io.2.recv().await {
-                let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
-
-                match test_webauthndata.message.as_str() {
-                    "public_key_credential_request_options" => {
-                        let id = [0u8; 16].to_vec();
-                        let client_data_json = Vec::with_capacity(0);
-                        let authenticator_data = Vec::with_capacity(0);
-                        let signature = Vec::with_capacity(0);
-                        let user_handle = Vec::with_capacity(0);
-                        let response = AuthenticatorResponse::AuthenticatorAssertionResponse(
-                            AuthenticatorAssertionResponse {
-                                client_data_json,
-                                authenticator_data,
-                                signature,
-                                user_handle,
-                            },
-                        );
-                        let credential = PublicKeyCredential::generate(id, response).await;
-                        let webauthndata = WebAuthnData {
-                            message: String::from("public_key_credential"),
-                            contents: serde_json::to_vec(&credential).expect("json"),
-                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                        };
-                        let json = serde_json::to_vec(&webauthndata).expect("json");
-
-                        test_ceremony_io
-                            .5
-                            .send(json)
-                            .await
-                            .expect("test ceremony message");
-                    }
-                    _ => panic!("this is just for testing..."),
-                }
-            }
-        });
-
-        let test_public_key_credential = test_authentication_ceremony
-            .call_credentials_get(
-                &test_public_key_credential_request_options,
-                &test_ceremony_io.3,
-            )
-            .await?;
+        let test_id = [0u8; 16].to_vec();
+        let test_client_data_json = Vec::with_capacity(0);
+        let test_authenticator_data = Vec::with_capacity(0);
+        let test_signature = Vec::with_capacity(0);
+        let test_user_handle = b"some_test_id".to_vec();
+        let test_response =
+            AuthenticatorResponse::AuthenticatorAssertionResponse(AuthenticatorAssertionResponse {
+                client_data_json: test_client_data_json,
+                authenticator_data: test_authenticator_data,
+                signature: test_signature,
+                user_handle: test_user_handle,
+            });
+        let test_public_key_credential =
+            PublicKeyCredential::generate(test_id, test_response).await;
 
         let test_rp_id = "test_rp_id";
         let test_user_present = true;

@@ -4,7 +4,7 @@ use crate::api::authenticator_responses::{
     AuthenticatorAttestationResponse, AuthenticatorResponse,
 };
 use crate::api::credential_creation_options::{
-    PublicKeyCredentialCreationOptions, PublicKeyCredentialRpEntity, PublicKeyCredentialUserEntity,
+    PublicKeyCredentialCreationOptions, PublicKeyCredentialRpEntity,
 };
 use crate::api::extensions_inputs_and_outputs::AuthenticationExtensionsClientOutputs;
 use crate::api::public_key_credential::PublicKeyCredential;
@@ -16,12 +16,14 @@ use crate::authenticator::attestation::{
 };
 use crate::authenticator::data::AuthenticatorData;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
-use crate::relying_party::client::ceremony_data::CeremonyData;
+// use crate::relying_party::client::ceremony_data::CeremonyData;
 use crate::security::sha2::{generate_hash, Hash};
 
 use crate::relying_party::store::CredentialPublicKeyChannel;
 use crate::relying_party::store::SignatureCounterChannel;
 use crate::relying_party::store::UserAccountChannel;
+
+use crate::relying_party::protocol::communication::ClientAgent;
 
 pub struct RegistrationCeremony {}
 
@@ -29,14 +31,13 @@ impl RegistrationCeremony {
     pub async fn public_key_credential_creation_options(
         &self,
         rp_id: &str,
+        client: &ClientAgent,
     ) -> Result<PublicKeyCredentialCreationOptions, AuthenticationError> {
         let rp_entity = PublicKeyCredentialRpEntity {
             name: String::from("some_rp_name"),
             id: rp_id.to_owned(),
         };
-        let user = String::from("some_user");
-        let display_name = String::from("some_display_name");
-        let user_entity = PublicKeyCredentialUserEntity::generate(user, display_name).await;
+        let user_entity = client.user_account().await?;
         let public_key_credential_creation_options =
             PublicKeyCredentialCreationOptions::generate(rp_entity, user_entity).await;
 
@@ -46,7 +47,7 @@ impl RegistrationCeremony {
     pub async fn call_credentials_create(
         &self,
         options: &PublicKeyCredentialCreationOptions,
-        client: &CeremonyData,
+        client: &ClientAgent,
     ) -> Result<PublicKeyCredential, AuthenticationError> {
         let credential = client.credentials_create(options.to_owned()).await?;
 
@@ -383,26 +384,75 @@ impl RegistrationCeremony {
 mod tests {
     use super::*;
     use crate::api::authenticator_responses::AuthenticatorAssertionResponse;
+    use crate::api::credential_creation_options::{
+        PublicKeyCredentialRpEntity, PublicKeyCredentialUserEntity,
+    };
     use crate::api::credential_generation_parameters::PublicKeyCredentialParameters;
     use crate::api::supporting_data_structures::{PublicKeyCredentialType, TokenBindingStatus};
     use crate::authenticator::attestation::{
         AttestedCredentialData, COSEAlgorithm, COSEKey, PackedAttestationStatementSyntax,
     };
-    use crate::relying_party::client::outgoing_data::CeremonyStatus;
-    use crate::relying_party::client::webauthn_data::WebAuthnData;
-    use crate::relying_party::client::CeremonyIO;
+    // use crate::relying_party::client::outgoing_data::CeremonyStatus;
+    // use crate::relying_party::client::webauthn_data::WebAuthnData;
+    // use crate::relying_party::client::CeremonyIO;
+    use crate::relying_party::protocol::communication::{
+        AuthenticatorAgent, FailCeremony, RelyingPartyAgent, WebAuthnData,
+    };
     use crate::relying_party::store::CredentialPublicKey;
     use crate::relying_party::store::SignatureCounter;
     use crate::relying_party::store::UserAccount;
+    use axum::extract::ws::Message;
     use chrono::{offset::Utc, SecondsFormat};
     use ciborium::cbor;
+    use tokio::sync::mpsc::channel;
 
     #[tokio::test]
     async fn public_key_credential_creation_options() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration_ceremony = RegistrationCeremony {};
 
+        let (test_outgoing_message, mut test_outgoing_messages) = channel::<Message>(1);
+        let test_fail_ceremony = FailCeremony::init();
+        let mut test_relying_party_agent = RelyingPartyAgent::init(
+            test_outgoing_message.to_owned(),
+            test_fail_ceremony.to_owned(),
+        )
+        .await;
+        let test_client_agent = ClientAgent::init(test_relying_party_agent.0.to_owned()).await;
+        let mut test_authenticator_agent =
+            AuthenticatorAgent::init(test_client_agent.0, test_fail_ceremony.to_owned()).await;
+
+        tokio::spawn(async move {
+            test_authenticator_agent.1.run().await;
+        });
+
+        tokio::spawn(async move {
+            test_relying_party_agent.1.run().await;
+        });
+
+        tokio::spawn(async move {
+            if let Some(Message::Binary(test_data)) = test_outgoing_messages.recv().await {
+                let mut test_webauthndata: WebAuthnData =
+                    serde_json::from_slice(&test_data).unwrap();
+                let mut test_contents: PublicKeyCredentialUserEntity =
+                    serde_json::from_slice(&test_webauthndata.contents).unwrap();
+
+                println!("some test contents -> {:?}", &test_contents);
+
+                test_contents.name = String::from("some_test_name");
+                test_contents.display_name = String::from("some_test_display_name");
+
+                let test_updated_contents = serde_json::to_vec(&test_contents).expect("contents");
+
+                test_webauthndata.contents = test_updated_contents;
+
+                let json = serde_json::to_vec(&test_webauthndata).expect("json");
+
+                test_authenticator_agent.0.translate(json).await;
+            }
+        });
+
         assert!(test_registration_ceremony
-            .public_key_credential_creation_options("test_rp_id")
+            .public_key_credential_creation_options("test_rp_id", &test_client_agent.1)
             .await
             .is_ok());
 
@@ -413,11 +463,30 @@ mod tests {
     async fn call_credentials_create() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration_ceremony = RegistrationCeremony {};
 
-        let mut test_ceremony_io = CeremonyIO::init().await;
+        let (test_outgoing_message, mut test_outgoing_messages) = channel::<Message>(1);
+        let test_fail_ceremony = FailCeremony::init();
+        let mut test_relying_party_agent = RelyingPartyAgent::init(
+            test_outgoing_message.to_owned(),
+            test_fail_ceremony.to_owned(),
+        )
+        .await;
+        let test_client_agent = ClientAgent::init(test_relying_party_agent.0.to_owned()).await;
+        let mut test_authenticator_agent =
+            AuthenticatorAgent::init(test_client_agent.0, test_fail_ceremony.to_owned()).await;
 
         tokio::spawn(async move {
-            if let Some(CeremonyStatus::Continue(test_data)) = test_ceremony_io.2.recv().await {
+            test_authenticator_agent.1.run().await;
+        });
+
+        tokio::spawn(async move {
+            test_relying_party_agent.1.run().await;
+        });
+
+        tokio::spawn(async move {
+            if let Some(Message::Binary(test_data)) = test_outgoing_messages.recv().await {
                 let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
+
+                println!("test webauthn data -> {:?}", &test_webauthndata);
 
                 match test_webauthndata.message.as_str() {
                     "public_key_credential_creation_options" => {
@@ -438,25 +507,30 @@ mod tests {
                         };
                         let json = serde_json::to_vec(&webauthndata).expect("json");
 
-                        test_ceremony_io
-                            .5
-                            .send(json)
-                            .await
-                            .expect("test ceremony message");
+                        test_authenticator_agent.0.translate(json).await;
                     }
                     _ => panic!("this is just for testing..."),
                 }
             }
         });
 
-        let test_public_key_credential_creation_options = test_registration_ceremony
-            .public_key_credential_creation_options("test_rp_id")
-            .await?;
+        let test_rp_entity = PublicKeyCredentialRpEntity {
+            name: String::from("some_rp_name"),
+            id: String::from("some_rp_entity_id"),
+        };
+        let test_user_entity = PublicKeyCredentialUserEntity::generate(
+            String::from("some_user_name"),
+            String::from("some_display_name"),
+        )
+        .await;
+
+        let test_public_key_credential_creation_options =
+            PublicKeyCredentialCreationOptions::generate(test_rp_entity, test_user_entity).await;
 
         assert!(test_registration_ceremony
             .call_credentials_create(
                 &test_public_key_credential_creation_options,
-                &test_ceremony_io.3,
+                &test_client_agent.1,
             )
             .await
             .is_ok());
@@ -506,54 +580,33 @@ mod tests {
     async fn client_extension_results() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration_ceremony = RegistrationCeremony {};
 
-        let mut test_ceremony_io = CeremonyIO::init().await;
+        // let test_rp_entity = PublicKeyCredentialRpEntity {
+        //     name: String::from("some_rp_name"),
+        //     id: String::from("some_rp_entity_id"),
+        // };
 
-        tokio::spawn(async move {
-            if let Some(CeremonyStatus::Continue(test_data)) = test_ceremony_io.2.recv().await {
-                let test_webauthndata: WebAuthnData = serde_json::from_slice(&test_data).unwrap();
+        // let test_user_entity = PublicKeyCredentialUserEntity::generate(
+        //     String::from("some_user_name"),
+        //     String::from("some_display_name"),
+        // )
+        // .await;
 
-                match test_webauthndata.message.as_str() {
-                    "public_key_credential_creation_options" => {
-                        let id = [0u8; 16].to_vec();
-                        let client_data_json = Vec::with_capacity(0);
-                        let attestation_object = Vec::with_capacity(0);
-                        let response = AuthenticatorResponse::AuthenticatorAttestationResponse(
-                            AuthenticatorAttestationResponse {
-                                client_data_json,
-                                attestation_object,
-                            },
-                        );
-                        let credential = PublicKeyCredential::generate(id, response).await;
-                        let webauthndata = WebAuthnData {
-                            message: String::from("public_key_credential"),
-                            contents: serde_json::to_vec(&credential).expect("json"),
-                            timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                        };
-                        let json = serde_json::to_vec(&webauthndata).expect("json");
+        // let test_public_key_credential_creation_options =
+        //     PublicKeyCredentialCreationOptions::generate(test_rp_entity, test_user_entity).await;
 
-                        test_ceremony_io
-                            .5
-                            .send(json)
-                            .await
-                            .expect("test ceremony message");
-                    }
-                    _ => panic!("this is just for testing..."),
-                }
-            }
-        });
-
-        let test_public_key_credential_creation_options = test_registration_ceremony
-            .public_key_credential_creation_options("test_rp_id")
-            .await?;
-        let test_public_key_credential = test_registration_ceremony
-            .call_credentials_create(
-                &test_public_key_credential_creation_options,
-                &test_ceremony_io.3,
-            )
-            .await?;
+        let test_id = [0u8; 16].to_vec();
+        let test_client_data_json = Vec::with_capacity(0);
+        let test_attestation_object = Vec::with_capacity(0);
+        let test_response = AuthenticatorResponse::AuthenticatorAttestationResponse(
+            AuthenticatorAttestationResponse {
+                client_data_json: test_client_data_json,
+                attestation_object: test_attestation_object,
+            },
+        );
+        let test_credential = PublicKeyCredential::generate(test_id, test_response).await;
 
         assert!(test_registration_ceremony
-            .client_extension_results(&test_public_key_credential)
+            .client_extension_results(&test_credential)
             .await
             .is_ok());
 
@@ -636,9 +689,6 @@ mod tests {
     #[tokio::test]
     async fn verify_challenge() -> Result<(), Box<dyn std::error::Error>> {
         let test_registration_ceremony = RegistrationCeremony {};
-        let test_public_key_credential_creation_options = test_registration_ceremony
-            .public_key_credential_creation_options("test_rp_id")
-            .await?;
 
         let mut test_client_data = CollectedClientData {
             r#type: ClientDataType::Create,
@@ -647,6 +697,18 @@ mod tests {
             cross_origin: false,
             token_binding: None,
         };
+
+        let test_rp_entity = PublicKeyCredentialRpEntity {
+            name: String::from("some_rp_name"),
+            id: String::from("some_rp_entity_id"),
+        };
+        let test_user_entity = PublicKeyCredentialUserEntity::generate(
+            String::from("some_user_name"),
+            String::from("some_display_name"),
+        )
+        .await;
+        let test_public_key_credential_creation_options =
+            PublicKeyCredentialCreationOptions::generate(test_rp_entity, test_user_entity).await;
 
         assert!(test_registration_ceremony
             .verify_challenge(
@@ -962,9 +1024,19 @@ mod tests {
         )
         .await;
         let test_registration_ceremony = RegistrationCeremony {};
-        let mut test_public_key_credential_creation_options = test_registration_ceremony
-            .public_key_credential_creation_options("test_rp_id")
-            .await?;
+
+        let test_rp_entity = PublicKeyCredentialRpEntity {
+            name: String::from("some_rp_name"),
+            id: String::from("some_rp_entity_id"),
+        };
+        let test_user_entity = PublicKeyCredentialUserEntity::generate(
+            String::from("some_user_name"),
+            String::from("some_display_name"),
+        )
+        .await;
+
+        let mut test_public_key_credential_creation_options =
+            PublicKeyCredentialCreationOptions::generate(test_rp_entity, test_user_entity).await;
 
         assert!(test_registration_ceremony
             .verify_algorithm(
@@ -1211,9 +1283,20 @@ mod tests {
         )
         .await;
         let test_registration_ceremony = RegistrationCeremony {};
-        let test_options = test_registration_ceremony
-            .public_key_credential_creation_options("test_rp_id")
-            .await?;
+
+        let test_rp_entity = PublicKeyCredentialRpEntity {
+            name: String::from("some_rp_name"),
+            id: String::from("some_rp_entity_id"),
+        };
+
+        let test_user_entity = PublicKeyCredentialUserEntity::generate(
+            String::from("some_user_name"),
+            String::from("some_display_name"),
+        )
+        .await;
+
+        let test_options =
+            PublicKeyCredentialCreationOptions::generate(test_rp_entity, test_user_entity).await;
 
         let mut test_credential_public_key = CredentialPublicKey::init().await;
         let mut test_signature_counter = SignatureCounter::init().await;
