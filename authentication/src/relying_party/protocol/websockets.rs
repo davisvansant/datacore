@@ -20,7 +20,7 @@ use crate::relying_party::protocol::communication::{
     AuthenticatorAgent, AuthenticatorAgentChannel, ClientAgent, FailCeremony, RelyingPartyAgent,
 };
 use crate::relying_party::protocol::websockets::session::{Session, SessionChannel, SessionInfo};
-use crate::relying_party::RelyingPartyOperation;
+use crate::relying_party::{Ceremony, RelyingPartyOperation};
 use crate::security::session_token::SessionToken;
 use crate::security::uuid::SessionId;
 
@@ -223,10 +223,9 @@ async fn handle_registration_ceremony_session(
                 .await;
             });
 
-            if let Err(error) = relying_party
-                .registration_ceremony(session_info.id, client_agent.1, fail_ceremony.to_owned())
-                .await
-            {
+            let ceremony = Ceremony::Registration(client_agent.1, fail_ceremony.to_owned());
+
+            if let Err(error) = relying_party.initiate(ceremony).await {
                 println!("relying party operation -> {:?}", error);
 
                 fail_ceremony.error();
@@ -313,10 +312,9 @@ async fn handle_authentication_ceremony_session(
                 .await;
             });
 
-            if let Err(error) = relying_party
-                .authentication_ceremony(session_info.id, client_agent.1, fail_ceremony.to_owned())
-                .await
-            {
+            let ceremony = Ceremony::Authentication(client_agent.1, fail_ceremony.to_owned());
+
+            if let Err(error) = relying_party.initiate(ceremony).await {
                 println!("relying party operation -> {:?}", error);
 
                 fail_ceremony.error();
@@ -469,7 +467,7 @@ mod tests {
     };
     use crate::api::public_key_credential::PublicKeyCredential;
     use crate::relying_party::protocol::communication::WebAuthnData;
-    use crate::relying_party::{RelyingParty, SessionInfo};
+    use crate::relying_party::RelyingParty;
     use tokio_tungstenite::connect_async;
     use tokio_tungstenite::tungstenite;
 

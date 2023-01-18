@@ -1,139 +1,56 @@
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 
 use crate::api::supporting_data_structures::TokenBinding;
 use crate::error::{AuthenticationError, AuthenticationErrorType};
 use crate::relying_party::operation::{AuthenticationCeremony, RegistrationCeremony};
 use crate::relying_party::protocol::communication::{ClientAgent, FailCeremony};
-use crate::relying_party::session::{Active, Available, SessionInfo};
 use crate::relying_party::store::{CredentialPublicKey, CredentialPublicKeyChannel};
 use crate::relying_party::store::{SignatureCounter, SignatureCounterChannel};
 use crate::relying_party::store::{UserAccount, UserAccountChannel};
-use crate::security::uuid::SessionId;
 
 pub mod operation;
 pub mod protocol;
 pub mod store;
 
-mod session;
-
 #[derive(Debug)]
-pub enum Operation {
-    RegistrationCeremony((SessionId, ClientAgent, FailCeremony)),
-    AuthenticationCeremony((SessionId, ClientAgent, FailCeremony)),
+pub enum Ceremony {
+    Registration(ClientAgent, FailCeremony),
+    Authentication(ClientAgent, FailCeremony),
 }
 
 #[derive(Debug)]
-pub enum Response {
-    SessionInfo(SessionInfo),
-    Start,
-    Error,
+pub enum Operation {
+    Initiate(Ceremony),
 }
 
 #[derive(Clone)]
 pub struct RelyingPartyOperation {
-    run: mpsc::Sender<(Operation, oneshot::Sender<Response>)>,
+    run: mpsc::Sender<Operation>,
 }
 
 impl RelyingPartyOperation {
-    pub async fn init() -> (
-        RelyingPartyOperation,
-        mpsc::Receiver<(Operation, oneshot::Sender<Response>)>,
-    ) {
+    pub async fn init() -> (RelyingPartyOperation, mpsc::Receiver<Operation>) {
         let (run, operation) = mpsc::channel(100);
 
         (RelyingPartyOperation { run }, operation)
     }
 
-    pub async fn registration_ceremony(
-        &self,
-        session_id: SessionId,
-        client_agent: ClientAgent,
-        fail_ceremony: FailCeremony,
-    ) -> Result<(), AuthenticationError> {
-        let (request, response) = oneshot::channel();
+    pub async fn initiate(&self, ceremony: Ceremony) -> Result<(), AuthenticationError> {
+        if let Err(error) = self.run.send(Operation::Initiate(ceremony)).await {
+            println!("relying party operation | initiate ceremony -> {:?}", error);
 
-        match self
-            .run
-            .send((
-                Operation::RegistrationCeremony((session_id, client_agent, fail_ceremony)),
-                request,
-            ))
-            .await
-        {
-            Ok(()) => {
-                if let Err(error) = response.await {
-                    println!(
-                        "relying party operation | registration ceremony -> {:?}",
-                        error,
-                    );
-
-                    Err(AuthenticationError {
-                        error: AuthenticationErrorType::OperationError,
-                    })
-                } else {
-                    Ok(())
-                }
-            }
-            Err(error) => {
-                println!(
-                    "relying party operation | registration ceremony -> {:?}",
-                    error,
-                );
-
-                Err(AuthenticationError {
-                    error: AuthenticationErrorType::OperationError,
-                })
-            }
-        }
-    }
-
-    pub async fn authentication_ceremony(
-        &self,
-        session_id: SessionId,
-        client_agent: ClientAgent,
-        fail_ceremony: FailCeremony,
-    ) -> Result<(), AuthenticationError> {
-        let (request, response) = oneshot::channel();
-
-        match self
-            .run
-            .send((
-                Operation::AuthenticationCeremony((session_id, client_agent, fail_ceremony)),
-                request,
-            ))
-            .await
-        {
-            Ok(()) => {
-                if let Err(error) = response.await {
-                    println!(
-                        "relying party operation | registration ceremony -> {:?}",
-                        error,
-                    );
-
-                    Err(AuthenticationError {
-                        error: AuthenticationErrorType::OperationError,
-                    })
-                } else {
-                    Ok(())
-                }
-            }
-            Err(error) => {
-                println!(
-                    "relying party operation | authentication ceremony -> {:?}",
-                    error,
-                );
-
-                Err(AuthenticationError {
-                    error: AuthenticationErrorType::OperationError,
-                })
-            }
+            Err(AuthenticationError {
+                error: AuthenticationErrorType::OperationError,
+            })
+        } else {
+            Ok(())
         }
     }
 }
 
 pub struct RelyingParty {
     identifier: String,
-    operation: mpsc::Receiver<(Operation, oneshot::Sender<Response>)>,
+    operation: mpsc::Receiver<Operation>,
 }
 
 impl RelyingParty {
@@ -151,19 +68,9 @@ impl RelyingParty {
     }
 
     pub async fn run(&mut self) {
-        let mut active = Active::init().await;
-        let mut available = Available::init().await;
         let mut credential_public_key = CredentialPublicKey::init().await;
         let mut signature_counter = SignatureCounter::init().await;
         let mut user_account = UserAccount::init().await;
-
-        tokio::spawn(async move {
-            active.1.run().await;
-        });
-
-        tokio::spawn(async move {
-            available.1.run().await;
-        });
 
         tokio::spawn(async move {
             credential_public_key.1.run().await;
@@ -177,86 +84,76 @@ impl RelyingParty {
             user_account.1.run().await;
         });
 
-        while let Some((operation, response)) = self.operation.recv().await {
-            match operation {
-                Operation::RegistrationCeremony((session_id, client_agent, fail_ceremony)) => {
-                    let identifier = self.identifier.to_owned();
-                    let credential_public_key = credential_public_key.0.to_owned();
-                    let signature_counter = signature_counter.0.to_owned();
-                    let user_account = user_account.0.to_owned();
+        while let Some(Operation::Initiate(ceremony)) = self.operation.recv().await {
+            let identifier = self.identifier.to_owned();
+            let credential_public_key = credential_public_key.0.to_owned();
+            let signature_counter = signature_counter.0.to_owned();
+            let user_account = user_account.0.to_owned();
 
-                    let task_id = session_id.to_owned();
-                    let task = active.0.to_owned();
+            match ceremony {
+                Ceremony::Registration(client_agent, fail_ceremony) => {
+                    tokio::spawn(async move {
+                        let mut error = fail_ceremony.subscribe();
 
-                    let handle = tokio::spawn(async move {
-                        if let Err(error) = RelyingParty::register_new_credential(
-                            &identifier,
-                            client_agent,
-                            credential_public_key,
-                            signature_counter,
-                            user_account,
-                        )
-                        .await
-                        {
-                            println!("ceremony error -> {:?}", error);
+                        loop {
+                            tokio::select! {
+                                biased;
 
-                            task.abort(task_id).await;
-                            fail_ceremony.error();
+                                _ = error.recv() => {
+                                    println!("registration ceremony failed");
+
+                                    break;
+                                }
+
+                                Err(error) = RelyingParty::register_new_credential(
+                                    &identifier,
+                                    client_agent,
+                                    credential_public_key,
+                                    signature_counter,
+                                    user_account,
+                                ) =>
+                                {
+                                    println!("ceremony error -> {:?}", error);
+
+                                    fail_ceremony.error();
+
+                                    break;
+                                }
+                            }
                         }
                     });
-
-                    match active.0.insert(session_id, handle).await {
-                        Ok(()) => {
-                            let _ = response.send(Response::Start);
-                        }
-                        Err(error) => {
-                            println!(
-                                "relying party operation | registration ceremony -> {:?}",
-                                error,
-                            );
-
-                            active.0.abort(session_id).await;
-
-                            let _ = response.send(Response::Error);
-                        }
-                    }
                 }
-                Operation::AuthenticationCeremony((session_id, client_agent, fail_ceremony)) => {
-                    let identifier = self.identifier.to_owned();
-                    let credential_public_key = credential_public_key.0.to_owned();
-                    let signature_counter = signature_counter.0.to_owned();
-                    let user_account = user_account.0.to_owned();
+                Ceremony::Authentication(client_agent, fail_ceremony) => {
+                    tokio::spawn(async move {
+                        let mut error = fail_ceremony.subscribe();
 
-                    let task_id = session_id.to_owned();
-                    let task = active.0.to_owned();
+                        loop {
+                            tokio::select! {
+                                biased;
 
-                    let handle = tokio::spawn(async move {
-                        if let Err(error) = RelyingParty::verify_authentication_assertion(
-                            &identifier,
-                            client_agent,
-                            credential_public_key,
-                            signature_counter,
-                            user_account,
-                        )
-                        .await
-                        {
-                            println!("ceremony error -> {:?}", error);
+                                _ = error.recv() => {
+                                    println!("registration ceremony failed");
 
-                            task.abort(task_id).await;
-                            fail_ceremony.error();
+                                    break;
+                                }
+
+                                Err(error) = RelyingParty::register_new_credential(
+                                    &identifier,
+                                    client_agent,
+                                    credential_public_key,
+                                    signature_counter,
+                                    user_account,
+                                ) =>
+                                {
+                                    println!("ceremony error -> {:?}", error);
+
+                                    fail_ceremony.error();
+
+                                    break;
+                                }
+                            }
                         }
                     });
-
-                    if let Err(error) = active.0.insert(session_id, handle).await {
-                        println!(
-                            "relying party operation | authentication ceremony -> {:?}",
-                            error,
-                        );
-
-                        active.0.abort(session_id).await;
-
-                        let _ = response.send(Response::Error);
-                    }
                 }
             }
         }
