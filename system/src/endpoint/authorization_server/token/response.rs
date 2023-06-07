@@ -25,7 +25,7 @@ mod tests {
             expires_in: 3600,
         };
 
-        let test_json = to_value(&test_authorization_response)?;
+        let test_json = to_value(test_authorization_response)?;
 
         assert_eq!(test_json["access_token"], "some_access_token");
         assert_eq!(test_json["token_type"], "Bearer");

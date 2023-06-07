@@ -37,7 +37,7 @@ mod tests {
             client_secret_expires_at: String::from("some_test_client_secret_expires_at"),
         };
 
-        let test_json = to_value(&test_client_information)?;
+        let test_json = to_value(test_client_information)?;
 
         assert_eq!(test_json["client_id"], "some_test_client_id");
         assert_eq!(test_json["client_secret"], "some_test_client_secret");

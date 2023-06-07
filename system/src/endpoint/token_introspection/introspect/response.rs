@@ -49,7 +49,7 @@ mod tests {
             jti: None,
         };
 
-        let test_json_none = to_value(&test_introspection_response_none)?;
+        let test_json_none = to_value(test_introspection_response_none)?;
         let test_expected_json_none = json!({
             "active": true,
         });
@@ -71,7 +71,7 @@ mod tests {
             jti: Some(String::from("test_jti")),
         };
 
-        let test_json_some = to_value(&test_introspection_response_some)?;
+        let test_json_some = to_value(test_introspection_response_some)?;
         let test_expected_json_some = json!({
             "active": true,
             "scope": "test_scope",

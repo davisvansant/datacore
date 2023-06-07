@@ -40,7 +40,7 @@ mod tests {
             state: None,
         };
 
-        let test_json = to_value(&test_authorization_response)?;
+        let test_json = to_value(test_authorization_response)?;
 
         assert_eq!(test_json["code"], "some_test_code");
 
