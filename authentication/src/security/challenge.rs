@@ -1,4 +1,5 @@
-use base64::{decode, encode};
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use rand::{thread_rng, Rng};
 
 use crate::error::{AuthenticationError, AuthenticationErrorType};
@@ -12,11 +13,11 @@ pub async fn generate_challenge() -> Challenge {
 }
 
 pub async fn base64_encode_challenge(challenge: &Challenge) -> String {
-    encode(challenge)
+    STANDARD.encode(challenge)
 }
 
 pub async fn base64_decode_challenge(challenge: &str) -> Result<Vec<u8>, AuthenticationError> {
-    match decode(challenge) {
+    match STANDARD.decode(challenge) {
         Ok(decoded_challenge) => Ok(decoded_challenge),
         Err(error) => {
             println!("base64 decoding error -> {:?}", error);

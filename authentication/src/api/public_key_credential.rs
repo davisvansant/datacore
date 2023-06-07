@@ -1,3 +1,6 @@
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
+
 use serde::{Deserialize, Serialize};
 
 use crate::api::assertion_generation_options::PublicKeyCredentialRequestOptions;
@@ -21,7 +24,8 @@ impl PublicKeyCredential {
         response: AuthenticatorResponse,
     ) -> PublicKeyCredential {
         let r#type = PublicKeyCredentialType::PublicKey;
-        let id = base64::encode(&raw_id);
+        // let id = base64::encode(&raw_id);
+        let id = STANDARD.encode(&raw_id);
 
         PublicKeyCredential {
             id,
@@ -94,8 +98,9 @@ mod tests {
         let test_public_key_credential =
             PublicKeyCredential::generate(test_credential_id, test_response).await;
 
+        // let test_base64_engine = general_purpose::
         assert_eq!(
-            base64::decode(test_public_key_credential.id.as_bytes())?,
+            STANDARD.decode(test_public_key_credential.id.as_bytes())?,
             [0u8; 16],
         );
         assert_eq!(test_public_key_credential.raw_id, [0u8; 16]);

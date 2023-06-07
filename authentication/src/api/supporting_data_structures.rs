@@ -103,6 +103,8 @@ pub enum UserVerificationRequirement {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
 
     #[tokio::test]
     async fn collected_client_data() -> Result<(), Box<dyn std::error::Error>> {
@@ -119,7 +121,7 @@ mod tests {
 
         assert_eq!(test_collected_client_data.r#type, ClientDataType::Create);
         assert_eq!(
-            base64::decode(&test_collected_client_data.challenge)?,
+            STANDARD.decode(&test_collected_client_data.challenge)?,
             b"some_test_challenge",
         );
         assert_eq!(test_collected_client_data.origin, "some_test_origin");
