@@ -4,7 +4,7 @@ name: default
 
 steps:
   - name: test
-    image: rust:1.66.1
+    image: rust:1.70.0
     environment:
       RUST_BACKTRACE: full
     commands:
