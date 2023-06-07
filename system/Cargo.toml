@@ -6,8 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-axum = { version = "0.5.12", default-features = false, features = [ "http1", "query" ] }
-hyper = { version = "0.14.20", default-features = false }
+axum = { workspace = true, features = [  "http1", "query" ] }
+hyper = { version = "0.14.26", default-features = false }
 rand.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -15,6 +15,6 @@ tokio = { workspace = true, features = [ "sync"] }
 uuid.workspace = true
 
 [dev-dependencies]
-http = "0.2.8"
-hyper = { version = "0.14.20", default-features = false, features = [ "client", "http1" ] }
+http = "0.2.9"
+hyper = { version = "0.14.26", default-features = false, features = [ "client", "http1" ] }
 tokio = { workspace = true, features = [ "test-util" ] }

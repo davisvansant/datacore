@@ -11,11 +11,11 @@ path = "../bin/webauthn_relying_party.rs"
 
 [dependencies]
 axum = { workspace = true, features = ["ws"] }
-base64 = "0.13.1"
-chrono = { version = "0.4.23", default-features = false, features = [ "clock" ] }
-ciborium = "0.2.0"
+base64 = "0.21.2"
+chrono = { version = "0.4.26", default-features = false, features = [ "clock" ] }
+ciborium = "0.2.1"
 ed25519-dalek = "1.0.1"
-futures = "0.3.25"
+futures = "0.3.28"
 rand.workspace = true
 rand_chacha = "0.2.2" 
 serde.workspace = true
@@ -25,6 +25,6 @@ tokio.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
-hex-literal = "0.3.4"
+hex-literal = "0.4.1"
 tokio = { workspace = true, features = [ "test-util" ] }
-tokio-tungstenite = "0.18.0"
+tokio-tungstenite = "0.19.0"
